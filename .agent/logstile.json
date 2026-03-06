@@ -1,0 +1,5 @@
+{
+    "logstile" : { 
+        "[timestamp]" : "[YY-MM-DD] ATTACK: [%s] , WHERE: [%s] FROM: [%s] DETECTED: [%s], IP: , PORT: , PCRE DETECT TIME: [%d ms]"
+    }   
+}

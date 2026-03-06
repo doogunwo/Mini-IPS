@@ -1,0 +1,12 @@
+build/
+logs/
+*.o
+*.a
+*.so
+*.dylib
+*.exe
+*.log
+*.tmp
+compile_commands.json
+.DS_Store
+/.vscode/
