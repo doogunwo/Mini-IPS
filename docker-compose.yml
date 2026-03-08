@@ -2,62 +2,72 @@ services:
   server:
     build: ./server
     working_dir: /app
-    command:
-      [
-        "sh",
-        "-c",
-        "iptables -w -t mangle -C PREROUTING -i eth0 -p tcp -m tcp -d 172.31.0.60 --dport 8080 -j TEE --gateway 172.31.0.59 2>/dev/null || \
-         iptables -w -t mangle -A PREROUTING -i eth0 -p tcp -m tcp -d 172.31.0.60 --dport 8080 -j TEE --gateway 172.31.0.59; \
-         iptables -w -t mangle -C OUTPUT -o eth0 -p tcp -m tcp -s 172.31.0.60 --sport 8080 -j TEE --gateway 172.31.0.59 2>/dev/null || \
-         iptables -w -t mangle -A OUTPUT -o eth0 -p tcp -m tcp -s 172.31.0.60 --sport 8080 -j TEE --gateway 172.31.0.59; \
-         exec python3 server.py --host 0.0.0.0 --port 8080 --verbose"
-      ]
+    command: ["sh", "-c", "trap : TERM INT; sleep infinity & wait"]
+    volumes:
+      - ./runtime-logs/server:/logs
+    environment:
+      SERVER_IP: ${SERVER_CONTAINER_IP:-172.31.0.60}
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      SERVER_GATEWAY: ${IPS_CONTAINER_IP:-172.31.0.59}
+    stdin_open: true
+    tty: true
     cap_add:
       - NET_ADMIN
     networks:
       lan:
-        ipv4_address: 172.31.0.60
+        ipv4_address: ${SERVER_CONTAINER_IP:-172.31.0.60}
   normal:
     build: ./normal
     working_dir: /app
-    command: ["python3", "normal_client.py", "172.31.0.60", "8080", "--verbose"]
+    command: ["sh", "/app/run.sh"]
+    environment:
+      SERVER_IP: ${SERVER_CONTAINER_IP:-172.31.0.60}
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      CLIENT_VERBOSE: 1
     networks:
       lan:
-        ipv4_address: 172.31.0.57
+        ipv4_address: ${NORMAL_CONTAINER_IP:-172.31.0.57}
   bot:
     build: ./bot
     working_dir: /app
-    command:
-      [
-        "./bot",
-        "172.31.0.60",
-        "8080",
-        "-attack", "SQLI",
-        "-seed", "10",
-        "-verbose"
-      ]
+    command: ["sh", "-c", "trap : TERM INT; sleep infinity & wait"]
+    volumes:
+      - ./runtime-logs/bot:/logs
+    environment:
+      BOT_IP: ${SERVER_CONTAINER_IP:-172.31.0.60}
+      BOT_PORT: ${SERVER_PORT:-8080}
+      BOT_ATTACK: ${BOT_ATTACK:-SQLI}
+      BOT_SEED: ${BOT_SEED:-10}
+      BOT_VERBOSE: ${BOT_VERBOSE:-1}
+    stdin_open: true
+    tty: true
     networks:
       lan:
-        ipv4_address: 172.31.0.58
+        ipv4_address: ${BOT_CONTAINER_IP:-172.31.0.58}
   ips:
     build: ./ips
     working_dir: /app
-    command:
-      [
-        "./main",
-        "-mode=sniffing",
-        "-iface=eth0",
-        "-bpf=tcp and host 172.31.0.60 and port 8080"
-      ]
+    command: ["sh", "-c", "trap : TERM INT; sleep infinity & wait"]
+    volumes:
+      - ./runtime-logs/ips:/logs
+      - ./ips/DB:/app/DB
+    ports:
+      - "8090:8090"
+    environment:
+      IFACE: ${IPS_IFACE:-eth0}
+      BPF: tcp and host ${SERVER_CONTAINER_IP:-172.31.0.60} and port ${SERVER_PORT:-8080}
+      MODE: ${IPS_MODE:-sniffing}
+    stdin_open: true
+    tty: true
     cap_add:
       - NET_ADMIN
       - NET_RAW
     networks:
       lan:
-        ipv4_address: 172.31.0.59
+        ipv4_address: ${IPS_CONTAINER_IP:-172.31.0.59}
 networks:
   lan:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.31.0.0/24
+        - subnet: ${LAN_SUBNET:-172.31.0.0/24}

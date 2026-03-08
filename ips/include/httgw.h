@@ -151,7 +151,7 @@ void httgw_gc(httgw_t *gw, uint64_t now_ms);
 /** 읽기 전용 실행 통계를 돌려준다. */
 const httgw_stats_t *httgw_stats(const httgw_t *gw);
 /** 지정한 흐름의 현재 TCP 상태 스냅샷을 복사한다. */
-int httgw_get_session_snapshot(const flow_key_t *flow, httgw_sess_snapshot_t *out);
+int httgw_get_session_snapshot(const httgw_t *gw, const flow_key_t *flow, httgw_sess_snapshot_t *out);
 
 /** 파싱된 요청 URI에서 query 부분을 추출한다. */
 int httgw_extract_query(const http_message_t *msg, const char **q, size_t *q_len);
@@ -199,11 +199,11 @@ int httgw_request_rst_with_snapshot(
 
 
 /** 필요 시 세션 엔트리를 생성하는 테스트용 헬퍼이다. */
-int sess_get_or_create(const flow_key_t flow, uint64_t ts_ms);
+int sess_get_or_create(httgw_t *gw, const flow_key_t flow, uint64_t ts_ms);
 /** 세션 존재 여부를 확인하는 테스트용 헬퍼이다. */
-int sess_lookup(const flow_key_t flow);
+int sess_lookup(const httgw_t *gw, const flow_key_t flow);
 /** 세션 가비지 컬렉션을 수행하는 테스트용 헬퍼이다. */
-void sess_gc(uint64_t ts_ms);
+void sess_gc(httgw_t *gw, uint64_t ts_ms);
 
 /* --------------------------- 모드 관리 ---------------------------*/
 /* TP/SYN Proxy (skeleton) */

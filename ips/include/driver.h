@@ -41,7 +41,7 @@
 /*------패킷 큐 구현 -------------*/
 //  패킷 큐 (8~64), 패킷 슬롯 카운트 (기본 4096)
 #define DEFAULT_SLOT_COUNT 4096
-#define MIN_QUEUE_COUNT 8
+#define MIN_QUEUE_COUNT 1
 #define MAX_QUEUE_COUNT 64
 #define PACKET_MAX_BYTES 2048
 
@@ -264,7 +264,8 @@ static inline void packet_queue_set_destroy(packet_queue_set_t *set)
 typedef struct capture_ctx
 {
     pcap_t *handle;
-    packet_ring_t *ring;
+    packet_queue_set_t *queues;
+    uint32_t rr;
 } capture_ctx_t;
 
 typedef struct pcap_ctx
@@ -295,12 +296,17 @@ typedef struct {
 
     pthread_t capture_tid;
     pthread_t *worker_tids;
+    void *worker_args;
     int worker_count;
 
     atomic_bool stop;
 
     driver_packet_cb on_packet;
     void *on_packet_user;
+    void **worker_users;
+    size_t worker_user_count;
+
+    packet_queue_set_t queues;
 } driver_runtime_t;
 
 int driver_init(driver_runtime_t *rt, int worker_count);
@@ -308,6 +314,7 @@ int driver_start(driver_runtime_t *rt);
 int driver_stop(driver_runtime_t *rt);
 void driver_destroy(driver_runtime_t *rt);
 void driver_set_packet_handler(driver_runtime_t *rt, driver_packet_cb cb, void *user);
+void driver_set_packet_handler_multi(driver_runtime_t *rt, driver_packet_cb cb, void **users, size_t user_count);
 
 
 /*------------------------ Packet filter --------------*/

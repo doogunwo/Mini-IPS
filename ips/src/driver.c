@@ -9,6 +9,137 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <netinet/in.h>
+
+typedef struct worker_arg {
+    driver_runtime_t *rt;
+    uint32_t index;
+} worker_arg_t;
+
+static int endpoint_cmp(uint32_t a_ip, uint16_t a_port, uint32_t b_ip, uint16_t b_port)
+{
+    if (a_ip < b_ip)
+        return -1;
+    if (a_ip > b_ip)
+        return 1;
+    if (a_port < b_port)
+        return -1;
+    if (a_port > b_port)
+        return 1;
+    return 0;
+}
+
+static uint32_t flow_hash_5tuple(uint32_t sip, uint32_t dip, uint16_t sport, uint16_t dport, uint8_t proto)
+{
+    if (endpoint_cmp(sip, sport, dip, dport) > 0)
+    {
+        uint32_t tmp_ip = sip;
+        uint16_t tmp_port = sport;
+        sip = dip;
+        sport = dport;
+        dip = tmp_ip;
+        dport = tmp_port;
+    }
+
+    uint32_t h = 2166136261u;
+    h ^= sip;
+    h *= 16777619u;
+    h ^= dip;
+    h *= 16777619u;
+    h ^= ((uint32_t)sport << 16) | dport;
+    h *= 16777619u;
+    h ^= proto;
+    h *= 16777619u;
+    return h;
+}
+
+static int parse_ipv4_5tuple(const uint8_t *pkt, uint32_t len,
+                             uint32_t *sip, uint32_t *dip,
+                             uint16_t *sport, uint16_t *dport,
+                             uint8_t *proto)
+{
+    const uint8_t *p = pkt;
+    uint32_t n;
+    uint16_t eth_type;
+    uint32_t ihl;
+    uint16_t total_len;
+
+    if (!pkt || len < 14 + 20)
+        return 0;
+
+    eth_type = (uint16_t)((p[12] << 8) | p[13]);
+    p += 14;
+    n = len - 14;
+
+    if (eth_type == 0x8100 || eth_type == 0x88A8)
+    {
+        if (n < 4)
+            return 0;
+        eth_type = (uint16_t)((p[2] << 8) | p[3]);
+        p += 4;
+        n -= 4;
+    }
+
+    if (eth_type != 0x0800 || n < 20)
+        return 0;
+    if ((p[0] >> 4) != 4)
+        return 0;
+
+    ihl = (uint32_t)(p[0] & 0x0F) * 4U;
+    if (ihl < 20 || n < ihl)
+        return 0;
+    total_len = (uint16_t)((p[2] << 8) | p[3]);
+    if (total_len < ihl || n < total_len)
+        return 0;
+
+    *proto = p[9];
+    if (*proto != IPPROTO_TCP && *proto != IPPROTO_UDP)
+        return 0;
+
+    *sip = (uint32_t)((p[12] << 24) | (p[13] << 16) | (p[14] << 8) | p[15]);
+    *dip = (uint32_t)((p[16] << 24) | (p[17] << 16) | (p[18] << 8) | p[19]);
+
+    p += ihl;
+    if ((uint32_t)(total_len - ihl) < 8)
+        return 0;
+
+    *sport = (uint16_t)((p[0] << 8) | p[1]);
+    *dport = (uint16_t)((p[2] << 8) | p[3]);
+    return 1;
+}
+
+static uint32_t pick_worker_idx(capture_ctx_t *cc, const uint8_t *pkt, uint32_t len, uint32_t worker_count)
+{
+    uint32_t sip = 0, dip = 0;
+    uint16_t sport = 0, dport = 0;
+    uint8_t proto = 0;
+
+    if (worker_count == 0)
+        return 0;
+    if (!parse_ipv4_5tuple(pkt, len, &sip, &dip, &sport, &dport, &proto))
+    {
+        uint32_t idx = cc->rr % worker_count;
+        cc->rr++;
+        return idx;
+    }
+
+    return flow_hash_5tuple(sip, dip, sport, dport, proto) % worker_count;
+}
+
+static void wake_all_queues(driver_runtime_t *rt)
+{
+    if (!rt)
+        return;
+    for (uint32_t i = 0; i < rt->queues.qcount; i++)
+    {
+        packet_ring_t *r = &rt->queues.q[i];
+        pthread_mutex_lock(&r->mu);
+        r->use_blocking = 0;
+        pthread_cond_broadcast(&r->not_empty);
+        pthread_cond_broadcast(&r->not_full);
+        pthread_mutex_unlock(&r->mu);
+    }
+}
 
 /* 전체 사용 흐름
 capture_create(&cc, &pc);
@@ -72,7 +203,7 @@ void capture_close(capture_ctx_t *cc)
 int capture_poll_once(capture_ctx_t *cc)
 {
     // 1) 인자 검증
-    if (!cc || !cc->handle || !cc->ring)
+    if (!cc || !cc->handle || !cc->queues || cc->queues->qcount == 0)
         return EINVAL;
     struct pcap_pkthdr *hdr;
     const u_char *pkt;
@@ -83,7 +214,8 @@ int capture_poll_once(capture_ctx_t *cc)
         uint64_t ts_ns = ((uint64_t)hdr->ts.tv_sec * 1000000000ULL) +
                          ((uint64_t)hdr->ts.tv_usec * 1000ULL);
 
-        int rc = packet_ring_enq(cc->ring, pkt, hdr->caplen, ts_ns);
+        uint32_t idx = pick_worker_idx(cc, pkt, hdr->caplen, cc->queues->qcount);
+        int rc = packet_ring_enq(&cc->queues->q[idx], pkt, hdr->caplen, ts_ns);
         if (rc != 0)
             return rc;
         return 1;
@@ -97,7 +229,7 @@ int capture_poll_once(capture_ctx_t *cc)
 
 int capture_loop(capture_ctx_t *cc)
 {
-    if (!cc || !cc->handle || !cc->ring)
+    if (!cc || !cc->handle || !cc->queues || cc->queues->qcount == 0)
         return EINVAL;
     while (1)
     {
@@ -136,7 +268,10 @@ static void *capture_thread_func(void *arg)
 
 static void *worker_thread_func(void *arg)
 {
-    driver_runtime_t *rt = arg;
+    worker_arg_t *wa = arg;
+    driver_runtime_t *rt = wa->rt;
+    uint32_t idx = wa->index;
+    packet_ring_t *ring = &rt->queues.q[idx];
 
     uint8_t buf[PACKET_MAX_BYTES];
     uint32_t len;
@@ -144,11 +279,16 @@ static void *worker_thread_func(void *arg)
 
     while (!atomic_load(&rt->stop))
     {
-        int rc = packet_ring_deq(rt->cc.ring, buf, sizeof(buf), &len, &ts);
+        int rc = packet_ring_deq(ring, buf, sizeof(buf), &len, &ts);
         if (rc == 0)
         {
             if (rt->on_packet)
-                rt->on_packet(buf, len, ts, rt->on_packet_user);
+            {
+                void *user = rt->on_packet_user;
+                if (rt->worker_users && idx < rt->worker_user_count)
+                    user = rt->worker_users[idx];
+                rt->on_packet(buf, len, ts, user);
+            }
             continue;
         }
         if (rc == EAGAIN)
@@ -164,9 +304,27 @@ int driver_init(driver_runtime_t *rt, int worker_count)
         return EINVAL;
     rt->worker_count = worker_count;
     rt->worker_tids = calloc(worker_count, sizeof(pthread_t));
+    rt->worker_args = calloc(worker_count, sizeof(worker_arg_t));
 
-    if (!rt->worker_tids)
+    if (!rt->worker_tids || !rt->worker_args)
+    {
+        free(rt->worker_tids);
+        free(rt->worker_args);
+        rt->worker_tids = NULL;
+        rt->worker_args = NULL;
         return ENOMEM;
+    }
+    int qrc = packet_queue_set_init(&rt->queues, (uint32_t)worker_count, DEFAULT_SLOT_COUNT, 1);
+    if (qrc != 0)
+    {
+        free(rt->worker_tids);
+        free(rt->worker_args);
+        rt->worker_tids = NULL;
+        rt->worker_args = NULL;
+        return qrc;
+    }
+    rt->cc.queues = &rt->queues;
+    rt->cc.rr = 0;
     atomic_init(&rt->stop, false);
     return 0;
 }
@@ -180,17 +338,13 @@ int driver_start(driver_runtime_t *rt)
 
     for (int i = 0; i < rt->worker_count; i++)
     {
-        if (pthread_create(&rt->worker_tids[i], NULL, worker_thread_func, rt) != 0)
+        worker_arg_t *wa = &((worker_arg_t *)rt->worker_args)[i];
+        wa->rt = rt;
+        wa->index = (uint32_t)i;
+        if (pthread_create(&rt->worker_tids[i], NULL, worker_thread_func, wa) != 0)
         {
             atomic_store(&rt->stop, true);
-            if (rt->cc.ring)
-            {
-                pthread_mutex_lock(&rt->cc.ring->mu);
-                rt->cc.ring->use_blocking = 0;
-                pthread_cond_broadcast(&rt->cc.ring->not_empty);
-                pthread_cond_broadcast(&rt->cc.ring->not_full);
-                pthread_mutex_unlock(&rt->cc.ring->mu);
-            }
+            wake_all_queues(rt);
             for (int j = 0; j < i; j++)
                 pthread_join(rt->worker_tids[j], NULL);
             return EIO;
@@ -200,14 +354,7 @@ int driver_start(driver_runtime_t *rt)
     if (pthread_create(&rt->capture_tid, NULL, capture_thread_func, rt) != 0)
     {
         atomic_store(&rt->stop, true);
-        if (rt->cc.ring)
-        {
-            pthread_mutex_lock(&rt->cc.ring->mu);
-            rt->cc.ring->use_blocking = 0;
-            pthread_cond_broadcast(&rt->cc.ring->not_empty);
-            pthread_cond_broadcast(&rt->cc.ring->not_full);
-            pthread_mutex_unlock(&rt->cc.ring->mu);
-        }
+        wake_all_queues(rt);
         for (int i = 0; i < rt->worker_count; i++)
             pthread_join(rt->worker_tids[i], NULL);
         return EIO;
@@ -221,14 +368,7 @@ int driver_stop(driver_runtime_t *rt)
         return EINVAL;
     atomic_store(&rt->stop, true);
 
-    if (rt->cc.ring)
-    {
-        pthread_mutex_lock(&rt->cc.ring->mu);
-        rt->cc.ring->use_blocking = 0;
-        pthread_cond_broadcast(&rt->cc.ring->not_empty);
-        pthread_cond_broadcast(&rt->cc.ring->not_full);
-        pthread_mutex_unlock(&rt->cc.ring->mu);
-    }
+    wake_all_queues(rt);
 
     pthread_join(rt->capture_tid, NULL);
 
@@ -243,8 +383,13 @@ void driver_destroy(driver_runtime_t *rt)
     if (!rt)
         return;
     capture_close(&rt->cc);
+    packet_queue_set_destroy(&rt->queues);
     free(rt->worker_tids);
     rt->worker_tids = NULL;
+    free(rt->worker_args);
+    rt->worker_args = NULL;
+    rt->worker_users = NULL;
+    rt->worker_user_count = 0;
 }
 
 void driver_set_packet_handler(driver_runtime_t *rt, driver_packet_cb cb, void *user)
@@ -253,6 +398,15 @@ void driver_set_packet_handler(driver_runtime_t *rt, driver_packet_cb cb, void *
         return;
     rt->on_packet = cb;
     rt->on_packet_user = user;
+}
+
+void driver_set_packet_handler_multi(driver_runtime_t *rt, driver_packet_cb cb, void **users, size_t user_count)
+{
+    if (!rt)
+        return;
+    rt->on_packet = cb;
+    rt->worker_users = users;
+    rt->worker_user_count = user_count;
 }
 
 void driver_filter_policy_init(driver_filter_policy_t *p)

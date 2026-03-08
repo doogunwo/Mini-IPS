@@ -19,18 +19,10 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         libpcap0.8 \
         libpcre3 \
-        python3 \
         iptables \
         iproute2 \
         procps && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-RUN mkdir -p /app/build
 COPY --from=builder /app/build/main /app/main
-COPY --from=builder /app/build/main /app/build/main
-COPY DB /app/DB
-COPY image/run.sh /app/run.sh
-COPY start.sh /app/start.sh
-COPY start-log.sh /app/start-log.sh
-RUN chmod +x /app/run.sh /app/start.sh /app/start-log.sh /app/main /app/build/main /app/DB/run_ingest.sh /app/DB/run_follow_ingest.sh /app/DB/run_web.sh

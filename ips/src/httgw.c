@@ -564,6 +564,10 @@ struct httgw
     /* 송신 경로 핸들 + RST 송신함수*/
     void *tx_ctx;
     httgw_send_rst_fn tx_send_rst;
+
+    httgw_session_t **sess_buckets;
+    uint32_t sess_bucket_count;
+    uint32_t sess_count;
 };
 
 struct ip_hash
@@ -612,9 +616,6 @@ struct httgw_session
 #define HTTGW_SESS_TIMEOUT_MS (60ULL * 1000ULL)
 #define HTTGW_RST_BURST_COUNT 5U
 
-static httgw_session_t *g_sess_buckets[HTTGW_SESS_BUCKETS];
-static uint32_t g_sess_count = 0;
-
 static void sess_destroy(httgw_session_t *s)
 {
     if (!s)
@@ -661,10 +662,10 @@ static uint32_t HTTGW_UNUSED ip_hash_fn(uint32_t ip)
     return ip;
 }
 
-static httgw_session_t *sess_find(const flow_key_t *flow)
+static httgw_session_t *sess_find(const httgw_t *gw, const flow_key_t *flow)
 {
-    uint32_t idx = sess_flow_hash(flow) % HTTGW_SESS_BUCKETS;
-    for (httgw_session_t *s = g_sess_buckets[idx]; s; s = s->next)
+    uint32_t idx = sess_flow_hash(flow) % gw->sess_bucket_count;
+    for (httgw_session_t *s = gw->sess_buckets[idx]; s; s = s->next)
     {
         if (sess_flow_eq(&s->flow, flow))
             return s;
@@ -672,24 +673,24 @@ static httgw_session_t *sess_find(const flow_key_t *flow)
     return NULL;
 }
 
-static httgw_session_t *sess_remove_internal(const flow_key_t *flow)
+static httgw_session_t *sess_remove_internal(httgw_t *gw, const flow_key_t *flow)
 {
     uint32_t idx;
     httgw_session_t **pp;
 
-    if (!flow)
+    if (!gw || !flow)
         return NULL;
 
-    idx = sess_flow_hash(flow) % HTTGW_SESS_BUCKETS;
-    pp = &g_sess_buckets[idx];
+    idx = sess_flow_hash(flow) % gw->sess_bucket_count;
+    pp = &gw->sess_buckets[idx];
     while (*pp)
     {
         if (sess_flow_eq(&(*pp)->flow, flow))
         {
             httgw_session_t *s = *pp;
             *pp = s->next;
-            if (g_sess_count > 0)
-                g_sess_count--;
+            if (gw->sess_count > 0)
+                gw->sess_count--;
             s->next = NULL;
             return s;
         }
@@ -700,8 +701,8 @@ static httgw_session_t *sess_remove_internal(const flow_key_t *flow)
 
 static httgw_session_t *sess_get_or_create_internal(httgw_t *gw, const flow_key_t *flow, uint64_t ts_ms)
 {
-    uint32_t idx = sess_flow_hash(flow) % HTTGW_SESS_BUCKETS;
-    for (httgw_session_t *s = g_sess_buckets[idx]; s; s = s->next)
+    uint32_t idx = sess_flow_hash(flow) % gw->sess_bucket_count;
+    for (httgw_session_t *s = gw->sess_buckets[idx]; s; s = s->next)
     {
         if (sess_flow_eq(&s->flow, flow))
         {
@@ -724,9 +725,9 @@ static httgw_session_t *sess_get_or_create_internal(httgw_t *gw, const flow_key_
 
     s->flow = *flow;
     s->last_ts_ms = ts_ms;
-    s->next = g_sess_buckets[idx];
-    g_sess_buckets[idx] = s;
-    g_sess_count++;
+    s->next = gw->sess_buckets[idx];
+    gw->sess_buckets[idx] = s;
+    gw->sess_count++;
     return s;
 }
 
@@ -919,7 +920,7 @@ static uint32_t tcp_next_seq(uint32_t seq, uint32_t payload_len, uint8_t flags)
 
 static void drain_http(httgw_t *gw, const flow_key_t *flow, tcp_dir_t dir)
 {
-    httgw_session_t *sess = sess_find(flow);
+    httgw_session_t *sess = sess_find(gw, flow);
     http_stream_t *s;
     http_message_t msg;
 
@@ -968,7 +969,7 @@ static void on_stream_data(
     http_stream_t *stream;
     http_stream_rc_t rc;
 
-    sess = sess_find(flow);
+    sess = sess_find(gw, flow);
     if (!sess)
     {
         if (gw->cbs.on_error)
@@ -1042,6 +1043,13 @@ httgw_t *httgw_create(const httgw_cfg_t *cfg, const httgw_callbacks_t *cbs, void
         httgw_destroy(gw);
         return NULL;
     }
+    gw->sess_bucket_count = HTTGW_SESS_BUCKETS;
+    gw->sess_buckets = (httgw_session_t **)calloc(gw->sess_bucket_count, sizeof(*gw->sess_buckets));
+    if (!gw->sess_buckets)
+    {
+        httgw_destroy(gw);
+        return NULL;
+    }
 
     if (cfg)
     {
@@ -1060,18 +1068,23 @@ void httgw_destroy(httgw_t *gw)
 {
     if (!gw)
         return;
-    for (uint32_t i = 0; i < HTTGW_SESS_BUCKETS; i++)
+    if (gw->sess_buckets)
     {
-        httgw_session_t *s = g_sess_buckets[i];
-        while (s)
+        for (uint32_t i = 0; i < gw->sess_bucket_count; i++)
         {
-            httgw_session_t *n = s->next;
-            sess_destroy(s);
-            s = n;
+            httgw_session_t *s = gw->sess_buckets[i];
+            while (s)
+            {
+                httgw_session_t *n = s->next;
+                sess_destroy(s);
+                s = n;
+            }
+            gw->sess_buckets[i] = NULL;
         }
-        g_sess_buckets[i] = NULL;
+        free(gw->sess_buckets);
+        gw->sess_buckets = NULL;
     }
-    g_sess_count = 0;
+    gw->sess_count = 0;
     if (gw->reasm)
         reasm_destroy(gw->reasm);
     free(gw);
@@ -1112,7 +1125,7 @@ int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen, uint64
 
     if (flags & TCP_RST)
     {
-        sess = sess_remove_internal(&flow);
+        sess = sess_remove_internal(gw, &flow);
         if (sess)
             sess_destroy(sess);
 
@@ -1173,7 +1186,7 @@ int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen, uint64
     rc = reasm_ingest(gw->reasm, &flow, dir, seq, flags, payload, payload_len, ts_ms);
     if (rc != 0)
     {
-        httgw_session_t *stale = sess_remove_internal(&flow);
+        httgw_session_t *stale = sess_remove_internal(gw, &flow);
         gw->stats.reasm_errs++;
         if (stale)
             sess_destroy(stale);
@@ -1193,9 +1206,9 @@ void httgw_gc(httgw_t *gw, uint64_t now_ms)
     if (!gw || !gw->reasm)
         return;
     reasm_gc(gw->reasm, now_ms);
-    for (uint32_t i = 0; i < HTTGW_SESS_BUCKETS; i++)
+    for (uint32_t i = 0; i < gw->sess_bucket_count; i++)
     {
-        httgw_session_t **pp = &g_sess_buckets[i];
+        httgw_session_t **pp = &gw->sess_buckets[i];
         while (*pp)
         {
             httgw_session_t *s = *pp;
@@ -1203,8 +1216,8 @@ void httgw_gc(httgw_t *gw, uint64_t now_ms)
             {
                 *pp = s->next;
                 sess_destroy(s);
-                if (g_sess_count > 0)
-                    g_sess_count--;
+                if (gw->sess_count > 0)
+                    gw->sess_count--;
                 continue;
             }
             pp = &(*pp)->next;
@@ -1219,11 +1232,11 @@ const httgw_stats_t *httgw_stats(const httgw_t *gw)
     return &gw->stats;
 }
 
-int httgw_get_session_snapshot(const flow_key_t *flow, httgw_sess_snapshot_t *out)
+int httgw_get_session_snapshot(const httgw_t *gw, const flow_key_t *flow, httgw_sess_snapshot_t *out)
 {
-    if (!flow || !out)
+    if (!gw || !flow || !out)
         return -1;
-    httgw_session_t *sess = sess_find(flow);
+    httgw_session_t *sess = sess_find(gw, flow);
     if (!sess)
         return -2;
     memset(out, 0, sizeof(*out));
@@ -1636,7 +1649,7 @@ int httgw_request_rst_with_snapshot(
     if (!gw->tx_send_rst)
         return -4;
 
-    sess = sess_find(flow);
+    sess = sess_find(gw, flow);
     if (!sess)
         return -2;
     if (dir == DIR_AB && sess->rst_sent_ab)
@@ -1744,19 +1757,21 @@ int httgw_request_rst(httgw_t *gw, const flow_key_t *flow, tcp_dir_t dir)
     return httgw_request_rst_with_snapshot(gw, flow, dir, NULL);
 }
 
-int sess_get_or_create(const flow_key_t flow, uint64_t ts_ms)
+int sess_get_or_create(httgw_t *gw, const flow_key_t flow, uint64_t ts_ms)
 {
-    (void)flow;
-    (void)ts_ms;
-    return 0;
+    if (!gw)
+        return -1;
+    return sess_get_or_create_internal(gw, &flow, ts_ms) ? 1 : 0;
 }
 
-int sess_lookup(const flow_key_t flow)
+int sess_lookup(const httgw_t *gw, const flow_key_t flow)
 {
-    return sess_find(&flow) ? 1 : 0;
+    if (!gw)
+        return 0;
+    return sess_find(gw, &flow) ? 1 : 0;
 }
 
-void sess_gc(uint64_t ts_ms)
+void sess_gc(httgw_t *gw, uint64_t ts_ms)
 {
-    (void)ts_ms;
+    httgw_gc(gw, ts_ms);
 }

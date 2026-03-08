@@ -18,6 +18,18 @@ typedef enum {
 
 typedef struct detect_engine detect_engine_t;
 
+typedef struct {
+    const IPS_Signature *rule;
+    ips_context_t context;
+    char *matched_text;
+} detect_match_t;
+
+typedef struct {
+    detect_match_t *items;
+    size_t count;
+    size_t capacity;
+} detect_match_list_t;
+
 /**
  * @brief 탐지 엔진 인스턴스 생성
  * @details 입력받은 정책 이름을 바탕으로 탐지 엔진을 초기화하고 메모리를 할당한다. 
@@ -65,6 +77,17 @@ int detect_engine_match_ctx(
     ips_context_t ctx,
     const IPS_Signature **matched_rule
 );
+
+int detect_engine_collect_matches_ctx(
+    detect_engine_t *e,
+    const uint8_t *data,
+    size_t len,
+    ips_context_t ctx,
+    detect_match_list_t *matches
+);
+
+void detect_match_list_init(detect_match_list_t *matches);
+void detect_match_list_free(detect_match_list_t *matches);
 
 /**
  * @brief 디버깅과 로그 출력을 위해 마지막 내부 오류 문자열을 돌려준다.

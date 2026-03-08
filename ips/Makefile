@@ -22,7 +22,7 @@ PCRE_LIBS = $(shell \
 	fi \
 )
 PCRE_CHECK_BIN := /tmp/ips_pcre_check
-AUTO_INSTALL_DEPS ?= 1
+AUTO_INSTALL_DEPS ?= 0
 
 SRC_DIR := src
 INC_DIR := include

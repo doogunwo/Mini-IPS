@@ -1,5 +1,9 @@
+#if defined(__APPLE__)
+#define _DARWIN_C_SOURCE
+#else
 #define _POSIX_C_SOURCE 200809L
 #define _DEFAULT_SOURCE
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,7 +15,14 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#if defined(__APPLE__)
+#include <netinet/tcp.h>
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
+#else
 #include <linux/tcp.h>
+#endif
 #include <unistd.h>
 /* ----------------------*/
 #include "tests/sqli_attack.h"
@@ -125,6 +136,12 @@ static int connect_tcp(const char *ip, int port)
 
     fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) return -1;
+#if defined(__APPLE__)
+    {
+        int on = 1;
+        (void)setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, sizeof(on));
+    }
+#endif
 
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
@@ -160,6 +177,22 @@ static int send_all(int fd, const char *buf, size_t len)
 
 static void log_tcp_state(int fd, size_t app_tx_bytes, size_t app_rx_bytes)
 {
+#if defined(__APPLE__)
+    struct tcp_connection_info ti;
+    socklen_t ti_len = (socklen_t)sizeof(ti);
+    memset(&ti, 0, sizeof(ti));
+    if (getsockopt(fd, IPPROTO_TCP, TCP_CONNECTION_INFO, &ti, &ti_len) != 0)
+        return;
+
+    fprintf(stderr,
+            "[BOT][TCP] rel_seq=%zu rel_ack=%zu snd_cwnd=%u rcv_wnd=%u rtt_ms=%u total_retrans=%llu\n",
+            app_tx_bytes + 1U,
+            app_rx_bytes + 1U,
+            (unsigned int)ti.tcpi_snd_cwnd,
+            (unsigned int)ti.tcpi_rcv_wnd,
+            (unsigned int)ti.tcpi_rttcur,
+            (unsigned long long)ti.tcpi_txretransmitpackets);
+#else
     struct tcp_info ti;
     socklen_t ti_len = (socklen_t)sizeof(ti);
     memset(&ti, 0, sizeof(ti));
@@ -175,6 +208,7 @@ static void log_tcp_state(int fd, size_t app_tx_bytes, size_t app_rx_bytes)
             (unsigned int)ti.tcpi_snd_cwnd,
             (unsigned int)ti.tcpi_rtt,
             (unsigned int)ti.tcpi_total_retrans);
+#endif
 }
 
 static const test_case_t *pick_case(const attack_group_t *group, expect_t want)

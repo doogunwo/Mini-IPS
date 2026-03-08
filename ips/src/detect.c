@@ -50,6 +50,62 @@ const char *detect_engine_last_error(const detect_engine_t *e)
     return e->last_err;
 }
 
+void detect_match_list_init(detect_match_list_t *matches)
+{
+    if (!matches)
+        return;
+    memset(matches, 0, sizeof(*matches));
+}
+
+void detect_match_list_free(detect_match_list_t *matches)
+{
+    size_t i;
+
+    if (!matches)
+        return;
+    for (i = 0; i < matches->count; i++)
+        free(matches->items[i].matched_text);
+    free(matches->items);
+    memset(matches, 0, sizeof(*matches));
+}
+
+static int detect_match_list_append(
+    detect_match_list_t *matches,
+    const IPS_Signature *rule,
+    ips_context_t ctx,
+    const char *matched_text,
+    size_t matched_len
+)
+{
+    detect_match_t *next_items;
+    char *copy;
+    size_t next_cap;
+
+    if (!matches)
+        return -1;
+    if (matches->count == matches->capacity)
+    {
+        next_cap = matches->capacity ? matches->capacity * 2U : 8U;
+        next_items = (detect_match_t *)realloc(matches->items, next_cap * sizeof(*next_items));
+        if (!next_items)
+            return -1;
+        matches->items = next_items;
+        matches->capacity = next_cap;
+    }
+
+    copy = (char *)malloc(matched_len + 1U);
+    if (!copy)
+        return -1;
+    memcpy(copy, matched_text, matched_len);
+    copy[matched_len] = '\0';
+
+    matches->items[matches->count].rule = rule;
+    matches->items[matches->count].context = ctx;
+    matches->items[matches->count].matched_text = copy;
+    matches->count++;
+    return 0;
+}
+
 static int collect_policy_patterns(const char *policy_name, policy_pattern_set_t *out)
 {
     int i;
@@ -343,6 +399,93 @@ int detect_engine_match_ctx(
             return -1;
     }
     return detect_engine_match_internal(e, data, len, ctx, matched_rule);
+}
+
+int detect_engine_collect_matches_ctx(
+    detect_engine_t *e,
+    const uint8_t *data,
+    size_t len,
+    ips_context_t ctx,
+    detect_match_list_t *matches
+)
+{
+    int ovector[30];
+    unsigned int i;
+    int matched_any = 0;
+
+    if (!matches)
+    {
+        if (e)
+            set_err(e, "null matches");
+        return -1;
+    }
+    if (!e || !data || len == 0)
+        return 0;
+    if (len > (size_t)INT_MAX)
+    {
+        set_err(e, "payload too large");
+        return -1;
+    }
+
+    switch (ctx)
+    {
+        case IPS_CTX_REQUEST_URI:
+        case IPS_CTX_ARGS:
+        case IPS_CTX_ARGS_NAMES:
+        case IPS_CTX_REQUEST_HEADERS:
+        case IPS_CTX_REQUEST_BODY:
+        case IPS_CTX_ALL:
+            break;
+        default:
+            set_err(e, "invalid context");
+            return -1;
+    }
+
+    for (i = 0; i < e->pcre.count; i++)
+    {
+        int rc;
+        if (i < e->rule_count && e->rules[i])
+        {
+            ips_context_t rule_ctx = e->rules[i]->context;
+            if (ctx != IPS_CTX_ALL && rule_ctx != IPS_CTX_ALL && rule_ctx != ctx)
+                continue;
+        }
+        rc = pcre_exec(
+            e->pcre.compiled[i],
+            e->pcre.extra ? e->pcre.extra[i] : NULL,
+            (const char *)data,
+            (int)len,
+            0,
+            0,
+            ovector,
+            (int)(sizeof(ovector) / sizeof(ovector[0]))
+        );
+        if (rc >= 0)
+        {
+            size_t start = (size_t)ovector[0];
+            size_t end = (size_t)ovector[1];
+            if (end >= start && end <= len)
+            {
+                if (detect_match_list_append(matches,
+                                             i < e->rule_count ? e->rules[i] : NULL,
+                                             ctx,
+                                             (const char *)data + start,
+                                             end - start) != 0)
+                {
+                    set_err(e, "append match failed");
+                    return -1;
+                }
+                matched_any = 1;
+            }
+            continue;
+        }
+        if (rc != PCRE_ERROR_NOMATCH)
+        {
+            set_err(e, "pcre_exec error");
+            return -1;
+        }
+    }
+    return matched_any ? 1 : 0;
 }
 
 int detect_engine_match(
