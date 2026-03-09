@@ -1,157 +1,182 @@
-#if defined(__APPLE__)
-#define _DARWIN_C_SOURCE
-#else
-#define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
+#include <arpa/inet.h>
+#include <errno.h>
+#include <netinet/tcp.h>
+#ifdef __linux__
+#include <linux/tcp.h>
 #endif
+#include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
+#include <sys/socket.h>
 #include <time.h>
 #include <unistd.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#if defined(__APPLE__)
-#include <netinet/tcp.h>
-#ifndef MSG_NOSIGNAL
-#define MSG_NOSIGNAL 0
-#endif
-#else
-#include <linux/tcp.h>
-#endif
-#include <unistd.h>
-/* ----------------------*/
-#include "tests/sqli_attack.h"
-#include "tests/xss_attack.h"
-#include "tests/RCE_attack.h"
-#include "tests/LFI_attack.h"
-#include "tests/RFI_attack.h"
-#include "tests/php_attack.h"
-#include "tests/java_attack.h"
-#include "tests/generic_attack.h"
-#include "tests/protocol_attack.h"
-#include "tests/session_fixation_attack.h"
-#include "tests/response_data.h"
-#include "tests/multipart_attack.h"
+#include <ctype.h>
 
-typedef struct options {
+typedef enum {
+    MODE_URL = 0,
+    MODE_BODY,
+    MODE_HEADER
+} bot_mode_t;
+
+typedef enum {
+    PAYLOAD_SQLI = 0,
+    PAYLOAD_XSS,
+    PAYLOAD_REDOS,
+    PAYLOAD_RCE
+} payload_kind_t;
+
+typedef struct {
     const char *ip;
     int port;
-    const char *attack;
-    unsigned int seed;
+    bot_mode_t mode;
+    payload_kind_t payload;
+    bool mode_set;
+    bool payload_set;
+    size_t uri_size;
+    size_t body_size;
+    size_t header_size;
+    const char *prefix;
+    const char *suffix;
     int verbose;
+    unsigned int seed;
+    int count;
+} bot_cfg_t;
 
-} bot_options_t;
-
-static void print_usage(const char *prog) {
+static void usage(const char *prog)
+{
     fprintf(stderr,
-        "usage: %s <ip> <port> -attack <name> [options]\n"
+        "usage: %s <ip> <port> -mode <url|body|header> -payload <sqli|xss|redos|rce> [options]\n"
+        "scenario:\n"
+        "  keep-alive TCP session 1개를 열고 공격 요청만 반복 전송\n"
         "options:\n"
+        "  -uri-size <N>      generated URI payload size\n"
+        "  -body-size <N>     generated BODY payload size\n"
+        "  -header-size <N>   generated HEADER payload size\n"
+        "  -prefix <TEXT>     prefix text added before generated padding\n"
+        "  -suffix <TEXT>     suffix text added after generated padding\n"
+        "  -count <N>         number of attack requests on same session\n"
         "  -seed <N>          random seed (default 0 = time)\n"
         "  -verbose           verbose output\n",
-        prog
-    );
+        prog);
 }
 
-static int parse_int(const char *s, int *out) 
+static const char *default_suffix(payload_kind_t kind)
+{
+    switch (kind) {
+    case PAYLOAD_SQLI:
+        return "' OR 1=1 --";
+    case PAYLOAD_XSS:
+        return "\"><script>alert(1)</script>";
+    case PAYLOAD_REDOS:
+        return "X";
+    case PAYLOAD_RCE:
+        return ";id";
+    default:
+        return "X";
+    }
+}
+
+static const char *mode_name(bot_mode_t mode)
+{
+    switch (mode) {
+    case MODE_URL:
+        return "url";
+    case MODE_BODY:
+        return "body";
+    case MODE_HEADER:
+        return "header";
+    default:
+        return "unknown";
+    }
+}
+
+static const char *payload_name(payload_kind_t kind)
+{
+    switch (kind) {
+    case PAYLOAD_SQLI:
+        return "sqli";
+    case PAYLOAD_XSS:
+        return "xss";
+    case PAYLOAD_REDOS:
+        return "redos";
+    case PAYLOAD_RCE:
+        return "rce";
+    default:
+        return "unknown";
+    }
+}
+
+static int parse_mode(const char *s, bot_mode_t *out)
+{
+    if (strcmp(s, "url") == 0) {
+        *out = MODE_URL;
+        return 0;
+    }
+    if (strcmp(s, "body") == 0) {
+        *out = MODE_BODY;
+        return 0;
+    }
+    if (strcmp(s, "header") == 0) {
+        *out = MODE_HEADER;
+        return 0;
+    }
+    return -1;
+}
+
+static int parse_payload(const char *s, payload_kind_t *out)
+{
+    if (strcmp(s, "sqli") == 0) {
+        *out = PAYLOAD_SQLI;
+        return 0;
+    }
+    if (strcmp(s, "xss") == 0) {
+        *out = PAYLOAD_XSS;
+        return 0;
+    }
+    if (strcmp(s, "redos") == 0) {
+        *out = PAYLOAD_REDOS;
+        return 0;
+    }
+    if (strcmp(s, "rce") == 0) {
+        *out = PAYLOAD_RCE;
+        return 0;
+    }
+    return -1;
+}
+
+static size_t parse_size_or_die(const char *arg, const char *name)
 {
     char *end = NULL;
-    long v;
-    errno = 0;
-    v = strtol(s, &end, 10);
-    if (errno != 0 || end == s || *end != '\0') return 0;
-    *out = (int)v;
-    return 1;
-}
-
-typedef struct attack_group {
-    const char *name;
-    int (*get_count)(void);
-    const test_case_t *(*get_case)(int);
-} attack_group_t;
-
-static int str_eq_ignore_case(const char *a, const char *b)
-{
-    while (*a && *b) {
-        char ca = *a;
-        char cb = *b;
-        if (ca >= 'A' && ca <= 'Z') ca = (char)(ca - 'A' + 'a');
-        if (cb >= 'A' && cb <= 'Z') cb = (char)(cb - 'A' + 'a');
-        if (ca != cb) return 0;
-        a++;
-        b++;
+    unsigned long long v = strtoull(arg, &end, 10);
+    if (arg[0] == '\0' || end == NULL || *end != '\0') {
+        fprintf(stderr, "invalid %s: %s\n", name, arg);
+        exit(1);
     }
-    return *a == '\0' && *b == '\0';
+    return (size_t)v;
 }
 
-static const attack_group_t g_attack_groups[] = {
-    { "SQLI", sqli_get_count, sqli_get_case },
-    { "XSS", xss_get_count, xss_get_case },
-    { "RCE", RCE_get_count, RCE_get_case },
-    { "LFI", LFI_get_count, LFI_get_case },
-    { "RFI", RFI_get_count, RFI_get_case },
-    { "PHP", php_get_count, php_get_case },
-    { "JAVA", java_get_count, java_get_case },
-    { "GENERIC", generic_get_count, generic_get_case },
-    { "PROTOCOL", protocol_get_count, protocol_get_case },
-    { "SESSION_FIXATION", session_fixation_get_count, session_fixation_get_case },
-    { "RESPONSE", response_data_get_count, response_data_get_case },
-    { "RESPONSE_DATA", response_data_get_count, response_data_get_case },
-    { "MULTIPART", multipart_get_count, multipart_get_case }
-};
-
-static const size_t g_attack_group_count =
-    sizeof(g_attack_groups) / sizeof(g_attack_groups[0]);
-
-static void print_available_attacks(void)
+static int connect_target(const char *ip, int port)
 {
-    size_t i;
-    fprintf(stderr, "available attacks:");
-    for (i = 0; i < g_attack_group_count; i++) {
-        fprintf(stderr, " %s", g_attack_groups[i].name);
-    }
-    fputc('\n', stderr);
-}
-
-static const attack_group_t *find_attack_group(const char *name)
-{
-    size_t i;
-    if (!name) return NULL;
-    for (i = 0; i < g_attack_group_count; i++) {
-        if (str_eq_ignore_case(name, g_attack_groups[i].name)) {
-            return &g_attack_groups[i];
-        }
-    }
-    return NULL;
-}
-
-static int connect_tcp(const char *ip, int port)
-{
-    int fd;
     struct sockaddr_in addr;
-
-    fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (fd < 0) return -1;
-#if defined(__APPLE__)
-    {
-        int on = 1;
-        (void)setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &on, sizeof(on));
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
+        perror("socket");
+        return -1;
     }
-#endif
 
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = htons((uint16_t)port);
     if (inet_pton(AF_INET, ip, &addr.sin_addr) != 1) {
+        fprintf(stderr, "invalid ip: %s\n", ip);
         close(fd);
         return -1;
     }
 
     if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        perror("connect");
         close(fd);
         return -1;
     }
@@ -161,181 +186,369 @@ static int connect_tcp(const char *ip, int port)
 
 static int send_all(int fd, const char *buf, size_t len)
 {
-    size_t sent = 0;
-    while (sent < len) {
-        ssize_t n = send(fd, buf + sent, len - sent, MSG_NOSIGNAL);
-        if (n > 0) {
-            sent += (size_t)n;
-            continue;
+    size_t off = 0;
+    while (off < len) {
+        ssize_t n = send(fd, buf + off, len - off, 0);
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return -1;
         }
-        if (n < 0 && errno == EINTR) continue;
-        if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) continue;
-        return -1;
+        if (n == 0) {
+            return -1;
+        }
+        off += (size_t)n;
     }
     return 0;
 }
 
-static void log_tcp_state(int fd, size_t app_tx_bytes, size_t app_rx_bytes)
+static void print_tcp_info(int fd)
 {
-#if defined(__APPLE__)
-    struct tcp_connection_info ti;
-    socklen_t ti_len = (socklen_t)sizeof(ti);
-    memset(&ti, 0, sizeof(ti));
-    if (getsockopt(fd, IPPROTO_TCP, TCP_CONNECTION_INFO, &ti, &ti_len) != 0)
-        return;
-
-    fprintf(stderr,
-            "[BOT][TCP] rel_seq=%zu rel_ack=%zu snd_cwnd=%u rcv_wnd=%u rtt_ms=%u total_retrans=%llu\n",
-            app_tx_bytes + 1U,
-            app_rx_bytes + 1U,
-            (unsigned int)ti.tcpi_snd_cwnd,
-            (unsigned int)ti.tcpi_rcv_wnd,
-            (unsigned int)ti.tcpi_rttcur,
-            (unsigned long long)ti.tcpi_txretransmitpackets);
-#else
-    struct tcp_info ti;
-    socklen_t ti_len = (socklen_t)sizeof(ti);
-    memset(&ti, 0, sizeof(ti));
-    if (getsockopt(fd, IPPROTO_TCP, TCP_INFO, &ti, &ti_len) != 0)
-        return;
-
-    fprintf(stderr,
-            "[BOT][TCP] rel_seq=%zu rel_ack=%zu unacked=%u rcv_space=%u snd_cwnd=%u rtt_us=%u total_retrans=%u\n",
-            app_tx_bytes + 1U,
-            app_rx_bytes + 1U,
-            (unsigned int)ti.tcpi_unacked,
-            (unsigned int)ti.tcpi_rcv_space,
-            (unsigned int)ti.tcpi_snd_cwnd,
-            (unsigned int)ti.tcpi_rtt,
-            (unsigned int)ti.tcpi_total_retrans);
-#endif
+    struct tcp_info info;
+    socklen_t len = sizeof(info);
+    if (getsockopt(fd, IPPROTO_TCP, TCP_INFO, &info, &len) == 0) {
+        printf("[BOT][TCP] unacked=%u rcv_space=%u snd_cwnd=%u rtt_us=%u total_retrans=%u\n",
+            info.tcpi_unacked,
+            info.tcpi_rcv_space,
+            info.tcpi_snd_cwnd,
+            info.tcpi_rtt,
+            info.tcpi_total_retrans);
+    }
 }
 
-static const test_case_t *pick_case(const attack_group_t *group, expect_t want)
+static char filler_char(payload_kind_t kind)
 {
-    int count;
-    int i;
-    const test_case_t *tc;
+    return kind == PAYLOAD_REDOS ? 'a' : 'A';
+}
 
-    if (!group) return NULL;
-    count = group->get_count();
-    if (count <= 0) return NULL;
+static char *build_value(payload_kind_t kind, size_t target_size, const char *prefix, const char *suffix)
+{
+    size_t prefix_len = prefix ? strlen(prefix) : 0;
+    size_t suffix_len = suffix ? strlen(suffix) : 0;
+    size_t fill_len = 0;
+    char *buf;
 
-    if (want != EXPECT_MATCH && want != EXPECT_NO_MATCH) {
-        return group->get_case(rand() % count);
+    if (target_size > prefix_len + suffix_len) {
+        fill_len = target_size - prefix_len - suffix_len;
     }
 
-    for (i = 0; i < count * 2; i++) {
-        tc = group->get_case(rand() % count);
-        if (tc && tc->expect == want) return tc;
+    buf = (char *)malloc(prefix_len + fill_len + suffix_len + 1);
+    if (buf == NULL) {
+        return NULL;
     }
 
-    for (i = 0; i < count; i++) {
-        tc = group->get_case(i);
-        if (tc && tc->expect == want) return tc;
+    if (prefix_len > 0) {
+        memcpy(buf, prefix, prefix_len);
+    }
+    memset(buf + prefix_len, filler_char(kind), fill_len);
+    if (suffix_len > 0) {
+        memcpy(buf + prefix_len + fill_len, suffix, suffix_len);
+    }
+    buf[prefix_len + fill_len + suffix_len] = '\0';
+    return buf;
+}
+
+static int is_unreserved_uri_char(unsigned char c)
+{
+    return isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~';
+}
+
+static char *url_encode_component(const char *src)
+{
+    static const char hex[] = "0123456789ABCDEF";
+    size_t i;
+    size_t len;
+    size_t out_len = 0;
+    char *out;
+    char *p;
+
+    if (src == NULL) {
+        return NULL;
     }
 
-    return group->get_case(rand() % count);
+    len = strlen(src);
+    for (i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)src[i];
+        out_len += is_unreserved_uri_char(c) ? 1 : 3;
+    }
+
+    out = (char *)malloc(out_len + 1);
+    if (out == NULL) {
+        return NULL;
+    }
+
+    p = out;
+    for (i = 0; i < len; i++) {
+        unsigned char c = (unsigned char)src[i];
+        if (is_unreserved_uri_char(c)) {
+            *p++ = (char)c;
+        } else {
+            *p++ = '%';
+            *p++ = hex[(c >> 4) & 0x0F];
+            *p++ = hex[c & 0x0F];
+        }
+    }
+    *p = '\0';
+    return out;
+}
+
+static char *build_url_request(const bot_cfg_t *cfg)
+{
+    char *value = build_value(cfg->payload, cfg->uri_size, cfg->prefix, cfg->suffix);
+    char *encoded = NULL;
+    char *req;
+    size_t needed;
+
+    if (value == NULL) {
+        return NULL;
+    }
+
+    encoded = url_encode_component(value);
+    free(value);
+    if (encoded == NULL) {
+        return NULL;
+    }
+
+    needed = snprintf(NULL, 0,
+        "GET /bench?x=%s HTTP/1.1\r\n"
+        "Host: localhost\r\n"
+        "User-Agent: Mini-IPS bench agent\r\n"
+        "Connection: keep-alive\r\n"
+        "\r\n",
+        encoded);
+    req = (char *)malloc(needed + 1);
+    if (req != NULL) {
+        snprintf(req, needed + 1,
+            "GET /bench?x=%s HTTP/1.1\r\n"
+            "Host: localhost\r\n"
+            "User-Agent: Mini-IPS bench agent\r\n"
+            "Connection: keep-alive\r\n"
+            "\r\n",
+            encoded);
+    }
+
+    free(encoded);
+    return req;
+}
+
+static char *build_body_request(const bot_cfg_t *cfg)
+{
+    char *value = build_value(cfg->payload, cfg->body_size, cfg->prefix, cfg->suffix);
+    char *req;
+    size_t body_len;
+    size_t needed;
+
+    if (value == NULL) {
+        return NULL;
+    }
+
+    body_len = strlen("x=") + strlen(value);
+    needed = snprintf(NULL, 0,
+        "POST /bench HTTP/1.1\r\n"
+        "Host: localhost\r\n"
+        "User-Agent: Mini-IPS bench agent\r\n"
+        "Content-Type: application/x-www-form-urlencoded\r\n"
+        "Content-Length: %zu\r\n"
+        "Connection: keep-alive\r\n"
+        "\r\n"
+        "x=%s",
+        body_len,
+        value);
+    req = (char *)malloc(needed + 1);
+    if (req != NULL) {
+        snprintf(req, needed + 1,
+            "POST /bench HTTP/1.1\r\n"
+            "Host: localhost\r\n"
+            "User-Agent: Mini-IPS bench agent\r\n"
+            "Content-Type: application/x-www-form-urlencoded\r\n"
+            "Content-Length: %zu\r\n"
+            "Connection: keep-alive\r\n"
+            "\r\n"
+            "x=%s",
+            body_len,
+            value);
+    }
+
+    free(value);
+    return req;
+}
+
+static char *build_header_request(const bot_cfg_t *cfg)
+{
+    char *value = build_value(cfg->payload, cfg->header_size, cfg->prefix, cfg->suffix);
+    char *req;
+    size_t needed;
+
+    if (value == NULL) {
+        return NULL;
+    }
+
+    needed = snprintf(NULL, 0,
+        "GET /bench HTTP/1.1\r\n"
+        "Host: localhost\r\n"
+        "User-Agent: Mini-IPS bench agent\r\n"
+        "X-Attack: %s\r\n"
+        "Connection: keep-alive\r\n"
+        "\r\n",
+        value);
+    req = (char *)malloc(needed + 1);
+    if (req != NULL) {
+        snprintf(req, needed + 1,
+            "GET /bench HTTP/1.1\r\n"
+            "Host: localhost\r\n"
+            "User-Agent: Mini-IPS bench agent\r\n"
+            "X-Attack: %s\r\n"
+            "Connection: keep-alive\r\n"
+            "\r\n",
+            value);
+    }
+
+    free(value);
+    return req;
+}
+
+static char *build_attack_request(const bot_cfg_t *cfg)
+{
+    switch (cfg->mode) {
+    case MODE_URL:
+        return build_url_request(cfg);
+    case MODE_BODY:
+        return build_body_request(cfg);
+    case MODE_HEADER:
+        return build_header_request(cfg);
+    default:
+        return NULL;
+    }
+}
+
+static void set_default_sizes(bot_cfg_t *cfg)
+{
+    if (cfg->uri_size == 0) {
+        cfg->uri_size = 8192;
+    }
+    if (cfg->body_size == 0) {
+        cfg->body_size = 1024 * 1024;
+    }
+    if (cfg->header_size == 0) {
+        cfg->header_size = 4096;
+    }
+    if (cfg->count <= 0) {
+        cfg->count = 20;
+    }
 }
 
 int main(int argc, char **argv)
 {
-    bot_options_t opt;
-    int i = 1; 
-    memset(&opt, 0, sizeof(opt));
-    opt.seed = 0 ;
-    opt.verbose = 0;
+    bot_cfg_t cfg;
+    char *attack_req;
+    int fd;
 
-    if(argc < 4) {
-        print_usage(argv[0]);
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.prefix = "";
+    cfg.suffix = NULL;
+
+    signal(SIGPIPE, SIG_IGN);
+
+    if (argc < 5) {
+        usage(argv[0]);
         return 1;
     }
 
-    opt.ip = argv[i++];
-    if(!parse_int(argv[i++], &opt.port)){
+    cfg.ip = argv[1];
+    cfg.port = atoi(argv[2]);
+
+    for (int i = 3; i < argc; i++) {
+        if (strcmp(argv[i], "-mode") == 0 && i + 1 < argc) {
+            if (parse_mode(argv[++i], &cfg.mode) != 0) {
+                fprintf(stderr, "invalid mode\n");
+                return 1;
+            }
+            cfg.mode_set = true;
+        } else if (strcmp(argv[i], "-payload") == 0 && i + 1 < argc) {
+            if (parse_payload(argv[++i], &cfg.payload) != 0) {
+                fprintf(stderr, "invalid payload\n");
+                return 1;
+            }
+            cfg.payload_set = true;
+        } else if (strcmp(argv[i], "-uri-size") == 0 && i + 1 < argc) {
+            cfg.uri_size = parse_size_or_die(argv[++i], "uri-size");
+        } else if (strcmp(argv[i], "-body-size") == 0 && i + 1 < argc) {
+            cfg.body_size = parse_size_or_die(argv[++i], "body-size");
+        } else if (strcmp(argv[i], "-header-size") == 0 && i + 1 < argc) {
+            cfg.header_size = parse_size_or_die(argv[++i], "header-size");
+        } else if (strcmp(argv[i], "-prefix") == 0 && i + 1 < argc) {
+            cfg.prefix = argv[++i];
+        } else if (strcmp(argv[i], "-suffix") == 0 && i + 1 < argc) {
+            cfg.suffix = argv[++i];
+        } else if (strcmp(argv[i], "-count") == 0 && i + 1 < argc) {
+            cfg.count = (int)parse_size_or_die(argv[++i], "count");
+        } else if (strcmp(argv[i], "-seed") == 0 && i + 1 < argc) {
+            cfg.seed = (unsigned int)strtoul(argv[++i], NULL, 10);
+        } else if (strcmp(argv[i], "-verbose") == 0) {
+            cfg.verbose = 1;
+        } else {
+            usage(argv[0]);
+            return 1;
+        }
+    }
+
+    if (cfg.port <= 0 || cfg.port > 65535) {
         fprintf(stderr, "invalid port\n");
         return 1;
     }
 
-    while (i < argc) {
-        if (strcmp(argv[i], "-attack") == 0 && i + 1 < argc) {
-            opt.attack = argv[++i];
-        } else if (strcmp(argv[i], "-seed") == 0 && i + 1 < argc) {
-            int tmp;
-            if (!parse_int(argv[++i], &tmp)) return 1;
-            opt.seed = (unsigned int)tmp;
-        } else if (strcmp(argv[i], "-verbose") == 0) {
-            opt.verbose = 1;
-        } else {
-            print_usage(argv[0]);
-            return 1;
-        }
-        i++;
-    }
-
-    if (!opt.attack) {
-        fprintf(stderr, "missing -attack\n");
-        print_usage(argv[0]);
-        print_available_attacks();
+    if (!cfg.mode_set || !cfg.payload_set) {
+        usage(argv[0]);
         return 1;
     }
 
-    {
-        const attack_group_t *attack_group = find_attack_group(opt.attack);
-        int sock = -1;
-        const test_case_t *tc = NULL;
-        int sent = 0;
-        size_t app_tx_bytes = 0;
-        size_t app_rx_bytes = 0;
+    if (cfg.seed == 0) {
+        cfg.seed = (unsigned int)time(NULL);
+    }
+    srand(cfg.seed);
+    set_default_sizes(&cfg);
 
-        if (!attack_group) {
-            fprintf(stderr, "unknown attack: %s\n", opt.attack);
-            print_available_attacks();
-            return 1;
-        }
-
-        if (opt.seed == 0) opt.seed = (unsigned int)time(NULL);
-        srand(opt.seed);
-
-        signal(SIGPIPE, SIG_IGN);
-
-        sock = connect_tcp(opt.ip, opt.port);
-        if (sock < 0) {
-            fprintf(stderr, "connect failed\n");
-            return 1;
-        }
-
-        while (1) {
-            tc = pick_case(attack_group, EXPECT_MATCH);
-            if (!tc || !tc->req) {
-                fprintf(stderr, "no attack test case available\n");
-                close(sock);
-                return 1;
-            }
-
-            if (send_all(sock, tc->req, strlen(tc->req)) < 0) {
-                if (opt.verbose) {
-                    fprintf(stderr, "disconnected after %d attack requests\n", sent);
-                    log_tcp_state(sock, app_tx_bytes, app_rx_bytes);
-                } else {
-                    fprintf(stderr, "send failed\n");
-                }
-                break;
-            }
-
-            app_tx_bytes += strlen(tc->req);
-            sent++;
-            if (opt.verbose) {
-                fprintf(stderr, "sent %d: attack (rule %d)\n", sent, tc->rule_id);
-                log_tcp_state(sock, app_tx_bytes, app_rx_bytes);
-            }
-            sleep(1);
-            //usleep(700000);
-        }
-
-        if (sock >= 0) close(sock);
+    if (cfg.suffix == NULL) {
+        cfg.suffix = default_suffix(cfg.payload);
     }
 
+    attack_req = build_attack_request(&cfg);
+    if (attack_req == NULL) {
+        fprintf(stderr, "failed to build attack request\n");
+        return 1;
+    }
+
+    fd = connect_target(cfg.ip, cfg.port);
+    if (fd < 0) {
+        free(attack_req);
+        return 1;
+    }
+
+    for (int i = 0; i < cfg.count; i++) {
+        if (send_all(fd, attack_req, strlen(attack_req)) != 0) {
+            perror("send");
+            printf("disconnected after %d attack requests\n", i);
+            close(fd);
+            free(attack_req);
+            return 1;
+        }
+
+        printf("sent %d: attack mode=%s payload=%s uri_size=%zu body_size=%zu header_size=%zu\n",
+            i + 1,
+            mode_name(cfg.mode),
+            payload_name(cfg.payload),
+            cfg.uri_size,
+            cfg.body_size,
+            cfg.header_size);
+
+        if (cfg.verbose) {
+            print_tcp_info(fd);
+        }
+        sleep(1);
+    }
+
+    close(fd);
+    free(attack_req);
     return 0;
-    
 }

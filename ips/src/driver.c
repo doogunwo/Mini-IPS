@@ -1,6 +1,6 @@
 /**
  * @file driver.c
- * @brief 패킷 캡처 및 드라이버 구현
+ * @brief 패킷 캡처 드라이버 구현
  */
 #include "driver.h"
 #include <string.h>
@@ -177,8 +177,11 @@ int capture_activate(capture_ctx_t *cc, pcap_ctx_t *pc)
     if (!cc || !cc->handle)
         return EINVAL;
     int ret = pcap_activate(cc->handle);
-    if (ret < 0)
+    if (ret < 0) {
+        fprintf(stderr, "pcap_activate failed ret=%d, err=%s\n", ret, pcap_geterr(cc->handle));
         return EIO;
+
+    }   
 
     if (pc && pc->nonblocking)
     {

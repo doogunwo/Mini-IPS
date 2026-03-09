@@ -1,8 +1,7 @@
 CC ?= gcc
 CFLAGS ?= -O2 -Wall -Wextra -std=c11
-CFLAGS += -Itests
 
-SRCS := bot.c $(wildcard tests/*.c)
+SRCS := bot.c
 OBJS := $(SRCS:.c=.o)
 TARGET := bot
 

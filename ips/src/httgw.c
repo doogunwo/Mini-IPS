@@ -29,7 +29,7 @@
 #endif
 
 #ifndef REASM_MAX_BYTES_PER_DIR
-#define REASM_MAX_BYTES_PER_DIR (2U * 1024U * 1024U)
+#define REASM_MAX_BYTES_PER_DIR (12U * 1024U * 1024U)
 #endif
 
 #ifndef HTTGW_SERVER_NEXT_BIAS
@@ -1034,8 +1034,8 @@ httgw_t *httgw_create(const httgw_cfg_t *cfg, const httgw_callbacks_t *cbs, void
     gw->verbose = cfg ? (cfg->verbose ? 1 : 0) : 0;
 
     memset(&gw->stream_cfg, 0, sizeof(gw->stream_cfg));
-    gw->stream_cfg.max_buffer_bytes = cfg && cfg->max_buffer_bytes ? cfg->max_buffer_bytes : (2U * 1024U * 1024U);
-    gw->stream_cfg.max_body_bytes = cfg && cfg->max_body_bytes ? cfg->max_body_bytes : (2U * 1024U * 1024U);
+    gw->stream_cfg.max_buffer_bytes = cfg && cfg->max_buffer_bytes ? cfg->max_buffer_bytes : (12U * 1024U * 1024U);
+    gw->stream_cfg.max_body_bytes = cfg && cfg->max_body_bytes ? cfg->max_body_bytes : (12U * 1024U * 1024U);
 
     gw->reasm = reasm_create(8192, on_stream_data, gw);
     if (!gw->reasm)
@@ -1762,6 +1762,8 @@ int sess_get_or_create(httgw_t *gw, const flow_key_t flow, uint64_t ts_ms)
     if (!gw)
         return -1;
     return sess_get_or_create_internal(gw, &flow, ts_ms) ? 1 : 0;
+
+    
 }
 
 int sess_lookup(const httgw_t *gw, const flow_key_t flow)

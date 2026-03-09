@@ -29,7 +29,7 @@ typedef struct {
 typedef struct {
     int is_request;
     char method[16];
-    char uri[1024];
+    char uri[1048576];
     char version[16];
     int status_code;
     char reason[64];

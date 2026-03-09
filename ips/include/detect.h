@@ -22,6 +22,7 @@ typedef struct {
     const IPS_Signature *rule;
     ips_context_t context;
     char *matched_text;
+    uint64_t elapsed_us;
 } detect_match_t;
 
 typedef struct {
@@ -95,5 +96,7 @@ void detect_match_list_free(detect_match_list_t *matches);
  * @return 내부 오류 문자열 포인터.
  */
 const char *detect_engine_last_error(const detect_engine_t *e);
+const char *detect_engine_backend_name(const detect_engine_t *e);
+int detect_engine_jit_enabled(const detect_engine_t *e);
 
 #endif

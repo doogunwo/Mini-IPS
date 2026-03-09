@@ -1,162 +1,552 @@
 /**
  * @file regex.c
- * @brief IPS 시그니처 및 정규식 정의 테이블
+ * @brief JSONL 기반 IPS 시그니처 로더
  */
 #include "regex.h"
-#include <stddef.h>
 
-#define PRIO_CRITICAL 5
-#define PRIO_ERROR 4
-#define PRIO_WARNING 3
-#define PRIO_NOTICE 2
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#define IPS_CTX_DEFAULT(pid) \
-    ((pid) == POLICY_DIRECTORY_TRAVERS ? IPS_CTX_REQUEST_URI : \
-     (pid) == POLICY_PROTOCOL_VIOLATION ? IPS_CTX_REQUEST_HEADERS : \
-     (pid) == POLICY_INFO_LEAK ? IPS_CTX_REQUEST_BODY : \
-     (pid) == POLICY_WEBSHELL ? IPS_CTX_REQUEST_BODY : \
-     (pid) == POLICY_APP_WEAK ? IPS_CTX_REQUEST_HEADERS : \
-     (pid) == POLICY_SCANNER ? IPS_CTX_REQUEST_URI : \
-     (pid) == POLICY_XSS ? IPS_CTX_REQUEST_BODY : \
-     IPS_CTX_ARGS)
+#define RULES_FILE_ENV "IPS_RULES_FILE"
+#define RULES_FILE_COMMON_RELATIVE "rules/generated/rules_pcre_hs_common.jsonl"
+#define RULES_FILE_COMMON_RUNTIME "/app/rules/generated/rules_pcre_hs_common.jsonl"
+#define RULES_FILE_FULL_RELATIVE "rules/generated/rules_full.jsonl"
+#define RULES_FILE_FULL_RUNTIME "/app/rules/generated/rules_full.jsonl"
 
-#define SIG(pid, pname, pat, prio) \
-    { (pid), (pname), (pat), (prio), IPS_CTX_DEFAULT(pid) }
+const IPS_Signature *g_ips_signatures = NULL;
+int g_signature_count = 0;
 
-const IPS_Signature g_ips_signatures[] = {
-    /*--------------------------- SQL INJECTION ---------------------------*/
-    SIG(POLICY_SQL_INJECTION     , "SQL_INJECTION"      , "(?:sleep\\s*?\\(.*?\\)|benchmark\\s*?\\(.*?,.*?\\))", PRIO_ERROR   ),
-    SIG(POLICY_SQL_INJECTION     , "SQL_INJECTION"      , "(?:select|;)[\\s\\x0b]+(?:benchmark|if|sleep)[\\s\\x0b]*?\\([\\s\\x0b]*?\\(?[\\s\\x0b]*?[0-9A-Z_a-z]+", PRIO_ERROR   ),
-    SIG(POLICY_SQL_INJECTION     , "SQL_INJECTION"      , "merge.*?using\\s*?\\(|execute\\s*?immediate\\s*?[\"'`]|match\\s*?[\\w(),+-]+\\s*?against\\s*?\\(", PRIO_NOTICE  ),
-    SIG(POLICY_SQL_INJECTION     , "SQL_INJECTION"      , "union.*?select.*?from", PRIO_CRITICAL),
-    SIG(POLICY_SQL_INJECTION     , "SQL_INJECTION"      , "/\\*[\\s\\x0b]*?[!\\+](?:[\\s\\x0b\\(\\)\\-0-9=A-Z_a-z]+)?\\*/", PRIO_NOTICE  ),
-    SIG(POLICY_SQL_INJECTION     , "SQL_INJECTION"      , "^(?:[^']*'|[^\"]*\"|[^`]*`)[\\s\\x0b]*;", PRIO_NOTICE  ),
-    SIG(POLICY_SQL_INJECTION     , "SQL_INJECTION"      , "1\\.e(?:[\\(\\),]|\\.[\\$0-9A-Z_a-z])", PRIO_NOTICE  ),
-    SIG(POLICY_SQL_INJECTION     , "SQL_INJECTION"      , "/\\*!?|\\*/|[';]--|--(?:[\\s\\x0b]|[^\\-]*?-)|[^&\\-]#.*?[\\s\\x0b]|;?\\x00", PRIO_NOTICE  ),
-    SIG(POLICY_SQL_INJECTION     , "SQL_INJECTION"      , "(?:\\b0x[a-f\\d]{3,}|x\\'[a-f\\d]{3,}\\'|b\\'[0-1]{10,}\\')", PRIO_NOTICE  ),
-    /*--------------------------- XSS ---------------------------*/
-    SIG(POLICY_XSS               , "XSS"                , "(?i)<script[^>]*>[\\s\\S]*?", PRIO_CRITICAL),
-    SIG(POLICY_XSS               , "XSS"                , "(?i)[\\s\\\"'`;/0-9=\\x0B\\x09\\x0C\\x3B\\x2C\\x28\\x3B]on[a-zA-Z]{3,50}[\\s\\x0B\\x09\\x0C\\x3B\\x2C\\x28\\x3B]*?=[^=]", PRIO_CRITICAL),
-    SIG(POLICY_XSS               , "XSS"                , "(?i)[a-z]+=(?:[^:=]+:.+;)*?[^:=]+:url\\(javascript", PRIO_ERROR   ),
-    SIG(POLICY_XSS               , "XSS"                , "(?i)<style.*?>.*?(?:@[\\x5ci]|(?:[:=]|&#x?0*(?:58|3[AD]|61);?).*?(?:[\\(\\x5c]|&#x?0*(?:40|28|92|5C);?))", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "(?i:<.*[:]?vmlframe.*?[\\s/+]*?src[\\s/+]*=)", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "(?i)<EMBED[\\s/+].*?(?:src|type).*?=", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "<[?]?import[\\s/+\\S]*?implementation[\\s/+]*?=", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "(?i)<META[\\s/+].*?charset[\\s/+]*=", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "(?i)<LINK[\\s/+].*?href[\\s/+]*=", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "(?i)<BASE[\\s/+].*?href[\\s/+]*=", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "(?i)<APPLET[\\s/+>]", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "(?i)<OBJECT[\\s/+].*?(?:type|codetype|classid|code|data)[\\s/+]*=", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "\\xbc[^\\xbe>]*[\\xbe>]|<[^\\xbe]*\\xbe", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "(?:\\xbc\\s*/\\s*[^\\xbe>]*[\\xbe>])|(?:<\\s*/\\s*[^\\xbe]*\\xbe)", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "\\+ADw-.*(?:\\+AD4-|>)|<.*\\+AD4-", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "![!+ ]\\[\\]", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "(?:self|document|this|top|window)\\s*(?:/\\*|[\\[)]).+?(?:\\]|\\*/)", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "((?:\\[[^\\]]*\\][^.]*\\.)|Reflect[^.]*\\.).*(?:map|sort|apply)[^.]*\\..*call[^`]*`.*`", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "(?i)\\b(?:s(?:tyle|rc)|href)\\b[\\s\\S]*?=", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "(?i)[\\\"'][ ]*(?:[^a-z0-9~_:\\' ]|in).+?[.].+?=", PRIO_NOTICE  ),
-    SIG(POLICY_XSS               , "XSS"                , "\\{\\{.*?\\}\\}", PRIO_NOTICE  ),
+static IPS_Signature *g_loaded_signatures = NULL;
 
-    /*--------------------------- GENERIC ---------------------------*/
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "__proto__|constructor[\\s\\x0b]*(?:\\.|\\]?\\[)[\\s\\x0b]*prototype", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "Process[\\s\\x0b]*\\.[\\s\\x0b]*spawn[\\s\\x0b]*\\(", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "(?:close|exists|fork|(?:ope|spaw)n|re(?:ad|quire)|w(?:atch|rite))[\\s\\x0b]*\\(", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "@+\\{[\\s\\x0b]*\\[", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "(?:\\{%[^%}]*%}|<%=?[^%>]*%>)", PRIO_NOTICE  ),
-    /*--------------------------- CRS CONF @RX ---------------------------*/
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "~[\\+\\-](?:$|[0-9]+)", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "\\{[0-9A-Z_a-z]*,[,\\-0-9A-Z_a-z]*\\}", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "!-\\d", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "^\\(\\s*\\)\\s+\\{", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "^\\(\\s*\\)\\s+\\{", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "(?i)(?:\\.boto|buddyinfo|mtrr|acpi|zoneinfo)\\B", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "['\\*\\?\\x5c`][^\\n/]+/|/[^/]+?['\\*\\?\\x5c`]|\\$[!#\\$\\(\\*\\-0-9\\?-\\[_a-\\{]", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "#.*", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "['\\*\\?\\x5c`][^\\n/]+/|/[^/]+?['\\*\\?\\x5c`]|\\$[!#\\$\\(\\*\\-0-9\\?-\\[_a-\\{]", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "[0-9]\\s*\\'\\s*[0-9]", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "\\{[^\\s\\x0b,:\\}]*,[^\\s\\x0b]*\\}", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "~[0-9]+", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "(?i)/(?:[\\*\\?]+[/-9A-Z_a-z]|[/-9A-Z_a-z]+[\\*\\?])", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "\\r\\n.*?\\b(?:DATA|QUIT|HELP(?: .{1,255})?)", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "\\r\\n.*?\\b(?:(?:QUI|STA|RSE)T|NOOP|CAPA)", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "!(?:\\d|!)", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "(?i)<\\?(?:php[\\s\\x0b]|[\\s\\x0b=]|xml(?:[\\s\\x0b]+[^a-z]|:)|$)|\\[[/\\x5c]?php\\]|\\{/?php\\}", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , ".*\\.ph(?:p\\d*|tml|ar|ps|t|pt)\\.*$", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "\\$\\s*\\{\\s*\\S[^\\{\\}]*\\}", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "(?i)php://(?:std(?:in|out|err)|(?:in|out)put|fd|memory|temp|filter)", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "(?:bzip2|expect|glob|ogg|(?:ph|r)ar|ssh2(?:.(?:s(?:hell|(?:ft|c)p)|exec|tunnel))?|z(?:ip|lib))://", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "[oOcC]:\\d+:\\\".+?\\\":\\d+:\\{.*}", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "(?:^|[/\\x5c])sess_[,\\-0-9a-z]{20,256}$", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , ".*\\.ph(?:p\\d*|tml|ar|ps|t|pt)\\..*$", PRIO_NOTICE  ),
-    SIG(POLICY_APP_WEAK          , "APP_WEAK"           , "(?i:\\.cookie\\b.*?;\\W*?(?:expires|domain)\\W*?=|\\bhttp-equiv\\W+set-cookie\\b)", PRIO_NOTICE  ),
-    SIG(POLICY_APP_WEAK          , "APP_WEAK"           , "^(?:ht|f)tps?://(.*?)/", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "java\\.lang\\.(?:runtime|processbuilder)", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "(?:runtime|processbuilder)", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "(?i)(?:unmarshaller|base64data|java\\.)", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "(?:runtime|processbuilder)", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , ".*\\.(?:jsp|jspx)\\.*$", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "\\xac\\xed\\x00\\x05", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "(?:rO0ABQ|KztAAU|Cs7QAF)", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "java\\b.+(?:runtime|processbuilder)", PRIO_NOTICE  ),
-    SIG(POLICY_COMMAND_INJECTION , "COMMAND_INJECTION"  , "(?i)(?:\\$|&dollar;?)(?:\\{|&l(?:brace|cub);?)", PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?:<(?:TITLE>Index of.*?<H|title>Index of.*?<h)1>Index of|>\\[To Parent Directory\\]</[Aa]><br>)", PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "^#\\!\\s?/", PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "^5\\d{2}$", PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)(?:JET|Access) Database Engine|\\[Microsoft\\]\\[ODBC Microsoft Access Driver\\]", PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)DB2 SQL error|\\[IBM\\]\\[CLI Driver\\]\\[DB2/6000\\]|CLI Driver.*DB2|db2_[0-9A-Z_a-z]+\\(\\)", PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)\\[DM_QUERY_E_SYNTAX\\]|has occurred in the vicinity of:", PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)Dynamic SQL Error",  PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)Exception (?:condition )?\\d+\\. Transaction rollback\\.", PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)org\\.hsqldb\\.jdbc", PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)An illegal character has been found in the statement|com\\.informix\\.jdbc|Exception.*Informix", PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)Warning.*ingres_|Ingres(?: SQLSTATE|[^0-9A-Z_a-z].*Driver)",     PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)<b>Warning</b>: ibase_|Unexpected end of command in statement",  PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)Warning.{1,10}maxdb[\\(\\):_a-z]{1,26}:",    PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)Sybase(?: message:|.*Server message)|Warning.{2,20}sybase",      PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)<\\?(?:=|php)?\\s+",                         PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)[a-z]:[\\x5c/]inetpub\\b",                   PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "^404$",                                          PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "\\bServer Error in.{0,50}?\\bApplication\\b",    PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)[\\x5c/]inetpub\\b",                         PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "<title>r57 Shell Version [0-9.]+</title>|<title>r57 shell</title>",  PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "B4TM4N SH3LL</title>[^<]*<meta name='author' content='k4mpr3t'/>",   PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "<title>Mini Shell</title>[^D]*Developed By LameHacker",          PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "<title>\\.:: [^~]*~ Ashiyane V [0-9.]+ ::\\.</title>",           PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "<title>Symlink_Sa [0-9.]+</title>",                              PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "<title>CasuS [0-9.]+ by MafiABoY</title>",                       PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "^<html>\\r\\n<head>\\r\\n<title>GRP WebShell [0-9.]+",           PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "<small>NGHshell [0-9.]+ by Cr4sh</body></html>\\n$",             PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "<title>SimAttacker - (?:Version|Vrsion) : [0-9.]+ -",            PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "^<!DOCTYPE html>\\n<html>\\n<!-- By Artyum [^<]*<title>Web Shell</title>", PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "<title>lama's'hell v. [0-9.]+</title>",                          PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "^ *<html>\\n[ ]+<head>\\n[ ]+<title>lostDC -",                   PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "^<title>PHP Web Shell</title>\\r\\n<html>\\r\\n<body>\\r\\n    <!-- Replaces command with Base64-encoded Data -->", PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "^<html>\\n<head>\\n<title>Ru24PostWebShell",                     PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "<title>s72 Shell v[0-9.]+ Codinf by Cr@zy_King</title>",         PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "^<html>\\r\\n<head>\\r\\n<meta http-equiv=\\\"Content-Type\\\" content=\\\"text/html; charset=gb2312\\\">\\r\\n<title>PhpSpy Ver [0-9]+</title>", PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "^ <html>\\n\\n<head>\\n\\n<title>g00nshell v[0-9.]+",            PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "^<html>\\n      <head>\\n             <title>azrail [0-9.]+ by C-W-M</title>", PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , ">SmEvK_PaThAn Shell v[0-9]+ coded by <a href=",                  PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "^<html>\\n<title>[^~]*~ Shell I</title>\\n<head>\\n<style>",     PRIO_NOTICE  ),
-    SIG(POLICY_WEBSHELL          , "WEBSHELL"           , "^ <html><head><title>:: b374k m1n1 [0-9.]+ ::</title>",          PRIO_NOTICE  ),
-    SIG(POLICY_INFO_LEAK         , "INFO_LEAK"          , "(?i)(?:<%[=#\\s]|#\\{[^}]+\\})",                                 PRIO_NOTICE  ),
+typedef struct {
+    char *buf;
+    size_t len;
+    size_t cap;
+} strbuf_t;
 
-    /*--------------------------- PROTOCOL ---------------------------*/
-    SIG(POLICY_PROTOCOL_VIOLATION, "PROTOCOL_VIOLATION" , "[\\n\\r][^0-9A-Z_a-z]*?(?:content-(?:type|length)|set-cookie|location):[\\s\\x0b]*[0-9A-Z_a-z]", PRIO_NOTICE  ),
-    SIG(POLICY_PROTOCOL_VIOLATION, "PROTOCOL_VIOLATION" , "(?:\\bhttp/\\d|<(?:html|meta)\\b)",      PRIO_NOTICE  ),
-    SIG(POLICY_PROTOCOL_VIOLATION, "PROTOCOL_VIOLATION" , "unix:[^|]*\\|",                          PRIO_NOTICE  ),
-    SIG(POLICY_PROTOCOL_VIOLATION, "PROTOCOL_VIOLATION" , "(][^\\]]+$|][^\\]]+\\[)",                PRIO_NOTICE  ),
-    SIG(POLICY_PROTOCOL_VIOLATION, "PROTOCOL_VIOLATION" , "\\[",                                    PRIO_NOTICE  ),
-    /*--------------------------- MULTIPART ---------------------------*/
-    SIG(POLICY_PROTOCOL_VIOLATION, "PROTOCOL_VIOLATION" , "^content-type\\s*:\\s*(.*)$",                PRIO_NOTICE  ),
-    SIG(POLICY_PROTOCOL_VIOLATION, "PROTOCOL_VIOLATION" , "content-transfer-encoding:(.*)",             PRIO_NOTICE  ),
-    SIG(POLICY_PROTOCOL_VIOLATION, "PROTOCOL_VIOLATION" , "[^\\x21-\\x7E][\\x21-\\x39\\x3B-\\x7E]*:",   PRIO_NOTICE  ),
+static int strbuf_append_char(strbuf_t *sb, char ch)
+{
+    char *next;
+    size_t next_cap;
 
-    /*--------------------------- LFI / PATH TRAVERSAL ---------------------------*/
-    SIG(POLICY_DIRECTORY_TRAVERS , "DIRECTORY_TRAVERSAL", "(?:^|[/;\\x5c])\\.{2,3}[/;\\x5c]", PRIO_NOTICE  ),
-};
+    if (sb->len + 1 >= sb->cap)
+    {
+        next_cap = sb->cap ? sb->cap * 2U : 64U;
+        next = (char *)realloc(sb->buf, next_cap);
+        if (!next)
+            return -1;
+        sb->buf = next;
+        sb->cap = next_cap;
+    }
+    sb->buf[sb->len++] = ch;
+    sb->buf[sb->len] = '\0';
+    return 0;
+}
 
-const int g_signature_count = (int)(sizeof(g_ips_signatures) / sizeof(g_ips_signatures[0]));
+static void strbuf_free(strbuf_t *sb)
+{
+    free(sb->buf);
+    sb->buf = NULL;
+    sb->len = 0;
+    sb->cap = 0;
+}
+
+static char *xstrdup(const char *s)
+{
+    size_t len;
+    char *copy;
+
+    if (!s)
+        return NULL;
+    len = strlen(s);
+    copy = (char *)malloc(len + 1U);
+    if (!copy)
+        return NULL;
+    memcpy(copy, s, len + 1U);
+    return copy;
+}
+
+static const char *skip_ws(const char *p)
+{
+    while (p && *p && isspace((unsigned char)*p))
+        p++;
+    return p;
+}
+
+static const char *find_json_key(const char *line, const char *key)
+{
+    char needle[64];
+    snprintf(needle, sizeof(needle), "\"%s\"", key);
+    return strstr(line, needle);
+}
+
+static int parse_json_string_field(const char *line, const char *key, char **out)
+{
+    const char *p;
+    strbuf_t sb;
+
+    *out = NULL;
+    p = find_json_key(line, key);
+    if (!p)
+        return 0;
+    p = strchr(p, ':');
+    if (!p)
+        return -1;
+    p = skip_ws(p + 1);
+    if (!p || *p != '"')
+        return -1;
+    p++;
+
+    memset(&sb, 0, sizeof(sb));
+    while (*p)
+    {
+        if (*p == '\\')
+        {
+            p++;
+            if (!*p)
+                break;
+            switch (*p)
+            {
+                case '"': if (strbuf_append_char(&sb, '"') != 0) goto oom; break;
+                case '\\': if (strbuf_append_char(&sb, '\\') != 0) goto oom; break;
+                case '/': if (strbuf_append_char(&sb, '/') != 0) goto oom; break;
+                case 'b': if (strbuf_append_char(&sb, '\b') != 0) goto oom; break;
+                case 'f': if (strbuf_append_char(&sb, '\f') != 0) goto oom; break;
+                case 'n': if (strbuf_append_char(&sb, '\n') != 0) goto oom; break;
+                case 'r': if (strbuf_append_char(&sb, '\r') != 0) goto oom; break;
+                case 't': if (strbuf_append_char(&sb, '\t') != 0) goto oom; break;
+                case 'u':
+                    if (strbuf_append_char(&sb, '?') != 0) goto oom;
+                    while (p[1] && isxdigit((unsigned char)p[1]))
+                        p++;
+                    break;
+                default:
+                    if (strbuf_append_char(&sb, *p) != 0) goto oom;
+                    break;
+            }
+            p++;
+            continue;
+        }
+        if (*p == '"')
+        {
+            *out = sb.buf ? sb.buf : xstrdup("");
+            return *out ? 1 : -1;
+        }
+        if (strbuf_append_char(&sb, *p) != 0)
+            goto oom;
+        p++;
+    }
+
+oom:
+    strbuf_free(&sb);
+    return -1;
+}
+
+static int parse_json_string_at(const char **cursor, char **out)
+{
+    const char *p = *cursor;
+    strbuf_t sb;
+
+    *out = NULL;
+    if (!p || *p != '"')
+        return -1;
+    p++;
+
+    memset(&sb, 0, sizeof(sb));
+    while (*p)
+    {
+        if (*p == '\\')
+        {
+            p++;
+            if (!*p)
+                break;
+            switch (*p)
+            {
+                case '"': if (strbuf_append_char(&sb, '"') != 0) goto oom; break;
+                case '\\': if (strbuf_append_char(&sb, '\\') != 0) goto oom; break;
+                case '/': if (strbuf_append_char(&sb, '/') != 0) goto oom; break;
+                case 'b': if (strbuf_append_char(&sb, '\b') != 0) goto oom; break;
+                case 'f': if (strbuf_append_char(&sb, '\f') != 0) goto oom; break;
+                case 'n': if (strbuf_append_char(&sb, '\n') != 0) goto oom; break;
+                case 'r': if (strbuf_append_char(&sb, '\r') != 0) goto oom; break;
+                case 't': if (strbuf_append_char(&sb, '\t') != 0) goto oom; break;
+                default: if (strbuf_append_char(&sb, *p) != 0) goto oom; break;
+            }
+            p++;
+            continue;
+        }
+        if (*p == '"')
+        {
+            *out = sb.buf ? sb.buf : xstrdup("");
+            *cursor = p + 1;
+            return *out ? 1 : -1;
+        }
+        if (strbuf_append_char(&sb, *p) != 0)
+            goto oom;
+        p++;
+    }
+oom:
+    strbuf_free(&sb);
+    return -1;
+}
+
+static int parse_json_int_field(const char *line, const char *key, int *out)
+{
+    const char *p;
+    char *endptr;
+    long value;
+
+    p = find_json_key(line, key);
+    if (!p)
+        return 0;
+    p = strchr(p, ':');
+    if (!p)
+        return -1;
+    p = skip_ws(p + 1);
+    if (!strncmp(p, "null", 4))
+        return 0;
+
+    value = strtol(p, &endptr, 10);
+    if (endptr == p)
+        return -1;
+    *out = (int)value;
+    return 1;
+}
+
+static int parse_json_bool_field(const char *line, const char *key, int *out)
+{
+    const char *p;
+
+    p = find_json_key(line, key);
+    if (!p)
+        return 0;
+    p = strchr(p, ':');
+    if (!p)
+        return -1;
+    p = skip_ws(p + 1);
+    if (!strncmp(p, "true", 4))
+    {
+        *out = 1;
+        return 1;
+    }
+    if (!strncmp(p, "false", 5))
+    {
+        *out = 0;
+        return 1;
+    }
+    return -1;
+}
+
+static int parse_json_string_array_field(const char *line, const char *key, const char ***out_values, size_t *out_count)
+{
+    const char *p;
+    const char *cursor;
+    const char **values = NULL;
+    size_t count = 0;
+
+    *out_values = NULL;
+    *out_count = 0;
+
+    p = find_json_key(line, key);
+    if (!p)
+        return 0;
+    p = strchr(p, ':');
+    if (!p)
+        return -1;
+    p = skip_ws(p + 1);
+    if (*p != '[')
+        return -1;
+    cursor = p + 1;
+
+    while (*cursor)
+    {
+        char *item = NULL;
+        const char **next_values;
+
+        cursor = skip_ws(cursor);
+        if (*cursor == ']')
+            break;
+        if (*cursor != '"')
+            return -1;
+
+        if (parse_json_string_at(&cursor, &item) < 0)
+            return -1;
+        next_values = (const char **)realloc(values, (count + 1U) * sizeof(*next_values));
+        if (!next_values)
+        {
+            free(item);
+            return -1;
+        }
+        values = next_values;
+        values[count++] = item;
+
+        cursor = skip_ws(cursor);
+        if (*cursor == ',')
+        {
+            cursor++;
+            continue;
+        }
+        if (*cursor == ']')
+            break;
+    }
+
+    *out_values = values;
+    *out_count = count;
+    return 1;
+}
+
+static POLICY policy_from_string(const char *name)
+{
+#define X(ename, sname) if (name && strcmp(name, sname) == 0) return ename;
+    POLICY_LIST
+#undef X
+    return POLICY_COMMAND_INJECTION;
+}
+
+static ips_context_t ctx_from_string(const char *name)
+{
+    if (!name)
+        return IPS_CTX_ALL;
+    if (strcmp(name, "URI") == 0 || strcmp(name, "REQUEST_URI") == 0)
+        return IPS_CTX_REQUEST_URI;
+    if (strcmp(name, "ARGS") == 0)
+        return IPS_CTX_ARGS;
+    if (strcmp(name, "ARGS_NAMES") == 0)
+        return IPS_CTX_ARGS_NAMES;
+    if (strcmp(name, "HEADERS") == 0 || strcmp(name, "REQUEST_HEADERS") == 0)
+        return IPS_CTX_REQUEST_HEADERS;
+    if (strcmp(name, "BODY") == 0 || strcmp(name, "REQUEST_BODY") == 0)
+        return IPS_CTX_REQUEST_BODY;
+    if (strcmp(name, "RESPONSE_BODY") == 0)
+        return IPS_CTX_RESPONSE_BODY;
+    return IPS_CTX_ALL;
+}
+
+ips_operator_t ips_operator_from_string(const char *name)
+{
+    if (!name)
+        return IPS_OP_UNKNOWN;
+    if (strcmp(name, "rx") == 0) return IPS_OP_RX;
+    if (strcmp(name, "pm") == 0) return IPS_OP_PM;
+    if (strcmp(name, "pmFromFile") == 0) return IPS_OP_PM_FROM_FILE;
+    if (strcmp(name, "contains") == 0) return IPS_OP_CONTAINS;
+    if (strcmp(name, "beginsWith") == 0) return IPS_OP_BEGINS_WITH;
+    if (strcmp(name, "endsWith") == 0) return IPS_OP_ENDS_WITH;
+    if (strcmp(name, "streq") == 0) return IPS_OP_STREQ;
+    if (strcmp(name, "within") == 0) return IPS_OP_WITHIN;
+    if (strcmp(name, "detectSQLi") == 0) return IPS_OP_DETECT_SQLI;
+    if (strcmp(name, "detectXSS") == 0) return IPS_OP_DETECT_XSS;
+    if (strcmp(name, "eq") == 0) return IPS_OP_EQ;
+    if (strcmp(name, "ge") == 0) return IPS_OP_GE;
+    if (strcmp(name, "gt") == 0) return IPS_OP_GT;
+    if (strcmp(name, "lt") == 0) return IPS_OP_LT;
+    if (strcmp(name, "validateByteRange") == 0) return IPS_OP_VALIDATE_BYTE_RANGE;
+    if (strcmp(name, "ipMatch") == 0) return IPS_OP_IP_MATCH;
+    return IPS_OP_UNKNOWN;
+}
+
+const char *ips_operator_name(ips_operator_t op)
+{
+    switch (op)
+    {
+        case IPS_OP_RX: return "rx";
+        case IPS_OP_PM: return "pm";
+        case IPS_OP_PM_FROM_FILE: return "pmFromFile";
+        case IPS_OP_CONTAINS: return "contains";
+        case IPS_OP_BEGINS_WITH: return "beginsWith";
+        case IPS_OP_ENDS_WITH: return "endsWith";
+        case IPS_OP_STREQ: return "streq";
+        case IPS_OP_WITHIN: return "within";
+        case IPS_OP_DETECT_SQLI: return "detectSQLi";
+        case IPS_OP_DETECT_XSS: return "detectXSS";
+        case IPS_OP_EQ: return "eq";
+        case IPS_OP_GE: return "ge";
+        case IPS_OP_GT: return "gt";
+        case IPS_OP_LT: return "lt";
+        case IPS_OP_VALIDATE_BYTE_RANGE: return "validateByteRange";
+        case IPS_OP_IP_MATCH: return "ipMatch";
+        default: return "unknown";
+    }
+}
+
+static void free_signature_entry(IPS_Signature *sig)
+{
+    size_t i;
+
+    free((char *)sig->policy_name);
+    free((char *)sig->pattern);
+    free((char *)sig->source);
+    for (i = 0; i < sig->data_value_count; i++)
+        free((char *)sig->data_values[i]);
+    free((char **)sig->data_values);
+    memset(sig, 0, sizeof(*sig));
+}
+
+void regex_unload_signatures(void)
+{
+    int i;
+
+    if (!g_loaded_signatures)
+        return;
+    for (i = 0; i < g_signature_count; i++)
+        free_signature_entry(&g_loaded_signatures[i]);
+    free(g_loaded_signatures);
+    g_loaded_signatures = NULL;
+    g_ips_signatures = NULL;
+    g_signature_count = 0;
+}
+
+static int append_signature(IPS_Signature **items, int *count, int *capacity, const IPS_Signature *sig)
+{
+    IPS_Signature *next;
+    int next_cap;
+
+    if (*count == *capacity)
+    {
+        next_cap = *capacity ? (*capacity * 2) : 64;
+        next = (IPS_Signature *)realloc(*items, (size_t)next_cap * sizeof(*next));
+        if (!next)
+            return -1;
+        *items = next;
+        *capacity = next_cap;
+    }
+    (*items)[*count] = *sig;
+    (*count)++;
+    return 0;
+}
+
+static int load_one_signature(const char *line, IPS_Signature *sig)
+{
+    char *pid = NULL;
+    char *pname = NULL;
+    char *pat = NULL;
+    char *ctx = NULL;
+    char *op = NULL;
+    char *source = NULL;
+    int prio = 0;
+    int rid = 0;
+    int negated = 0;
+    const char **data_values = NULL;
+    size_t data_value_count = 0;
+
+    memset(sig, 0, sizeof(*sig));
+
+    if (parse_json_string_field(line, "pid", &pid) <= 0 ||
+        parse_json_string_field(line, "pname", &pname) <= 0 ||
+        parse_json_string_field(line, "pat", &pat) < 0 ||
+        parse_json_string_field(line, "ctx", &ctx) <= 0 ||
+        parse_json_string_field(line, "op", &op) <= 0)
+    {
+        goto fail;
+    }
+
+    if (parse_json_int_field(line, "prio", &prio) < 0)
+        goto fail;
+    if (parse_json_int_field(line, "rid", &rid) < 0)
+        goto fail;
+    if (parse_json_bool_field(line, "op_negated", &negated) < 0)
+        goto fail;
+    if (parse_json_string_field(line, "source", &source) < 0)
+        goto fail;
+    if (parse_json_string_array_field(line, "data_values", &data_values, &data_value_count) < 0)
+        goto fail;
+
+    sig->policy_id = policy_from_string(pname);
+    sig->policy_name = pname ? pname : xstrdup(get_policy_name(sig->policy_id));
+    sig->pattern = pat ? pat : xstrdup("");
+    sig->is_high_priority = prio;
+    sig->context = ctx_from_string(ctx);
+    sig->op = ips_operator_from_string(op);
+    sig->op_negated = negated;
+    sig->rule_id = rid;
+    sig->source = source ? source : xstrdup("");
+    sig->data_values = data_values;
+    sig->data_value_count = data_value_count;
+
+    free(pid);
+    free(ctx);
+    free(op);
+    return 0;
+
+fail:
+    free(pid);
+    free(pname);
+    free(pat);
+    free(ctx);
+    free(op);
+    free(source);
+    if (data_values)
+    {
+        size_t i;
+        for (i = 0; i < data_value_count; i++)
+            free((char *)data_values[i]);
+        free((char **)data_values);
+    }
+    return -1;
+}
+
+static int try_load_file(const char *path)
+{
+    FILE *fp;
+    char line[65536];
+    IPS_Signature *items = NULL;
+    int count = 0;
+    int capacity = 0;
+
+    fp = fopen(path, "r");
+    if (!fp)
+        return -1;
+
+    while (fgets(line, sizeof(line), fp))
+    {
+        IPS_Signature sig;
+        if (line[0] == '\0' || line[0] == '\n')
+            continue;
+        if (load_one_signature(line, &sig) != 0)
+            continue;
+        if (append_signature(&items, &count, &capacity, &sig) != 0)
+        {
+            free_signature_entry(&sig);
+            fclose(fp);
+            return -1;
+        }
+    }
+    fclose(fp);
+
+    regex_unload_signatures();
+    g_loaded_signatures = items;
+    g_ips_signatures = items;
+    g_signature_count = count;
+    return 0;
+}
+
+int regex_load_signatures(const char *jsonl_path)
+{
+    const char *env_path;
+
+    if (g_loaded_signatures)
+        return 0;
+
+    if (jsonl_path && try_load_file(jsonl_path) == 0)
+        return 0;
+
+    env_path = getenv(RULES_FILE_ENV);
+    if (env_path && env_path[0] != '\0' && try_load_file(env_path) == 0)
+        return 0;
+
+    if (try_load_file(RULES_FILE_COMMON_RELATIVE) == 0)
+        return 0;
+    if (try_load_file(RULES_FILE_COMMON_RUNTIME) == 0)
+        return 0;
+    if (try_load_file(RULES_FILE_FULL_RELATIVE) == 0)
+        return 0;
+    if (try_load_file(RULES_FILE_FULL_RUNTIME) == 0)
+        return 0;
+
+    return -1;
+}
 
 const char *get_policy_name(POLICY p)
 {
@@ -167,9 +557,6 @@ const char *get_policy_name(POLICY p)
     };
 
     if ((int)p < 0 || p >= POLICY_MAX)
-    {
         return "UNKNOWN_POLICY";
-    }
-
     return policy_names[p] ? policy_names[p] : "UNDEFINED_NAME";
 }

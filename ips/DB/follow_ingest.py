@@ -7,6 +7,20 @@ import time
 from ingest_logs import init_db, parse_kv_line, should_store, to_int
 
 
+def format_ingest_message(fields: dict[str, str]) -> str | None:
+    event = fields.get("event")
+    if event != "rst_request":
+        return None
+    return (
+        f"ingested: ts={fields.get('ts', '-')} "
+        f"level={fields.get('level', '-')} "
+        f"event=rst_request "
+        f"src_ip={fields.get('src_ip', '-')} src_port={fields.get('src_port', '-')} "
+        f"dst_ip={fields.get('dst_ip', '-')} dst_port={fields.get('dst_port', '-')} "
+        f"rc_ab={fields.get('rc_ab', '-')} rc_ba={fields.get('rc_ba', '-')}"
+    )
+
+
 def insert_line(conn: sqlite3.Connection, line: str) -> int:
     fields = parse_kv_line(line)
     if not fields or not should_store(fields):
@@ -69,7 +83,10 @@ def follow_file(log_file: pathlib.Path, db_file: pathlib.Path, poll_interval: fl
 
                 inserted = insert_line(conn, line)
                 if inserted:
-                    print(f"ingested: {line}", flush=True)
+                    fields = parse_kv_line(line)
+                    msg = format_ingest_message(fields)
+                    if msg is not None:
+                        print(msg, flush=True)
     except KeyboardInterrupt:
         return 0
     finally:

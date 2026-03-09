@@ -10,6 +10,14 @@ WEB_HOST="${WEB_HOST:-0.0.0.0}"
 WEB_PORT="${WEB_PORT:-8090}"
 PIDS=""
 
+export IFACE
+export BPF
+export MODE
+export LOG_FILE
+export DB_FILE
+export WEB_HOST
+export WEB_PORT
+
 cleanup() {
   for pid in $PIDS; do
     if kill -0 "$pid" 2>/dev/null; then

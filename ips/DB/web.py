@@ -17,9 +17,14 @@ def db_connect(db_file: pathlib.Path) -> sqlite3.Connection:
 
 def fetch_summary(conn: sqlite3.Connection) -> dict[str, int]:
     rows = conn.execute(
-        "SELECT event, COUNT(*) AS cnt FROM ips_events GROUP BY event ORDER BY cnt DESC"
+        """
+        SELECT COALESCE(event, 'unknown') AS event_name, COUNT(*) AS cnt
+        FROM ips_events
+        GROUP BY COALESCE(event, 'unknown')
+        ORDER BY cnt DESC
+        """
     ).fetchall()
-    return {row["event"]: row["cnt"] for row in rows}
+    return {row["event_name"]: row["cnt"] for row in rows}
 
 
 def fetch_overview(conn: sqlite3.Connection) -> dict[str, object]:
@@ -283,7 +288,7 @@ def render_page(overview, summary, rows, selected_event: Optional[str], query: O
           <input type="text" name="q" value="{search_value}" placeholder="attack, ip, matched, detail, raw log">
           <select name="event">
             <option value="">all events</option>
-            {''.join(f"<option value='{html.escape(name)}' {'selected' if selected_event == name else ''}>{html.escape(name)}</option>" for name in summary.keys())}
+            {''.join(f"<option value='{html.escape(name or 'unknown')}' {'selected' if selected_event == name else ''}>{html.escape(name or 'unknown')}</option>" for name in summary.keys())}
           </select>
           <input type="number" name="limit" min="1" max="500" value="{limit}">
           <button type="submit">Apply</button>

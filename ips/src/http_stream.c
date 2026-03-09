@@ -1,6 +1,6 @@
 /**
- * @file telnet.c
- * @brief Telnet main 함수
+ * @file http_stream.c
+ * @brief HTTP 세션 관리
  * 
 
 */
@@ -450,8 +450,8 @@ static http_stream_rc_t parse_one(http_stream_t *s, int *produced)
 http_stream_t *http_stream_create(const http_stream_cfg_t *cfg)
 {
     http_stream_t *s;
-    size_t max_buf = 1024 * 1024;
-    size_t max_body = 1024 * 1024;
+    size_t max_buf = 12 * 1024 * 1024;
+    size_t max_body = 12 * 1024 * 1024;
 
     if (cfg) {
         if (cfg->max_buffer_bytes > 0) max_buf = cfg->max_buffer_bytes;
