@@ -25,6 +25,59 @@ struct detect_engine
     char last_err[128];
 };
 
+static void set_err(detect_engine_t *e, const char *msg);
+
+static int collect_matches_ctx_timed(
+    detect_engine_t *e,
+    const uint8_t *data,
+    size_t len,
+    ips_context_t ctx,
+    detect_match_list_t *matches,
+    uint64_t *elapsed_us_sum)
+{
+    if (elapsed_us_sum != NULL) {
+        *elapsed_us_sum = 0;
+    }
+    if (!matches)
+    {
+        if (e)
+            set_err(e, "null matches");
+        return -1;
+    }
+    if (!e || !data || len == 0)
+        return 0;
+    if (len > (size_t)INT_MAX)
+    {
+        set_err(e, "payload too large");
+        return -1;
+    }
+
+    switch (ctx)
+    {
+        case IPS_CTX_REQUEST_URI:
+        case IPS_CTX_ARGS:
+        case IPS_CTX_ARGS_NAMES:
+        case IPS_CTX_REQUEST_HEADERS:
+        case IPS_CTX_REQUEST_BODY:
+        case IPS_CTX_RESPONSE_BODY:
+        case IPS_CTX_ALL:
+            break;
+        default:
+            set_err(e, "invalid context");
+            return -1;
+    }
+
+    return engine_runtime_collect_matches_timed(
+        e->runtime,
+        data,
+        len,
+        ctx,
+        matches,
+        elapsed_us_sum,
+        e->last_err,
+        sizeof(e->last_err));
+}
+
 static void set_err(detect_engine_t *e, const char *msg)
 {
     if (!e)
@@ -216,36 +269,18 @@ int detect_engine_collect_matches_ctx(
     detect_match_list_t *matches
 )
 {
-    if (!matches)
-    {
-        if (e)
-            set_err(e, "null matches");
-        return -1;
-    }
-    if (!e || !data || len == 0)
-        return 0;
-    if (len > (size_t)INT_MAX)
-    {
-        set_err(e, "payload too large");
-        return -1;
-    }
+    return collect_matches_ctx_timed(e, data, len, ctx, matches, NULL);
+}
 
-    switch (ctx)
-    {
-        case IPS_CTX_REQUEST_URI:
-        case IPS_CTX_ARGS:
-        case IPS_CTX_ARGS_NAMES:
-        case IPS_CTX_REQUEST_HEADERS:
-        case IPS_CTX_REQUEST_BODY:
-        case IPS_CTX_RESPONSE_BODY:
-        case IPS_CTX_ALL:
-            break;
-        default:
-            set_err(e, "invalid context");
-            return -1;
-    }
-
-    return engine_runtime_collect_matches(e->runtime, data, len, ctx, matches, e->last_err, sizeof(e->last_err));
+int detect_engine_collect_matches_ctx_timed(
+    detect_engine_t *e,
+    const uint8_t *data,
+    size_t len,
+    ips_context_t ctx,
+    detect_match_list_t *matches,
+    uint64_t *elapsed_us_sum)
+{
+    return collect_matches_ctx_timed(e, data, len, ctx, matches, elapsed_us_sum);
 }
 
 int detect_engine_match(

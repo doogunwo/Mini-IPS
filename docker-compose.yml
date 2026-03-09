@@ -65,7 +65,6 @@ services:
       - "8090:8090"
     environment:
       TZ: Asia/Seoul
-      IPS_REGEX_ENGINE: ${IPS_REGEX_ENGINE:-hs}
       IFACE: ${IPS_IFACE:-eth0}
       BPF: tcp and host ${SERVER_CONTAINER_IP:-172.31.0.60} and port ${SERVER_PORT:-8080}
       MODE: ${IPS_MODE:-sniffing}

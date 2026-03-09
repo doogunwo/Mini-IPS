@@ -87,6 +87,15 @@ int detect_engine_collect_matches_ctx(
     detect_match_list_t *matches
 );
 
+int detect_engine_collect_matches_ctx_timed(
+    detect_engine_t *e,
+    const uint8_t *data,
+    size_t len,
+    ips_context_t ctx,
+    detect_match_list_t *matches,
+    uint64_t *elapsed_us_sum
+);
+
 void detect_match_list_init(detect_match_list_t *matches);
 void detect_match_list_free(detect_match_list_t *matches);
 

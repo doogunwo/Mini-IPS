@@ -27,6 +27,7 @@
 #include <ctype.h>
 #include "net_compat.h"
 #include "detect.h"
+#include "engine.h"
 #include "driver.h"
 #include "httgw.h"
 
@@ -891,15 +892,12 @@ static int detect_match_decoded(
     uint64_t *elapsed_us
 )
 {
-    uint64_t start_us;
-    uint64_t end_us;
+    uint64_t regex_elapsed_us = 0;
     int rc;
 
-    start_us = monotonic_us();
-    rc = detect_engine_collect_matches_ctx(det, data, len, ctx, matches);
-    end_us = monotonic_us();
+    rc = detect_engine_collect_matches_ctx_timed(det, data, len, ctx, matches, &regex_elapsed_us);
     if (elapsed_us)
-        *elapsed_us += (end_us - start_us);
+        *elapsed_us += regex_elapsed_us;
     if (rc != 0 || len == 0)
         return rc;
 
@@ -922,11 +920,10 @@ static int detect_match_decoded(
     size_t out_len = 0;
     if (url_decode((const char *)data, len, buf, len, &out_len) == 0 && out_len > 0)
     {
-        start_us = monotonic_us();
-        rc = detect_engine_collect_matches_ctx(det, buf, out_len, ctx, matches);
-        end_us = monotonic_us();
+        regex_elapsed_us = 0;
+        rc = detect_engine_collect_matches_ctx_timed(det, buf, out_len, ctx, matches, &regex_elapsed_us);
         if (elapsed_us)
-            *elapsed_us += (end_us - start_us);
+            *elapsed_us += regex_elapsed_us;
     }
 
     free(buf);
@@ -1095,13 +1092,12 @@ static int run_detect(
 
     if (msg->headers_raw && msg->headers_raw_len > 0)
     {
-        uint64_t start_us = monotonic_us();
+        uint64_t regex_elapsed_us = 0;
         prev_count = matches ? matches->count : 0;
-        rc = detect_engine_collect_matches_ctx(det, msg->headers_raw, msg->headers_raw_len,
-                                               IPS_CTX_REQUEST_HEADERS, matches);
-        uint64_t end_us = monotonic_us();
+        rc = detect_engine_collect_matches_ctx_timed(det, msg->headers_raw, msg->headers_raw_len,
+                                                     IPS_CTX_REQUEST_HEADERS, matches, &regex_elapsed_us);
         if (detect_elapsed_us)
-            *detect_elapsed_us += (end_us - start_us);
+            *detect_elapsed_us += regex_elapsed_us;
         if (rc < 0)
             return rc;
         if (matches)
@@ -1111,13 +1107,12 @@ static int run_detect(
 
     if (msg->body && msg->body_len > 0)
     {
-        uint64_t start_us = monotonic_us();
+        uint64_t regex_elapsed_us = 0;
         prev_count = matches ? matches->count : 0;
-        rc = detect_engine_collect_matches_ctx(det, msg->body, msg->body_len,
-                                               IPS_CTX_REQUEST_BODY, matches);
-        uint64_t end_us = monotonic_us();
+        rc = detect_engine_collect_matches_ctx_timed(det, msg->body, msg->body_len,
+                                                     IPS_CTX_REQUEST_BODY, matches, &regex_elapsed_us);
         if (detect_elapsed_us)
-            *detect_elapsed_us += (end_us - start_us);
+            *detect_elapsed_us += regex_elapsed_us;
         if (rc < 0)
             return rc;
         if (matches)
@@ -1435,7 +1430,7 @@ static int parse_mode_arg(const char *arg, httgw_mode_t *out)
 static void usage(const char *prog)
 {
     fprintf(stderr,
-            "usage: %s -iface=<iface> -bpf=<filter> [-mode=sniffing|tp/syn|reverse]\n",
+            "usage: %s -iface=<iface> -bpf=<filter> [-mode=sniffing|tp/syn|reverse] [-engine=pcre|hs]\n",
             prog ? prog : "main");
 }
 
@@ -1444,6 +1439,7 @@ int main(int argc, char **argv)
     const char *iface = NULL;
     const char *bpf = NULL;
     const char *policy = "ALL";
+    const char *engine_name = NULL;
     httgw_mode_t mode = HTTGW_MODE_SNIFF;
     driver_runtime_t rt;
     app_shared_t shared;
@@ -1477,6 +1473,11 @@ int main(int argc, char **argv)
             bpf = argv[i] + 5;
             continue;
         }
+        if (strncmp(argv[i], "-engine=", 8) == 0)
+        {
+            engine_name = argv[i] + 8;
+            continue;
+        }
         if (argv[i][0] == '-')
             continue;
         argi++;
@@ -1490,6 +1491,17 @@ int main(int argc, char **argv)
     {
         usage(argv[0]);
         return 1;
+    }
+
+    if (engine_name != NULL)
+    {
+        char errbuf[64];
+        if (engine_set_backend_name(engine_name, errbuf, sizeof(errbuf)) != 0)
+        {
+            fprintf(stderr, "invalid engine: %s\n", engine_name);
+            usage(argv[0]);
+            return 1;
+        }
     }
 
     signal(SIGINT, on_sigint);

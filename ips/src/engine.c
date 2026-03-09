@@ -40,6 +40,8 @@ struct engine_runtime {
     hs_scratch_t *hs_scratch;
 };
 
+static regex_backend_t g_selected_backend = REGEX_BACKEND_PCRE;
+
 static void set_err(char *errbuf, size_t errbuf_size, const char *msg)
 {
     if (errbuf == NULL || errbuf_size == 0) {
@@ -102,14 +104,18 @@ static int rule_context_matches(const IPS_Signature *rule, ips_context_t ctx)
     return rule->context == ctx;
 }
 
-static regex_backend_t regex_backend_from_env(void)
+int engine_set_backend_name(const char *name, char *errbuf, size_t errbuf_size)
 {
-    const char *name = getenv("IPS_REGEX_ENGINE");
-
-    if (name != NULL && strcmp(name, "hs") == 0) {
-        return REGEX_BACKEND_HS;
+    if (name == NULL || strcmp(name, "pcre") == 0) {
+        g_selected_backend = REGEX_BACKEND_PCRE;
+        return 0;
     }
-    return REGEX_BACKEND_PCRE;
+    if (strcmp(name, "hs") == 0) {
+        g_selected_backend = REGEX_BACKEND_HS;
+        return 0;
+    }
+    set_err(errbuf, errbuf_size, "invalid regex backend");
+    return -1;
 }
 
 static void pcre_release(engine_runtime_t *runtime)
@@ -306,7 +312,7 @@ engine_runtime_t *engine_runtime_create(
         return NULL;
     }
 
-    runtime->backend = regex_backend_from_env();
+    runtime->backend = g_selected_backend;
     runtime->compiled_rules = (compiled_rule_t *)calloc(rule_count, sizeof(*runtime->compiled_rules));
     if (runtime->compiled_rules == NULL) {
         set_err(errbuf, errbuf_size, "engine compile alloc failed");
@@ -584,8 +590,33 @@ int engine_runtime_collect_matches(
     char *errbuf,
     size_t errbuf_size)
 {
+    return engine_runtime_collect_matches_timed(
+        runtime,
+        data,
+        len,
+        ctx,
+        matches,
+        NULL,
+        errbuf,
+        errbuf_size);
+}
+
+int engine_runtime_collect_matches_timed(
+    engine_runtime_t *runtime,
+    const uint8_t *data,
+    size_t len,
+    ips_context_t ctx,
+    detect_match_list_t *matches,
+    uint64_t *elapsed_us_sum,
+    char *errbuf,
+    size_t errbuf_size)
+{
     unsigned int i;
     int matched_any = 0;
+
+    if (elapsed_us_sum != NULL) {
+        *elapsed_us_sum = 0;
+    }
 
     if (matches == NULL) {
         set_err(errbuf, errbuf_size, "null matches");
@@ -617,6 +648,9 @@ int engine_runtime_collect_matches(
             rc = engine_match_one(runtime, &runtime->compiled_rules[i], data, len, &match_off, &match_len, errbuf, errbuf_size);
             elapsed_us = (uint64_t)(mono_us_now() - t0);
             maybe_log_rule_profile(&runtime->compiled_rules[i], ctx, len, elapsed_us, rc);
+            if (elapsed_us_sum != NULL) {
+                *elapsed_us_sum += elapsed_us;
+            }
         }
         if (rc < 0) {
             return -1;
