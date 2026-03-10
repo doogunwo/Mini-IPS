@@ -1,0 +1,424 @@
+\doxysection{driver.\+h}
+\hypertarget{driver_8h_source}{}\label{driver_8h_source}\index{ips/include/driver.h@{ips/include/driver.h}}
+\mbox{\hyperlink{driver_8h}{Go to the documentation of this file.}}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{00001\ }
+\DoxyCodeLine{00005\ \textcolor{preprocessor}{\#pragma\ once}}
+\DoxyCodeLine{00006\ \textcolor{preprocessor}{\#ifndef\ \_DEFAULT\_SOURCE}}
+\DoxyCodeLine{00007\ \textcolor{preprocessor}{\#define\ \_DEFAULT\_SOURCE}}
+\DoxyCodeLine{00008\ \textcolor{preprocessor}{\#endif}}
+\DoxyCodeLine{00009\ }
+\DoxyCodeLine{00010\ \textcolor{comment}{//\ 드라이버\ 모듈\ 주요\ 기능은}}
+\DoxyCodeLine{00011\ \textcolor{comment}{//\ \ 1.\ 패킷\ 큐\ 생성\ 및\ 초기화}}
+\DoxyCodeLine{00012\ \textcolor{comment}{//\ \ 2.\ 시스템콜\ 함수\ 생성}}
+\DoxyCodeLine{00013\ \textcolor{comment}{//\ \ 3.\ 패킷\ 처리}}
+\DoxyCodeLine{00014\ \textcolor{comment}{//\ \ \ -\/\ 프록시\ 모드에\ 따른\ 예외\ 처리}}
+\DoxyCodeLine{00015\ \textcolor{comment}{//\ \ \ -\/\ 정책에\ 의한\ 예외\ 처리}}
+\DoxyCodeLine{00016\ \textcolor{comment}{//\ \ \ -\/\ 필터링이\ 필요한\ 패킷을\ 응용에\ 전달}}
+\DoxyCodeLine{00017\ \textcolor{comment}{/*default*/}}
+\DoxyCodeLine{00018\ \textcolor{preprocessor}{\#include\ <sys/types.h>}}
+\DoxyCodeLine{00019\ \textcolor{preprocessor}{\#include\ <stdint.h>}}
+\DoxyCodeLine{00020\ \textcolor{preprocessor}{\#include\ <string.h>}}
+\DoxyCodeLine{00021\ \textcolor{preprocessor}{\#include\ <stdlib.h>}}
+\DoxyCodeLine{00022\ \textcolor{preprocessor}{\#include\ <pthread.h>}}
+\DoxyCodeLine{00023\ \textcolor{preprocessor}{\#include\ <errno.h>}}
+\DoxyCodeLine{00024\ }
+\DoxyCodeLine{00025\ \textcolor{comment}{/*pcap*/}}
+\DoxyCodeLine{00026\ \textcolor{preprocessor}{\#include\ <pcap.h>}}
+\DoxyCodeLine{00027\ }
+\DoxyCodeLine{00028\ }
+\DoxyCodeLine{00029\ \textcolor{comment}{/*\ Per-\/Thread\ TCP\ */}}
+\DoxyCodeLine{00030\ \textcolor{preprocessor}{\#include\ <stdatomic.h>}}
+\DoxyCodeLine{00031\ \textcolor{preprocessor}{\#include\ <arpa/inet.h>}}
+\DoxyCodeLine{00032\ \textcolor{preprocessor}{\#include\ <unistd.h>}}
+\DoxyCodeLine{00033\ \textcolor{preprocessor}{\#define\ SERVER\_PORT\ 8080}}
+\DoxyCodeLine{00034\ \textcolor{preprocessor}{\#define\ BACKLOG\ 128}}
+\DoxyCodeLine{00035\ \textcolor{preprocessor}{\#define\ BUF\_SIZE\ 4096}}
+\DoxyCodeLine{00036\ }
+\DoxyCodeLine{00037\ \textcolor{comment}{/*\ Packet\ Filter\ Header*/}}
+\DoxyCodeLine{00038\ \textcolor{preprocessor}{\#include\ <stddef.h>}}
+\DoxyCodeLine{00039\ \textcolor{preprocessor}{\#include\ <stdbool.h>}}
+\DoxyCodeLine{00040\ }
+\DoxyCodeLine{00041\ \textcolor{comment}{/*-\/-\/-\/-\/-\/-\/패킷\ 큐\ 구현\ -\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/*/}}
+\DoxyCodeLine{00042\ \textcolor{comment}{//\ \ 패킷\ 큐\ (8\string~64),\ 패킷\ 슬롯\ 카운트\ (기본\ 4096)}}
+\DoxyCodeLine{00043\ \textcolor{preprocessor}{\#define\ DEFAULT\_SLOT\_COUNT\ 4096}}
+\DoxyCodeLine{00044\ \textcolor{preprocessor}{\#define\ MIN\_QUEUE\_COUNT\ 1}}
+\DoxyCodeLine{00045\ \textcolor{preprocessor}{\#define\ MAX\_QUEUE\_COUNT\ 64}}
+\DoxyCodeLine{00046\ \textcolor{preprocessor}{\#define\ PACKET\_MAX\_BYTES\ 2048}}
+\DoxyCodeLine{00047\ }
+\DoxyCodeLine{00048\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{struct\ }\mbox{\hyperlink{structpacket__slot}{packet\_slot}}}
+\DoxyCodeLine{00049\ \{}
+\DoxyCodeLine{00050\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structpacket__slot_a707d4acbaef8bde097d235a018662b46}{len}};}
+\DoxyCodeLine{00051\ \ \ \ \ uint64\_t\ \mbox{\hyperlink{structpacket__slot_a711905e8fd1d2078e13b918a56f1e311}{ts\_ns}};}
+\DoxyCodeLine{00052\ \ \ \ \ uint8\_t\ \mbox{\hyperlink{structpacket__slot_a9ede5d0e9968395d950a3dff7530b788}{data}}[\mbox{\hyperlink{driver_8h_a2cd5e170a7be5b256ba8abcaf37b3bce}{PACKET\_MAX\_BYTES}}];}
+\DoxyCodeLine{00053\ \}\ \mbox{\hyperlink{driver_8h_a929c98ba44bfc22b369ab43e7db831eb}{packet\_slot\_t}};}
+\DoxyCodeLine{00054\ }
+\DoxyCodeLine{00055\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{struct\ }\mbox{\hyperlink{structpacket__ring}{packet\_ring}}}
+\DoxyCodeLine{00056\ \{}
+\DoxyCodeLine{00057\ \ \ \ \ \mbox{\hyperlink{structpacket__slot}{packet\_slot\_t}}\ *\mbox{\hyperlink{structpacket__ring_ab689e90ca49834bab24cdd8837e9f42f}{slots}};}
+\DoxyCodeLine{00058\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structpacket__ring_a99f5a2d8d134df3131f9519e618a8775}{slot\_count}};}
+\DoxyCodeLine{00059\ }
+\DoxyCodeLine{00060\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structpacket__ring_ac81f1fc149c6a8f7daf1aa553960c1bf}{mask}};}
+\DoxyCodeLine{00061\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structpacket__ring_a883da13ca59a51788a60c5d68fe4dcca}{head}};}
+\DoxyCodeLine{00062\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structpacket__ring_a036fb8ff8954c5a46b27701f371780e3}{tail}};}
+\DoxyCodeLine{00063\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structpacket__ring_a23d28be300dbcecc79685ce4d5a3006d}{count}};}
+\DoxyCodeLine{00064\ }
+\DoxyCodeLine{00065\ \ \ \ \ \textcolor{comment}{/*-\/-\/-\/-\/-\/아직\ 드랍\ 구현x\ /\ 상태*/}}
+\DoxyCodeLine{00066\ \ \ \ \ uint64\_t\ \mbox{\hyperlink{structpacket__ring_a6b64e4db5e5cc4a0c3e8f610f1e85f3d}{enq\_ok}};}
+\DoxyCodeLine{00067\ \ \ \ \ uint64\_t\ \mbox{\hyperlink{structpacket__ring_ab514738430cbcf128ec078618a728730}{deq\_ok}};}
+\DoxyCodeLine{00068\ \ \ \ \ uint64\_t\ \mbox{\hyperlink{structpacket__ring_a61268f3feaabbf8b415208edf2cd874c}{drop\_full}};}
+\DoxyCodeLine{00069\ }
+\DoxyCodeLine{00070\ \ \ \ \ \textcolor{comment}{/*\ 쓰레드\ 안전*/}}
+\DoxyCodeLine{00071\ \ \ \ \ pthread\_mutex\_t\ \mbox{\hyperlink{structpacket__ring_a50e207ad9e93d9ffb54122ad14722be6}{mu}};}
+\DoxyCodeLine{00072\ \ \ \ \ pthread\_cond\_t\ \mbox{\hyperlink{structpacket__ring_a5a868c2098decb8aa81bc0cb29e04874}{not\_empty}};}
+\DoxyCodeLine{00073\ \ \ \ \ pthread\_cond\_t\ \mbox{\hyperlink{structpacket__ring_aad1098d3f55e103274057b237e526e9c}{not\_full}};}
+\DoxyCodeLine{00074\ \ \ \ \ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{structpacket__ring_a69c48e7cbe336282d435af389256906b}{use\_blocking}};}
+\DoxyCodeLine{00075\ \}\ \mbox{\hyperlink{driver_8h_a3c1d19bd91f56af2da866eb361f0905b}{packet\_ring\_t}};}
+\DoxyCodeLine{00076\ }
+\DoxyCodeLine{00077\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{struct\ }\mbox{\hyperlink{structpacket__queue__set}{packet\_queue\_set}}}
+\DoxyCodeLine{00078\ \{}
+\DoxyCodeLine{00079\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structpacket__queue__set_ab8607f4e7f704fd27a5b648ecc5c419a}{qcount}};\ \ \textcolor{comment}{/*\ 8..64\ */}}
+\DoxyCodeLine{00080\ \ \ \ \ \mbox{\hyperlink{structpacket__ring}{packet\_ring\_t}}\ *\mbox{\hyperlink{structpacket__queue__set_a3f61a3de0ec6476a7b26b8315412e02a}{q}};\ \textcolor{comment}{/*array[qcount]*/}}
+\DoxyCodeLine{00081\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structpacket__queue__set_a2c7fa49860b256cc990693e5001c5b2d}{rr}};\ \ \ \ \ \ \textcolor{comment}{/*\ round-\/robin\ selector\ */}}
+\DoxyCodeLine{00082\ \}\ \mbox{\hyperlink{driver_8h_a6646f1525eb05a41745b7472e7b3cb0d}{packet\_queue\_set\_t}};}
+\DoxyCodeLine{00083\ }
+\DoxyCodeLine{00084\ \textcolor{keyword}{typedef}\ void\ (*\mbox{\hyperlink{driver_8h_aada3e58cb2c26be26bb2c6c7faceac00}{driver\_packet\_cb}})(}
+\DoxyCodeLine{00085\ \ \ \ \ \textcolor{keyword}{const}\ uint8\_t\ *data,}
+\DoxyCodeLine{00086\ \ \ \ \ uint32\_t\ len,}
+\DoxyCodeLine{00087\ \ \ \ \ uint64\_t\ ts\_ns,}
+\DoxyCodeLine{00088\ \ \ \ \ \textcolor{keywordtype}{void}\ *user}
+\DoxyCodeLine{00089\ );}
+\DoxyCodeLine{00090\ }
+\DoxyCodeLine{00091\ \textcolor{keyword}{static}\ \textcolor{keyword}{inline}\ \textcolor{keywordtype}{int}\ is\_power\_of\_two\_u32(uint32\_t\ x)}
+\DoxyCodeLine{00092\ \{}
+\DoxyCodeLine{00093\ \ \ \ \ \textcolor{keywordflow}{return}\ x\ \&\&\ ((x\ \&\ (x\ -\/\ 1))\ ==\ 0);}
+\DoxyCodeLine{00094\ \}}
+\DoxyCodeLine{00095\ }
+\DoxyCodeLine{00096\ \textcolor{comment}{/*-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/\ ring\ init/dest-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/*/}}
+\DoxyCodeLine{00097\ }
+\DoxyCodeLine{00098\ \textcolor{keyword}{static}\ \textcolor{keyword}{inline}\ \textcolor{keywordtype}{int}\ packet\_ring\_init(\mbox{\hyperlink{structpacket__ring}{packet\_ring\_t}}\ *r,\ uint32\_t\ slot\_count,\ \textcolor{keywordtype}{int}\ use\_blocking)}
+\DoxyCodeLine{00099\ \{}
+\DoxyCodeLine{00100\ \ \ \ \ \textcolor{keywordflow}{if}\ (!r)}
+\DoxyCodeLine{00101\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ EINVAL;}
+\DoxyCodeLine{00102\ \ \ \ \ \textcolor{keywordflow}{if}\ (!is\_power\_of\_two\_u32(slot\_count))}
+\DoxyCodeLine{00103\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ EINVAL;}
+\DoxyCodeLine{00104\ }
+\DoxyCodeLine{00105\ \ \ \ \ memset(r,\ 0,\ \textcolor{keyword}{sizeof}(*r));}
+\DoxyCodeLine{00106\ \ \ \ \ r-\/>\mbox{\hyperlink{structpacket__ring_ab689e90ca49834bab24cdd8837e9f42f}{slots}}\ =\ (\mbox{\hyperlink{structpacket__slot}{packet\_slot\_t}}\ *)calloc(slot\_count,\ \textcolor{keyword}{sizeof}(\mbox{\hyperlink{structpacket__slot}{packet\_slot\_t}}));}
+\DoxyCodeLine{00107\ \ \ \ \ \textcolor{keywordflow}{if}\ (!r-\/>\mbox{\hyperlink{structpacket__ring_ab689e90ca49834bab24cdd8837e9f42f}{slots}})}
+\DoxyCodeLine{00108\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ ENOMEM;}
+\DoxyCodeLine{00109\ }
+\DoxyCodeLine{00110\ \ \ \ \ r-\/>\mbox{\hyperlink{structpacket__ring_a99f5a2d8d134df3131f9519e618a8775}{slot\_count}}\ =\ slot\_count;}
+\DoxyCodeLine{00111\ \ \ \ \ r-\/>\mbox{\hyperlink{structpacket__ring_ac81f1fc149c6a8f7daf1aa553960c1bf}{mask}}\ =\ slot\_count\ -\/\ 1;}
+\DoxyCodeLine{00112\ \ \ \ \ r-\/>\mbox{\hyperlink{structpacket__ring_a69c48e7cbe336282d435af389256906b}{use\_blocking}}\ =\ use\_blocking\ ?\ 1\ :\ 0;}
+\DoxyCodeLine{00113\ }
+\DoxyCodeLine{00114\ \ \ \ \ pthread\_mutex\_init(\&r-\/>\mbox{\hyperlink{structpacket__ring_a50e207ad9e93d9ffb54122ad14722be6}{mu}},\ NULL);}
+\DoxyCodeLine{00115\ \ \ \ \ pthread\_cond\_init(\&r-\/>\mbox{\hyperlink{structpacket__ring_a5a868c2098decb8aa81bc0cb29e04874}{not\_empty}},\ NULL);}
+\DoxyCodeLine{00116\ \ \ \ \ pthread\_cond\_init(\&r-\/>\mbox{\hyperlink{structpacket__ring_aad1098d3f55e103274057b237e526e9c}{not\_full}},\ NULL);}
+\DoxyCodeLine{00117\ \ \ \ \ \textcolor{keywordflow}{return}\ 0;}
+\DoxyCodeLine{00118\ \}}
+\DoxyCodeLine{00119\ }
+\DoxyCodeLine{00120\ \textcolor{keyword}{static}\ \textcolor{keyword}{inline}\ \textcolor{keywordtype}{void}\ packet\_ring\_destroy(\mbox{\hyperlink{structpacket__ring}{packet\_ring\_t}}\ *r)}
+\DoxyCodeLine{00121\ \{}
+\DoxyCodeLine{00122\ \ \ \ \ \textcolor{keywordflow}{if}\ (!r)}
+\DoxyCodeLine{00123\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return};}
+\DoxyCodeLine{00124\ \ \ \ \ pthread\_mutex\_destroy(\&r-\/>\mbox{\hyperlink{structpacket__ring_a50e207ad9e93d9ffb54122ad14722be6}{mu}});}
+\DoxyCodeLine{00125\ \ \ \ \ pthread\_cond\_destroy(\&r-\/>\mbox{\hyperlink{structpacket__ring_a5a868c2098decb8aa81bc0cb29e04874}{not\_empty}});}
+\DoxyCodeLine{00126\ \ \ \ \ pthread\_cond\_destroy(\&r-\/>\mbox{\hyperlink{structpacket__ring_aad1098d3f55e103274057b237e526e9c}{not\_full}});}
+\DoxyCodeLine{00127\ \ \ \ \ free(r-\/>\mbox{\hyperlink{structpacket__ring_ab689e90ca49834bab24cdd8837e9f42f}{slots}});}
+\DoxyCodeLine{00128\ \ \ \ \ memset(r,\ 0,\ \textcolor{keyword}{sizeof}(*r));}
+\DoxyCodeLine{00129\ \}}
+\DoxyCodeLine{00130\ }
+\DoxyCodeLine{00131\ \textcolor{comment}{/*-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/\ enqueue\ /\ dequeue\ (copy-\/in/cout-\/out)\ -\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/*/}}
+\DoxyCodeLine{00132\ \textcolor{keyword}{static}\ \textcolor{keyword}{inline}\ \textcolor{keywordtype}{int}\ packet\_ring\_enq(\mbox{\hyperlink{structpacket__ring}{packet\_ring\_t}}\ *r,}
+\DoxyCodeLine{00133\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keyword}{const}\ uint8\_t\ *data,}
+\DoxyCodeLine{00134\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ uint32\_t\ len,}
+\DoxyCodeLine{00135\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ uint64\_t\ ts\_ns)}
+\DoxyCodeLine{00136\ \{}
+\DoxyCodeLine{00137\ \ \ \ \ \textcolor{keywordflow}{if}\ (!r\ ||\ (!data\ \&\&\ len))}
+\DoxyCodeLine{00138\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ EINVAL;}
+\DoxyCodeLine{00139\ \ \ \ \ \textcolor{keywordflow}{if}\ (len\ >\ \mbox{\hyperlink{driver_8h_a2cd5e170a7be5b256ba8abcaf37b3bce}{PACKET\_MAX\_BYTES}})}
+\DoxyCodeLine{00140\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ EMSGSIZE;}
+\DoxyCodeLine{00141\ }
+\DoxyCodeLine{00142\ \ \ \ \ pthread\_mutex\_lock(\&r-\/>\mbox{\hyperlink{structpacket__ring_a50e207ad9e93d9ffb54122ad14722be6}{mu}});}
+\DoxyCodeLine{00143\ }
+\DoxyCodeLine{00144\ \ \ \ \ \textcolor{keywordflow}{while}\ (r-\/>\mbox{\hyperlink{structpacket__ring_a23d28be300dbcecc79685ce4d5a3006d}{count}}\ ==\ r-\/>\mbox{\hyperlink{structpacket__ring_a99f5a2d8d134df3131f9519e618a8775}{slot\_count}})}
+\DoxyCodeLine{00145\ \ \ \ \ \{}
+\DoxyCodeLine{00146\ \ \ \ \ \ \ \ \ r-\/>\mbox{\hyperlink{structpacket__ring_a61268f3feaabbf8b415208edf2cd874c}{drop\_full}}++;}
+\DoxyCodeLine{00147\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (!r-\/>\mbox{\hyperlink{structpacket__ring_a69c48e7cbe336282d435af389256906b}{use\_blocking}})}
+\DoxyCodeLine{00148\ \ \ \ \ \ \ \ \ \{}
+\DoxyCodeLine{00149\ \ \ \ \ \ \ \ \ \ \ \ \ pthread\_mutex\_unlock(\&r-\/>\mbox{\hyperlink{structpacket__ring_a50e207ad9e93d9ffb54122ad14722be6}{mu}});}
+\DoxyCodeLine{00150\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ EAGAIN;\ \textcolor{comment}{//\ full}}
+\DoxyCodeLine{00151\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{00152\ \ \ \ \ \ \ \ \ pthread\_cond\_wait(\&r-\/>\mbox{\hyperlink{structpacket__ring_aad1098d3f55e103274057b237e526e9c}{not\_full}},\ \&r-\/>\mbox{\hyperlink{structpacket__ring_a50e207ad9e93d9ffb54122ad14722be6}{mu}});}
+\DoxyCodeLine{00153\ \ \ \ \ \}}
+\DoxyCodeLine{00154\ \ \ \ \ \mbox{\hyperlink{structpacket__slot}{packet\_slot\_t}}\ *s\ =\ \&r-\/>\mbox{\hyperlink{structpacket__ring_ab689e90ca49834bab24cdd8837e9f42f}{slots}}[r-\/>\mbox{\hyperlink{structpacket__ring_a036fb8ff8954c5a46b27701f371780e3}{tail}}\ \&\ r-\/>\mbox{\hyperlink{structpacket__ring_ac81f1fc149c6a8f7daf1aa553960c1bf}{mask}}];}
+\DoxyCodeLine{00155\ \ \ \ \ s-\/>\mbox{\hyperlink{structpacket__slot_a707d4acbaef8bde097d235a018662b46}{len}}\ =\ len;}
+\DoxyCodeLine{00156\ \ \ \ \ s-\/>\mbox{\hyperlink{structpacket__slot_a711905e8fd1d2078e13b918a56f1e311}{ts\_ns}}\ =\ ts\_ns;}
+\DoxyCodeLine{00157\ \ \ \ \ \textcolor{keywordflow}{if}\ (len)}
+\DoxyCodeLine{00158\ \ \ \ \ \ \ \ \ memcpy(s-\/>\mbox{\hyperlink{structpacket__slot_a9ede5d0e9968395d950a3dff7530b788}{data}},\ data,\ len);}
+\DoxyCodeLine{00159\ }
+\DoxyCodeLine{00160\ \ \ \ \ r-\/>\mbox{\hyperlink{structpacket__ring_a036fb8ff8954c5a46b27701f371780e3}{tail}}++;}
+\DoxyCodeLine{00161\ \ \ \ \ r-\/>\mbox{\hyperlink{structpacket__ring_a23d28be300dbcecc79685ce4d5a3006d}{count}}++;}
+\DoxyCodeLine{00162\ \ \ \ \ r-\/>\mbox{\hyperlink{structpacket__ring_a6b64e4db5e5cc4a0c3e8f610f1e85f3d}{enq\_ok}}++;}
+\DoxyCodeLine{00163\ }
+\DoxyCodeLine{00164\ \ \ \ \ pthread\_cond\_signal(\&r-\/>\mbox{\hyperlink{structpacket__ring_a5a868c2098decb8aa81bc0cb29e04874}{not\_empty}});}
+\DoxyCodeLine{00165\ \ \ \ \ pthread\_mutex\_unlock(\&r-\/>\mbox{\hyperlink{structpacket__ring_a50e207ad9e93d9ffb54122ad14722be6}{mu}});}
+\DoxyCodeLine{00166\ \ \ \ \ \textcolor{keywordflow}{return}\ 0;}
+\DoxyCodeLine{00167\ \}}
+\DoxyCodeLine{00168\ }
+\DoxyCodeLine{00169\ \textcolor{keyword}{static}\ \textcolor{keyword}{inline}\ \textcolor{keywordtype}{int}\ packet\_ring\_deq(\mbox{\hyperlink{structpacket__ring}{packet\_ring\_t}}\ *r,}
+\DoxyCodeLine{00170\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ uint8\_t\ *out,}
+\DoxyCodeLine{00171\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ uint32\_t\ out\_cap,}
+\DoxyCodeLine{00172\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ uint32\_t\ *out\_len,}
+\DoxyCodeLine{00173\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ uint64\_t\ *out\_ts\_ns)}
+\DoxyCodeLine{00174\ \{}
+\DoxyCodeLine{00175\ \ \ \ \ \textcolor{keywordflow}{if}\ (!r\ ||\ !out\_len)}
+\DoxyCodeLine{00176\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ EINVAL;}
+\DoxyCodeLine{00177\ \ \ \ \ pthread\_mutex\_lock(\&r-\/>\mbox{\hyperlink{structpacket__ring_a50e207ad9e93d9ffb54122ad14722be6}{mu}});}
+\DoxyCodeLine{00178\ }
+\DoxyCodeLine{00179\ \ \ \ \ \textcolor{keywordflow}{while}\ (r-\/>\mbox{\hyperlink{structpacket__ring_a23d28be300dbcecc79685ce4d5a3006d}{count}}\ ==\ 0)}
+\DoxyCodeLine{00180\ \ \ \ \ \{}
+\DoxyCodeLine{00181\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (!r-\/>\mbox{\hyperlink{structpacket__ring_a69c48e7cbe336282d435af389256906b}{use\_blocking}})}
+\DoxyCodeLine{00182\ \ \ \ \ \ \ \ \ \{}
+\DoxyCodeLine{00183\ \ \ \ \ \ \ \ \ \ \ \ \ pthread\_mutex\_unlock(\&r-\/>\mbox{\hyperlink{structpacket__ring_a50e207ad9e93d9ffb54122ad14722be6}{mu}});}
+\DoxyCodeLine{00184\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ EAGAIN;}
+\DoxyCodeLine{00185\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{00186\ \ \ \ \ \ \ \ \ pthread\_cond\_wait(\&r-\/>\mbox{\hyperlink{structpacket__ring_a5a868c2098decb8aa81bc0cb29e04874}{not\_empty}},\ \&r-\/>\mbox{\hyperlink{structpacket__ring_a50e207ad9e93d9ffb54122ad14722be6}{mu}});}
+\DoxyCodeLine{00187\ \ \ \ \ \}}
+\DoxyCodeLine{00188\ }
+\DoxyCodeLine{00189\ \ \ \ \ \mbox{\hyperlink{structpacket__slot}{packet\_slot\_t}}\ *s\ =\ \&r-\/>\mbox{\hyperlink{structpacket__ring_ab689e90ca49834bab24cdd8837e9f42f}{slots}}[r-\/>\mbox{\hyperlink{structpacket__ring_a883da13ca59a51788a60c5d68fe4dcca}{head}}\ \&\ r-\/>\mbox{\hyperlink{structpacket__ring_ac81f1fc149c6a8f7daf1aa553960c1bf}{mask}}];}
+\DoxyCodeLine{00190\ \ \ \ \ uint32\_t\ len\ =\ s-\/>\mbox{\hyperlink{structpacket__slot_a707d4acbaef8bde097d235a018662b46}{len}};}
+\DoxyCodeLine{00191\ }
+\DoxyCodeLine{00192\ \ \ \ \ \textcolor{keywordflow}{if}\ (out)}
+\DoxyCodeLine{00193\ \ \ \ \ \{}
+\DoxyCodeLine{00194\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (out\_cap\ <\ len)}
+\DoxyCodeLine{00195\ \ \ \ \ \ \ \ \ \{}
+\DoxyCodeLine{00196\ \ \ \ \ \ \ \ \ \ \ \ \ pthread\_mutex\_unlock(\&r-\/>\mbox{\hyperlink{structpacket__ring_a50e207ad9e93d9ffb54122ad14722be6}{mu}});}
+\DoxyCodeLine{00197\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ EMSGSIZE;}
+\DoxyCodeLine{00198\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{00199\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (len)}
+\DoxyCodeLine{00200\ \ \ \ \ \ \ \ \ \ \ \ \ memcpy(out,\ s-\/>\mbox{\hyperlink{structpacket__slot_a9ede5d0e9968395d950a3dff7530b788}{data}},\ len);}
+\DoxyCodeLine{00201\ \ \ \ \ \}}
+\DoxyCodeLine{00202\ \ \ \ \ *out\_len\ =\ len;}
+\DoxyCodeLine{00203\ \ \ \ \ \textcolor{keywordflow}{if}\ (out\_ts\_ns)}
+\DoxyCodeLine{00204\ \ \ \ \ \ \ \ \ *out\_ts\_ns\ =\ s-\/>\mbox{\hyperlink{structpacket__slot_a711905e8fd1d2078e13b918a56f1e311}{ts\_ns}};}
+\DoxyCodeLine{00205\ }
+\DoxyCodeLine{00206\ \ \ \ \ r-\/>\mbox{\hyperlink{structpacket__ring_a883da13ca59a51788a60c5d68fe4dcca}{head}}++;}
+\DoxyCodeLine{00207\ \ \ \ \ r-\/>\mbox{\hyperlink{structpacket__ring_a23d28be300dbcecc79685ce4d5a3006d}{count}}-\/-\/;}
+\DoxyCodeLine{00208\ \ \ \ \ r-\/>\mbox{\hyperlink{structpacket__ring_ab514738430cbcf128ec078618a728730}{deq\_ok}}++;}
+\DoxyCodeLine{00209\ }
+\DoxyCodeLine{00210\ \ \ \ \ pthread\_cond\_signal(\&r-\/>\mbox{\hyperlink{structpacket__ring_aad1098d3f55e103274057b237e526e9c}{not\_full}});}
+\DoxyCodeLine{00211\ \ \ \ \ pthread\_mutex\_unlock(\&r-\/>\mbox{\hyperlink{structpacket__ring_a50e207ad9e93d9ffb54122ad14722be6}{mu}});}
+\DoxyCodeLine{00212\ \ \ \ \ \textcolor{keywordflow}{return}\ 0;}
+\DoxyCodeLine{00213\ \}}
+\DoxyCodeLine{00214\ }
+\DoxyCodeLine{00215\ \textcolor{comment}{/*-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/\ queue-\/set\ (8\string~64\ rings)\ -\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/*/}}
+\DoxyCodeLine{00216\ }
+\DoxyCodeLine{00217\ \textcolor{keyword}{static}\ \textcolor{keyword}{inline}\ \textcolor{keywordtype}{int}\ packet\_queue\_set\_init(\mbox{\hyperlink{structpacket__queue__set}{packet\_queue\_set\_t}}\ *set,}
+\DoxyCodeLine{00218\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ uint32\_t\ packet\_queue\_count,}
+\DoxyCodeLine{00219\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ uint32\_t\ slot\_count,\ \textcolor{comment}{//\ 기본\ 4096,}}
+\DoxyCodeLine{00220\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{int}\ user\_blocking)}
+\DoxyCodeLine{00221\ \{}
+\DoxyCodeLine{00222\ \ \ \ \ \textcolor{keywordflow}{if}\ (!set)}
+\DoxyCodeLine{00223\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ EINVAL;}
+\DoxyCodeLine{00224\ \ \ \ \ \textcolor{keywordflow}{if}\ (packet\_queue\_count\ <\ MIN\_QUEUE\_COUNT\ ||\ packet\_queue\_count\ >\ \mbox{\hyperlink{driver_8h_a0ec173d8fafd88fb863c4da3e11a9536}{MAX\_QUEUE\_COUNT}})}
+\DoxyCodeLine{00225\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ EINVAL;}
+\DoxyCodeLine{00226\ \ \ \ \ \textcolor{keywordflow}{if}\ (slot\_count\ ==\ 0)}
+\DoxyCodeLine{00227\ \ \ \ \ \ \ \ \ slot\_count\ =\ \mbox{\hyperlink{driver_8h_a342baaf3696c8daa4948a3757b9049dc}{DEFAULT\_SLOT\_COUNT}};}
+\DoxyCodeLine{00228\ \ \ \ \ \textcolor{keywordflow}{if}\ (!is\_power\_of\_two\_u32(slot\_count))}
+\DoxyCodeLine{00229\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ EINVAL;}
+\DoxyCodeLine{00230\ }
+\DoxyCodeLine{00231\ \ \ \ \ memset(set,\ 0,\ \textcolor{keyword}{sizeof}(*set));}
+\DoxyCodeLine{00232\ \ \ \ \ set-\/>\mbox{\hyperlink{structpacket__queue__set_a3f61a3de0ec6476a7b26b8315412e02a}{q}}\ =\ (\mbox{\hyperlink{structpacket__ring}{packet\_ring\_t}}\ *)calloc(packet\_queue\_count,\ \textcolor{keyword}{sizeof}(\mbox{\hyperlink{structpacket__ring}{packet\_ring\_t}}));}
+\DoxyCodeLine{00233\ \ \ \ \ \textcolor{keywordflow}{if}\ (!set-\/>\mbox{\hyperlink{structpacket__queue__set_a3f61a3de0ec6476a7b26b8315412e02a}{q}})}
+\DoxyCodeLine{00234\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ ENOMEM;}
+\DoxyCodeLine{00235\ }
+\DoxyCodeLine{00236\ \ \ \ \ set-\/>\mbox{\hyperlink{structpacket__queue__set_ab8607f4e7f704fd27a5b648ecc5c419a}{qcount}}\ =\ packet\_queue\_count;}
+\DoxyCodeLine{00237\ \ \ \ \ \textcolor{keywordflow}{for}\ (uint32\_t\ i\ =\ 0;\ i\ <\ packet\_queue\_count;\ i++)}
+\DoxyCodeLine{00238\ \ \ \ \ \{}
+\DoxyCodeLine{00239\ \ \ \ \ \ \ \ \ \textcolor{keywordtype}{int}\ rc\ =\ packet\_ring\_init(\&set-\/>\mbox{\hyperlink{structpacket__queue__set_a3f61a3de0ec6476a7b26b8315412e02a}{q}}[i],\ slot\_count,\ user\_blocking);}
+\DoxyCodeLine{00240\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{if}\ (rc\ !=\ 0)}
+\DoxyCodeLine{00241\ \ \ \ \ \ \ \ \ \{}
+\DoxyCodeLine{00242\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{for}\ (uint32\_t\ j\ =\ 0;\ j\ <\ i;\ j++)}
+\DoxyCodeLine{00243\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ packet\_ring\_destroy(\&set-\/>\mbox{\hyperlink{structpacket__queue__set_a3f61a3de0ec6476a7b26b8315412e02a}{q}}[j]);}
+\DoxyCodeLine{00244\ \ \ \ \ \ \ \ \ \ \ \ \ free(set-\/>\mbox{\hyperlink{structpacket__queue__set_a3f61a3de0ec6476a7b26b8315412e02a}{q}});}
+\DoxyCodeLine{00245\ \ \ \ \ \ \ \ \ \ \ \ \ memset(set,\ 0,\ \textcolor{keyword}{sizeof}(*set));}
+\DoxyCodeLine{00246\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return}\ rc;}
+\DoxyCodeLine{00247\ \ \ \ \ \ \ \ \ \}}
+\DoxyCodeLine{00248\ \ \ \ \ \}}
+\DoxyCodeLine{00249\ }
+\DoxyCodeLine{00250\ \ \ \ \ \textcolor{keywordflow}{return}\ 0;}
+\DoxyCodeLine{00251\ \}}
+\DoxyCodeLine{00252\ }
+\DoxyCodeLine{00253\ \textcolor{keyword}{static}\ \textcolor{keyword}{inline}\ \textcolor{keywordtype}{void}\ packet\_queue\_set\_destroy(\mbox{\hyperlink{structpacket__queue__set}{packet\_queue\_set\_t}}\ *set)}
+\DoxyCodeLine{00254\ \{}
+\DoxyCodeLine{00255\ \ \ \ \ \textcolor{keywordflow}{if}\ (!set\ ||\ !set-\/>\mbox{\hyperlink{structpacket__queue__set_a3f61a3de0ec6476a7b26b8315412e02a}{q}})}
+\DoxyCodeLine{00256\ \ \ \ \ \ \ \ \ \textcolor{keywordflow}{return};}
+\DoxyCodeLine{00257\ \ \ \ \ \textcolor{keywordflow}{for}\ (uint32\_t\ i\ =\ 0;\ i\ <\ set-\/>\mbox{\hyperlink{structpacket__queue__set_ab8607f4e7f704fd27a5b648ecc5c419a}{qcount}};\ i++)}
+\DoxyCodeLine{00258\ \ \ \ \ \ \ \ \ packet\_ring\_destroy(\&set-\/>\mbox{\hyperlink{structpacket__queue__set_a3f61a3de0ec6476a7b26b8315412e02a}{q}}[i]);}
+\DoxyCodeLine{00259\ \ \ \ \ free(set-\/>\mbox{\hyperlink{structpacket__queue__set_a3f61a3de0ec6476a7b26b8315412e02a}{q}});}
+\DoxyCodeLine{00260\ \ \ \ \ memset(set,\ 0,\ \textcolor{keyword}{sizeof}(*set));}
+\DoxyCodeLine{00261\ \}}
+\DoxyCodeLine{00262\ }
+\DoxyCodeLine{00263\ \textcolor{comment}{/*-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/\ libpcap\ -\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/*/}}
+\DoxyCodeLine{00264\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{struct\ }\mbox{\hyperlink{structcapture__ctx}{capture\_ctx}}}
+\DoxyCodeLine{00265\ \{}
+\DoxyCodeLine{00266\ \ \ \ \ pcap\_t\ *\mbox{\hyperlink{structcapture__ctx_a5258e88540e0ac113cf398e5a8f15d62}{handle}};}
+\DoxyCodeLine{00267\ \ \ \ \ \mbox{\hyperlink{structpacket__queue__set}{packet\_queue\_set\_t}}\ *\mbox{\hyperlink{structcapture__ctx_a66897a630a7265af6533b9a0202d1e65}{queues}};}
+\DoxyCodeLine{00268\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structcapture__ctx_ae9daef1d548fa8fe0d791b94d07232c8}{rr}};}
+\DoxyCodeLine{00269\ \}\ \mbox{\hyperlink{driver_8h_a6d292c93cee1fca9eb30fde817673a3e}{capture\_ctx\_t}};}
+\DoxyCodeLine{00270\ }
+\DoxyCodeLine{00271\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{struct\ }\mbox{\hyperlink{structpcap__ctx}{pcap\_ctx}}}
+\DoxyCodeLine{00272\ \{}
+\DoxyCodeLine{00273\ \ \ \ \ \textcolor{keyword}{const}\ \textcolor{keywordtype}{char}\ *\mbox{\hyperlink{structpcap__ctx_a2c61f161386b55317c52c40faba4a5ea}{dev}};}
+\DoxyCodeLine{00274\ \ \ \ \ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{structpcap__ctx_a7a11ec0850fe855132c136648ff75566}{snaplen}};}
+\DoxyCodeLine{00275\ \ \ \ \ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{structpcap__ctx_a3342d88eb415475165173d17dd75ffea}{promisc}};}
+\DoxyCodeLine{00276\ \ \ \ \ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{structpcap__ctx_a57f0762bad5176f7677208e05bd098af}{timeout\_ms}};}
+\DoxyCodeLine{00277\ \ \ \ \ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{structpcap__ctx_a60641b575041c145b1e127244b1519f9}{nonblocking}};\ \textcolor{comment}{//\ 0=blocking,\ 1=non-\/blocking}}
+\DoxyCodeLine{00278\ \}\ \mbox{\hyperlink{driver_8h_ab8d77a98a7ea30c5f847b3eca8c267b8}{pcap\_ctx\_t}};}
+\DoxyCodeLine{00279\ }
+\DoxyCodeLine{00280\ \textcolor{comment}{//\ open\_live보다\ 세밀한\ 설정을\ 하도록\ }}
+\DoxyCodeLine{00281\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{driver_8h_aea966f0a371e6788ceea6b0a06a18b06}{capture\_create}}(\mbox{\hyperlink{structcapture__ctx}{capture\_ctx\_t}}\ *cpature\_ctx,\ \mbox{\hyperlink{structpcap__ctx}{pcap\_ctx\_t}}\ *\mbox{\hyperlink{structpcap__ctx}{pcap\_ctx}});}
+\DoxyCodeLine{00282\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{driver_8h_afc053249642ad0b4c6d21f84b84f2127}{capture\_activate}}(\mbox{\hyperlink{structcapture__ctx}{capture\_ctx\_t}}\ *cpature\_ctx,\ \mbox{\hyperlink{structpcap__ctx}{pcap\_ctx\_t}}\ *\mbox{\hyperlink{structpcap__ctx}{pcap\_ctx}});}
+\DoxyCodeLine{00283\ }
+\DoxyCodeLine{00284\ \textcolor{comment}{//\ pcap\ 닫기}}
+\DoxyCodeLine{00285\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{driver_8h_a04868c696995c818d0dc5ddc4a3296ef}{capture\_close}}(\mbox{\hyperlink{structcapture__ctx}{capture\_ctx\_t}}\ *\mbox{\hyperlink{structcapture__ctx}{capture\_ctx}});}
+\DoxyCodeLine{00286\ }
+\DoxyCodeLine{00287\ \textcolor{comment}{//\ 패킷\ 1개\ 수집\ 후\ ring\ enqueue}}
+\DoxyCodeLine{00288\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{driver_8h_a38e889c63b9caecbb77dc5bab0e26ac3}{capture\_poll\_once}}(\mbox{\hyperlink{structcapture__ctx}{capture\_ctx\_t}}\ *\mbox{\hyperlink{structcapture__ctx}{capture\_ctx}});}
+\DoxyCodeLine{00289\ }
+\DoxyCodeLine{00290\ \textcolor{comment}{//\ 루프\ 기반\ 수집}}
+\DoxyCodeLine{00291\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{driver_8h_a684f17b76a96a02c086879df76a411ce}{capture\_loop}}(\mbox{\hyperlink{structcapture__ctx}{capture\_ctx\_t}}\ *\mbox{\hyperlink{structcapture__ctx}{capture\_ctx}});}
+\DoxyCodeLine{00292\ }
+\DoxyCodeLine{00293\ \textcolor{comment}{/*-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/\ Per-\/Thread\ -\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/*/}}
+\DoxyCodeLine{00294\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{struct\ }\{}
+\DoxyCodeLine{00295\ \ \ \ \ \mbox{\hyperlink{structcapture__ctx}{capture\_ctx\_t}}\ \mbox{\hyperlink{structdriver__runtime__t_adbb2065db85fad14c72eebf26f7a03be}{cc}};}
+\DoxyCodeLine{00296\ }
+\DoxyCodeLine{00297\ \ \ \ \ pthread\_t\ \mbox{\hyperlink{structdriver__runtime__t_a4d5278b61897f11bd9fa6b3c3fd889b6}{capture\_tid}};}
+\DoxyCodeLine{00298\ \ \ \ \ pthread\_t\ *\mbox{\hyperlink{structdriver__runtime__t_a2ac726e6fc1fbe1d62d9ed24df36c756}{worker\_tids}};}
+\DoxyCodeLine{00299\ \ \ \ \ \textcolor{keywordtype}{void}\ *\mbox{\hyperlink{structdriver__runtime__t_a00437832e6d8355033ce3a03c598f9c2}{worker\_args}};}
+\DoxyCodeLine{00300\ \ \ \ \ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{structdriver__runtime__t_a59d6d307dc0d936ef8e12edb9e72078f}{worker\_count}};}
+\DoxyCodeLine{00301\ }
+\DoxyCodeLine{00302\ \ \ \ \ atomic\_bool\ \mbox{\hyperlink{structdriver__runtime__t_ad2fbe0f625a28d2cf4724024263457f9}{stop}};}
+\DoxyCodeLine{00303\ }
+\DoxyCodeLine{00304\ \ \ \ \ \mbox{\hyperlink{driver_8h_aada3e58cb2c26be26bb2c6c7faceac00}{driver\_packet\_cb}}\ \mbox{\hyperlink{structdriver__runtime__t_a4f00e6a6cf3c743f5a7fb2f31810f8da}{on\_packet}};}
+\DoxyCodeLine{00305\ \ \ \ \ \textcolor{keywordtype}{void}\ *\mbox{\hyperlink{structdriver__runtime__t_a1899551f85d18065586b84fbd71723c7}{on\_packet\_user}};}
+\DoxyCodeLine{00306\ \ \ \ \ \textcolor{keywordtype}{void}\ **\mbox{\hyperlink{structdriver__runtime__t_a1316126c65ba1b1f4206a1be8cb76859}{worker\_users}};}
+\DoxyCodeLine{00307\ \ \ \ \ \textcolor{keywordtype}{size\_t}\ \mbox{\hyperlink{structdriver__runtime__t_aa6499ce7b42d3472fd0f8b86ce10fd6c}{worker\_user\_count}};}
+\DoxyCodeLine{00308\ }
+\DoxyCodeLine{00309\ \ \ \ \ \mbox{\hyperlink{structpacket__queue__set}{packet\_queue\_set\_t}}\ \mbox{\hyperlink{structdriver__runtime__t_a350c96020bdb6552c61be4e888a4711b}{queues}};}
+\DoxyCodeLine{00310\ \}\ \mbox{\hyperlink{structdriver__runtime__t}{driver\_runtime\_t}};}
+\DoxyCodeLine{00311\ }
+\DoxyCodeLine{00312\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{driver_8h_a17f1e5cbbf6fa13fdc7c63776ca34396}{driver\_init}}(\mbox{\hyperlink{structdriver__runtime__t}{driver\_runtime\_t}}\ *rt,\ \textcolor{keywordtype}{int}\ worker\_count);}
+\DoxyCodeLine{00313\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{driver_8h_a4266263ee23ac00245f45c62f2b8955f}{driver\_start}}(\mbox{\hyperlink{structdriver__runtime__t}{driver\_runtime\_t}}\ *rt);}
+\DoxyCodeLine{00314\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{driver_8h_a8bc8bbc284f17c6e51badbec7bb7405b}{driver\_stop}}(\mbox{\hyperlink{structdriver__runtime__t}{driver\_runtime\_t}}\ *rt);}
+\DoxyCodeLine{00315\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{driver_8h_afe226548ee11a5e2a61a43347ef9c7d4}{driver\_destroy}}(\mbox{\hyperlink{structdriver__runtime__t}{driver\_runtime\_t}}\ *rt);}
+\DoxyCodeLine{00316\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{driver_8h_a9ee4e41763d00e49d7f97a327b35df1a}{driver\_set\_packet\_handler}}(\mbox{\hyperlink{structdriver__runtime__t}{driver\_runtime\_t}}\ *rt,\ \mbox{\hyperlink{driver_8h_aada3e58cb2c26be26bb2c6c7faceac00}{driver\_packet\_cb}}\ cb,\ \textcolor{keywordtype}{void}\ *user);}
+\DoxyCodeLine{00317\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{driver_8h_ad39d9210b3e4da9e600b53e4652a9f19}{driver\_set\_packet\_handler\_multi}}(\mbox{\hyperlink{structdriver__runtime__t}{driver\_runtime\_t}}\ *rt,\ \mbox{\hyperlink{driver_8h_aada3e58cb2c26be26bb2c6c7faceac00}{driver\_packet\_cb}}\ cb,\ \textcolor{keywordtype}{void}\ **users,\ \textcolor{keywordtype}{size\_t}\ user\_count);}
+\DoxyCodeLine{00318\ }
+\DoxyCodeLine{00319\ }
+\DoxyCodeLine{00320\ \textcolor{comment}{/*-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/\ Packet\ filter\ -\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/*/}}
+\DoxyCodeLine{00321\ \textcolor{comment}{//\ 패킷\ 방향\ 확인(in/out)\ 확인}}
+\DoxyCodeLine{00322\ \textcolor{comment}{//\ 정책과\ 매칭(mac/ip/port)}}
+\DoxyCodeLine{00323\ \textcolor{comment}{//\ 결과를\ BYPASS/PASS/DROP\ 중\ 하나로\ 결정}}
+\DoxyCodeLine{00324\ }
+\DoxyCodeLine{00325\ \textcolor{comment}{//\ 필터\ 패킷\ 결과}}
+\DoxyCodeLine{00326\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{enum}\ \mbox{\hyperlink{driver_8h_ac9b1e2f13b5a9a357dacbc0142cf3f97}{plugin\_handler\_result}}\ \{}
+\DoxyCodeLine{00327\ \ \ \ \ \mbox{\hyperlink{driver_8h_ac9b1e2f13b5a9a357dacbc0142cf3f97a0c448f9b7a899b55afb8beaffd81593b}{PLUGIN\_HANDLER\_PASS}}\ \ \ \ \ =\ 0,}
+\DoxyCodeLine{00328\ \ \ \ \ \mbox{\hyperlink{driver_8h_ac9b1e2f13b5a9a357dacbc0142cf3f97ab2286b612d656ebeb3535b4f02071688}{PLUGIN\_HANDLER\_BYPASS}}\ \ \ =\ 1,}
+\DoxyCodeLine{00329\ \ \ \ \ \mbox{\hyperlink{driver_8h_ac9b1e2f13b5a9a357dacbc0142cf3f97a22430317940b14c787fd79d4d016c93e}{PLUGIN\_HANDLER\_DROP}}\ \ \ \ \ =\ 2,}
+\DoxyCodeLine{00330\ \ \ \ \ \mbox{\hyperlink{driver_8h_ac9b1e2f13b5a9a357dacbc0142cf3f97a5fdf28d9760847cc6ef2d102e48027b9}{PLUGIN\_HANDLER\_CONSUMED}}\ =\ 3}
+\DoxyCodeLine{00331\ \}\ \mbox{\hyperlink{driver_8h_a90bce63c2e0fff11376dd1b2ba3e17fd}{plugin\_handler\_result\_t}};}
+\DoxyCodeLine{00332\ }
+\DoxyCodeLine{00333\ \textcolor{comment}{//\ Direction}}
+\DoxyCodeLine{00334\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{enum}\ \mbox{\hyperlink{driver_8h_a7e99052cd7831dfaac47ab512bed0ed8}{driver\_direction}}\ \{}
+\DoxyCodeLine{00335\ \ \ \ \ \mbox{\hyperlink{driver_8h_a7e99052cd7831dfaac47ab512bed0ed8ac9abee9c9a673f36c59701240f92d870}{DRIVER\_DIR\_UNKNOWN}}\ \ =\ 0,}
+\DoxyCodeLine{00336\ \ \ \ \ \mbox{\hyperlink{driver_8h_a7e99052cd7831dfaac47ab512bed0ed8ac636fe1bb15f8c10a5e0c08f5da1249f}{DRIVER\_DIR\_INBOUND}}\ \ =\ 1,\ \textcolor{comment}{/*\ outside\ -\/>\ inside\ */}}
+\DoxyCodeLine{00337\ \ \ \ \ \mbox{\hyperlink{driver_8h_a7e99052cd7831dfaac47ab512bed0ed8ae4068efa488539d2f84ee98139224978}{DRIVER\_DIR\_OUTBOUND}}\ =\ 2\ \ \textcolor{comment}{/*\ inside\ -\/>\ outside\ */}}
+\DoxyCodeLine{00338\ \}\ \mbox{\hyperlink{driver_8h_a8ee651287a8b58afc3a191b012dade0a}{driver\_direction\_t}};}
+\DoxyCodeLine{00339\ }
+\DoxyCodeLine{00340\ \textcolor{comment}{//\ 프로토콜\ enum}}
+\DoxyCodeLine{00341\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{enum}\ \mbox{\hyperlink{driver_8h_afbc5fffde23bfb03d6529bd5e080d10a}{driver\_l3\_proto}}\ \{}
+\DoxyCodeLine{00342\ \ \ \ \ \mbox{\hyperlink{driver_8h_afbc5fffde23bfb03d6529bd5e080d10aa8c14faadd9d90cfdca269af665cb091d}{DRIVER\_L3\_UNKNOWN}}\ =\ 0,}
+\DoxyCodeLine{00343\ \ \ \ \ \mbox{\hyperlink{driver_8h_afbc5fffde23bfb03d6529bd5e080d10aaed07b7ad326213ab3dd9a8fe39c18eb5}{DRIVER\_L3\_IPV4}}\ =\ 4,}
+\DoxyCodeLine{00344\ \ \ \ \ \mbox{\hyperlink{driver_8h_afbc5fffde23bfb03d6529bd5e080d10aaff683ab1668129fd4a7dd46976bc1592}{DRIVER\_L3\_IPV6}}\ =\ 6}
+\DoxyCodeLine{00345\ \}\ \mbox{\hyperlink{driver_8h_a3bd375690b0352669c430d41dca95a22}{driver\_l3\_proto\_t}};}
+\DoxyCodeLine{00346\ }
+\DoxyCodeLine{00347\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{enum}\ \mbox{\hyperlink{driver_8h_a3da8aba2e03861646c83b66663054da9}{driver\_l4\_proto}}\ \{}
+\DoxyCodeLine{00348\ \ \ \ \ \mbox{\hyperlink{driver_8h_a3da8aba2e03861646c83b66663054da9ad7205af584d225ddf15462faebf6f08e}{DRIVER\_L4\_UNKNOWN}}\ =\ 0,}
+\DoxyCodeLine{00349\ \ \ \ \ \mbox{\hyperlink{driver_8h_a3da8aba2e03861646c83b66663054da9aef36112fb29512d42d284d395d1618f7}{DRIVER\_L4\_TCP}}\ =\ 6,}
+\DoxyCodeLine{00350\ \ \ \ \ \mbox{\hyperlink{driver_8h_a3da8aba2e03861646c83b66663054da9a4e80dcfea58a287bc1b19b92f58bed01}{DRIVER\_L4\_UDP}}\ =\ 17}
+\DoxyCodeLine{00351\ \}\ \mbox{\hyperlink{driver_8h_a4c31d8a64acb827d370a9fdf6f595d2e}{driver\_l4\_proto\_t}};}
+\DoxyCodeLine{00352\ }
+\DoxyCodeLine{00353\ \textcolor{comment}{//\ 주소타입}}
+\DoxyCodeLine{00354\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{struct\ }\mbox{\hyperlink{structdriver__mac}{driver\_mac}}\ \{}
+\DoxyCodeLine{00355\ \ \ \ \ uint8\_t\ \mbox{\hyperlink{structdriver__mac_a91e7de3e0009c5082224c5a6a8cf5bef}{b}}[6];}
+\DoxyCodeLine{00356\ \}\ \mbox{\hyperlink{driver_8h_a4fb20e5dc779dca96912363460400004}{driver\_mac\_t}};}
+\DoxyCodeLine{00357\ }
+\DoxyCodeLine{00358\ \textcolor{comment}{//\ IPv4\ in\ network\ byte\ order}}
+\DoxyCodeLine{00359\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{struct\ }\mbox{\hyperlink{structdriver__ipv4}{driver\_ipv4}}\ \{}
+\DoxyCodeLine{00360\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structdriver__ipv4_ab850368ccfb294583733b93ec04a0002}{addr\_be}};}
+\DoxyCodeLine{00361\ \}\ \mbox{\hyperlink{driver_8h_aba95b62bc753fb2f335a0f2a1da80985}{driver\_ipv4\_t}};}
+\DoxyCodeLine{00362\ \textcolor{comment}{//\ IPv4\ CIDR\ net/mask\ }}
+\DoxyCodeLine{00363\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{struct\ }\mbox{\hyperlink{structdriver__ipv4__cidr}{driver\_ipv4\_cidr}}\ \{}
+\DoxyCodeLine{00364\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structdriver__ipv4__cidr_a9907c16194d77b6ee8b74bd0e6eca77e}{net\_be}};}
+\DoxyCodeLine{00365\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structdriver__ipv4__cidr_a2385feeda27eb1218d5e47c756a0106c}{mask\_be}};}
+\DoxyCodeLine{00366\ \}\ \mbox{\hyperlink{driver_8h_a8d4ae88973632cc7927c973d044e9174}{driver\_ipv4\_cidr\_t}};}
+\DoxyCodeLine{00367\ }
+\DoxyCodeLine{00368\ \textcolor{comment}{//\ packet\ meta\ passed\ into\ filter}}
+\DoxyCodeLine{00369\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{struct\ }\mbox{\hyperlink{structdriver__pkt__meta}{driver\_pkt\_meta}}\ \{}
+\DoxyCodeLine{00370\ \ \ \ \ uint64\_t\ \mbox{\hyperlink{structdriver__pkt__meta_aa27ed9f039da30e53d0892f4d177178e}{ts\_ns}};}
+\DoxyCodeLine{00371\ }
+\DoxyCodeLine{00372\ \ \ \ \ \mbox{\hyperlink{structdriver__mac}{driver\_mac\_t}}\ \mbox{\hyperlink{structdriver__pkt__meta_ad418142bbb06916f16850903a9a84041}{src\_mac}};}
+\DoxyCodeLine{00373\ \ \ \ \ \mbox{\hyperlink{structdriver__mac}{driver\_mac\_t}}\ \mbox{\hyperlink{structdriver__pkt__meta_a1e60d9c6dda3b61172c11c11c2bb264c}{dst\_mac}};}
+\DoxyCodeLine{00374\ }
+\DoxyCodeLine{00375\ \ \ \ \ \mbox{\hyperlink{driver_8h_a3bd375690b0352669c430d41dca95a22}{driver\_l3\_proto\_t}}\ \mbox{\hyperlink{structdriver__pkt__meta_acc6bb190553c9d4c6c65b72a22c9ec0d}{l3}};}
+\DoxyCodeLine{00376\ \ \ \ \ \mbox{\hyperlink{driver_8h_a4c31d8a64acb827d370a9fdf6f595d2e}{driver\_l4\_proto\_t}}\ \mbox{\hyperlink{structdriver__pkt__meta_a30f123e6282e0e2229a39a5cf7b2aa79}{l4}};}
+\DoxyCodeLine{00377\ }
+\DoxyCodeLine{00378\ \ \ \ \ \mbox{\hyperlink{structdriver__ipv4}{driver\_ipv4\_t}}\ \mbox{\hyperlink{structdriver__pkt__meta_aaf41b7318bdd578132c0085efa6174e2}{src\_v4}};}
+\DoxyCodeLine{00379\ \ \ \ \ \mbox{\hyperlink{structdriver__ipv4}{driver\_ipv4\_t}}\ \mbox{\hyperlink{structdriver__pkt__meta_ae5ae8be3e4f135e2ab1b3d566a6c5e98}{dst\_v4}};}
+\DoxyCodeLine{00380\ }
+\DoxyCodeLine{00381\ \ \ \ \ uint16\_t\ \mbox{\hyperlink{structdriver__pkt__meta_aab70866e56486fe90d3c2c3e31f1dca5}{src\_port}};}
+\DoxyCodeLine{00382\ \ \ \ \ uint16\_t\ \mbox{\hyperlink{structdriver__pkt__meta_a3676c2a958469cc6e759ad9ed0fc2b85}{dst\_port}};}
+\DoxyCodeLine{00383\ }
+\DoxyCodeLine{00384\ \ \ \ \ \mbox{\hyperlink{driver_8h_a8ee651287a8b58afc3a191b012dade0a}{driver\_direction\_t}}\ \mbox{\hyperlink{structdriver__pkt__meta_a365f8854092e6a3290f4e47d58e764a7}{dir}};}
+\DoxyCodeLine{00385\ }
+\DoxyCodeLine{00386\ \ \ \ \ \textcolor{keywordtype}{bool}\ \mbox{\hyperlink{structdriver__pkt__meta_a1c0e1dfd2a81e2aae8b08151152f968c}{is\_tunnel}};}
+\DoxyCodeLine{00387\ \ \ \ \ \textcolor{keywordtype}{bool}\ \mbox{\hyperlink{structdriver__pkt__meta_a02e372cd71fc24b6766fdea8df9d0154}{is\_tls}};}
+\DoxyCodeLine{00388\ \ \ \ \ \textcolor{keywordtype}{bool}\ \mbox{\hyperlink{structdriver__pkt__meta_a9ac7351cd5e10af2fc5973a08ee6af4a}{is\_http}};}
+\DoxyCodeLine{00389\ \}\ \mbox{\hyperlink{driver_8h_a3dd18702c3d01f8001eec4b3da1d21dd}{driver\_pkt\_meta\_t}};}
+\DoxyCodeLine{00390\ }
+\DoxyCodeLine{00391\ \textcolor{comment}{/*\ -\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/Config\ -\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/-\/*/}}
+\DoxyCodeLine{00392\ \textcolor{preprocessor}{\#define\ DRIVER\_FILTER\_MAX\_MACS\ 256}}
+\DoxyCodeLine{00393\ \textcolor{preprocessor}{\#define\ DRIVER\_FILTER\_MAX\_CIDRS\ 64}}
+\DoxyCodeLine{00394\ \textcolor{preprocessor}{\#define\ DRIVER\_FILTER\_MAX\_PORTS\ 256}}
+\DoxyCodeLine{00395\ }
+\DoxyCodeLine{00396\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{struct\ }\mbox{\hyperlink{structdriver__filter__policy}{driver\_filter\_policy}}\ \{}
+\DoxyCodeLine{00397\ \ \ \ \ \textcolor{keywordtype}{bool}\ \mbox{\hyperlink{structdriver__filter__policy_a4dd394855c644dbc1f4a6e9c236e0292}{bypass\_tunnel}};\ \textcolor{comment}{//\ L2/L3\ 터널링\ 등\ BYPASS\ 조건\ 흉내,\ is\_tunnel=true\ -\/>\ bypass}}
+\DoxyCodeLine{00398\ }
+\DoxyCodeLine{00399\ \ \ \ \ \mbox{\hyperlink{structdriver__mac}{driver\_mac\_t}}\ \mbox{\hyperlink{structdriver__filter__policy_a2b6611bfd938c2b22aa2c5c602faabec}{mac\_bypass}}[\mbox{\hyperlink{driver_8h_a7416d44c365729fded585b931e8cc1f6}{DRIVER\_FILTER\_MAX\_MACS}}];}
+\DoxyCodeLine{00400\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structdriver__filter__policy_a3c9ad2f1f3f4d82f2a2a402080a2c3d6}{mac\_bypass\_cnt}};}
+\DoxyCodeLine{00401\ }
+\DoxyCodeLine{00402\ \ \ \ \ \textcolor{comment}{/*DROP/CONSUMED\ 흉내\ 조건:\ MIRRORING\ 등에서\ 특정\ MAC\ drop\ */}}
+\DoxyCodeLine{00403\ \ \ \ \ \mbox{\hyperlink{structdriver__mac}{driver\_mac\_t}}\ \mbox{\hyperlink{structdriver__filter__policy_a5bf2bc853c6241977a926924ad08ba45}{mac\_drop}}[\mbox{\hyperlink{driver_8h_a7416d44c365729fded585b931e8cc1f6}{DRIVER\_FILTER\_MAX\_MACS}}];}
+\DoxyCodeLine{00404\ \ \ \ \ uint32\_t\ \ \ \ \ \mbox{\hyperlink{structdriver__filter__policy_a8eef71a72bf736a7f8f51b5b793b3390}{mac\_drop\_cnt}};}
+\DoxyCodeLine{00405\ \ \ \ \ }
+\DoxyCodeLine{00406\ \ \ \ \ \textcolor{comment}{/*\ port\ bypass/drop\ */}}
+\DoxyCodeLine{00407\ \ \ \ \ uint16\_t\ \mbox{\hyperlink{structdriver__filter__policy_a60b59629c6c8715fcd6e1a3b2b7695fb}{port\_bypass}}[\mbox{\hyperlink{driver_8h_a510657318fa40798c306505f16badc1c}{DRIVER\_FILTER\_MAX\_PORTS}}];}
+\DoxyCodeLine{00408\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structdriver__filter__policy_ab07f0be414fba4d5ef95e6aa366428a7}{port\_bypass\_cnt}};}
+\DoxyCodeLine{00409\ }
+\DoxyCodeLine{00410\ \ \ \ \ uint16\_t\ \mbox{\hyperlink{structdriver__filter__policy_ab60b70c962bad23793d891c65abe41cd}{port\_drop}}[\mbox{\hyperlink{driver_8h_a510657318fa40798c306505f16badc1c}{DRIVER\_FILTER\_MAX\_PORTS}}];}
+\DoxyCodeLine{00411\ \ \ \ \ uint32\_t\ \mbox{\hyperlink{structdriver__filter__policy_ad4f37bee3895deb9e01e34a81e2f6176}{port\_drop\_cnt}};}
+\DoxyCodeLine{00412\ }
+\DoxyCodeLine{00413\ \ \ \ \ \textcolor{keywordtype}{bool}\ \mbox{\hyperlink{structdriver__filter__policy_a883fcfdf7e7ca62a590f15f39614c4ec}{use\_consumed}};}
+\DoxyCodeLine{00414\ \}\ \mbox{\hyperlink{driver_8h_a881ff1e9f11b1b2db0bc2df0d2e75455}{driver\_filter\_policy\_t}};}
+\DoxyCodeLine{00415\ \textcolor{comment}{//init}}
+\DoxyCodeLine{00416\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{driver_8h_a26c7ce5f9adbc5015b82c7519704289d}{driver\_filter\_policy\_init}}(\mbox{\hyperlink{structdriver__filter__policy}{driver\_filter\_policy\_t}}\ *p);}
+\DoxyCodeLine{00417\ \textcolor{comment}{//\ main\ filter}}
+\DoxyCodeLine{00418\ \mbox{\hyperlink{driver_8h_a90bce63c2e0fff11376dd1b2ba3e17fd}{plugin\_handler\_result\_t}}\ \mbox{\hyperlink{driver_8h_a9eed1337fbc555144384375834ff543c}{driver\_filter\_eval}}(}
+\DoxyCodeLine{00419\ \ \ \ \ \textcolor{keyword}{const}\ \mbox{\hyperlink{structdriver__pkt__meta}{driver\_pkt\_meta\_t}}\ *m,}
+\DoxyCodeLine{00420\ \ \ \ \ \textcolor{keyword}{const}\ \mbox{\hyperlink{structdriver__filter__policy}{driver\_filter\_policy\_t}}\ *p}
+\DoxyCodeLine{00421\ );}
+
+\end{DoxyCode}

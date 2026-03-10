@@ -1,0 +1,222 @@
+\doxysection{ips/include/net\+\_\+compat.h File Reference}
+\hypertarget{net__compat_8h}{}\label{net__compat_8h}\index{ips/include/net\_compat.h@{ips/include/net\_compat.h}}
+{\ttfamily \#include $<$netinet/ip.\+h$>$}\newline
+{\ttfamily \#include $<$netinet/tcp.\+h$>$}\newline
+Include dependency graph for net\+\_\+compat.\+h\+:
+% FIG 0
+This graph shows which files directly or indirectly include this file\+:
+% FIG 1
+\doxysubsubsection*{Macros}
+\begin{DoxyCompactItemize}
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_ab8e3e0ce7d556793e0e95cb4107aebf6}{IPHDR}}~struct iphdr
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_ac8d5dd2352c813af2833dc532b67c37e}{TCPHDR}}~struct tcphdr
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_aa0808a5516425f113c81b53a6ed2f833}{IP\+\_\+\+HDR\+\_\+\+SIZE}}~(sizeof(\mbox{\hyperlink{net__compat_8h_ab8e3e0ce7d556793e0e95cb4107aebf6}{IPHDR}}))
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_a4aa33be88ac83928f17cbccf84079de3}{TCP\+\_\+\+HDR\+\_\+\+SIZE}}~(sizeof(\mbox{\hyperlink{net__compat_8h_ac8d5dd2352c813af2833dc532b67c37e}{TCPHDR}}))
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_a3c91f96e313050356541f0eab67678c2}{IP\+\_\+\+VER}}(ip)~((ip)-\/$>$version)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_a36d5454811c538292f7b9f86198dfe81}{IP\+\_\+\+IHL}}(ip)~((ip)-\/$>$ihl)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_a3ab0370bcba2a4a90757ad652b06295d}{IP\+\_\+\+TTL\+\_\+\+FIELD}}(ip)~((ip)-\/$>$ttl)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_aee1b8b56089b1cb125d02b458c7d9bcf}{IP\+\_\+\+PROTO}}(ip)~((ip)-\/$>$protocol)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_a6024923103b508a050ba8c6fe0cad932}{IP\+\_\+\+TOTLEN}}(ip)~((ip)-\/$>$tot\+\_\+len)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_af689e38412b5c3fff9057d3e8c473816}{IP\+\_\+\+SADDR}}(ip)~((ip)-\/$>$saddr)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_ae275c0106fa2618241688e913a8a802b}{IP\+\_\+\+DADDR}}(ip)~((ip)-\/$>$daddr)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_a9a05b8658500bb97e87606f0b72c9b51}{IP\+\_\+\+CHECK}}(ip)~((ip)-\/$>$check)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_af319add857b33e31c5c9139c4acb325e}{TCP\+\_\+\+SPORT}}(tcp)~((tcp)-\/$>$source)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_a22c8318cd1f46467985c4b7467f5edb2}{TCP\+\_\+\+DPORT}}(tcp)~((tcp)-\/$>$dest)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_a4158fedc828afe1d801f6fc93a3d35db}{TCP\+\_\+\+SEQ}}(tcp)~((tcp)-\/$>$seq)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_a0225f451f770b111075d284ee22d72d1}{TCP\+\_\+\+ACK}}(tcp)~((tcp)-\/$>$ack\+\_\+seq)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_a355c5c68b3fc4b8dcd0b0ed62c9f060a}{TCP\+\_\+\+DOFF}}(tcp)~((tcp)-\/$>$doff)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_aa8eee22eb616f4882acf4c5750e50e62}{TCP\+\_\+\+SET\+\_\+\+RST}}(tcp)~((tcp)-\/$>$rst = 1)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_a8efd70ba8a5994a914efe42cef7f6d2c}{TCP\+\_\+\+SET\+\_\+\+ACK}}(tcp,  on)~((tcp)-\/$>$ack = ((on) ? 1 \+: 0))
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_a5340b1056df49da3bdb993a4fd61319d}{TCP\+\_\+\+SET\+\_\+\+FLAGS}}(tcp,  flags)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_adeabdf8035947a19d77b94b48e9776e8}{TCP\+\_\+\+HAS\+\_\+\+FLAG}}(tcp,  flag)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_a22bcb2b7c5a837525c2e023fcd98b2d2}{TCP\+\_\+\+WIN}}(tcp)~((tcp)-\/$>$window)
+\item 
+\#define \mbox{\hyperlink{net__compat_8h_ad1a0281221b8653a560ac4ff24a130ae}{TCP\+\_\+\+CHECK}}(tcp)~((tcp)-\/$>$check)
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Macro Definition Documentation}
+\Hypertarget{net__compat_8h_a9a05b8658500bb97e87606f0b72c9b51}\label{net__compat_8h_a9a05b8658500bb97e87606f0b72c9b51} 
+\index{net\_compat.h@{net\_compat.h}!IP\_CHECK@{IP\_CHECK}}
+\index{IP\_CHECK@{IP\_CHECK}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{IP\_CHECK}{IP\_CHECK}}
+{\footnotesize\ttfamily \#define IP\+\_\+\+CHECK(\begin{DoxyParamCaption}\item[{}]{ip }\end{DoxyParamCaption})~((ip)-\/$>$check)}
+
+\Hypertarget{net__compat_8h_ae275c0106fa2618241688e913a8a802b}\label{net__compat_8h_ae275c0106fa2618241688e913a8a802b} 
+\index{net\_compat.h@{net\_compat.h}!IP\_DADDR@{IP\_DADDR}}
+\index{IP\_DADDR@{IP\_DADDR}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{IP\_DADDR}{IP\_DADDR}}
+{\footnotesize\ttfamily \#define IP\+\_\+\+DADDR(\begin{DoxyParamCaption}\item[{}]{ip }\end{DoxyParamCaption})~((ip)-\/$>$daddr)}
+
+\Hypertarget{net__compat_8h_aa0808a5516425f113c81b53a6ed2f833}\label{net__compat_8h_aa0808a5516425f113c81b53a6ed2f833} 
+\index{net\_compat.h@{net\_compat.h}!IP\_HDR\_SIZE@{IP\_HDR\_SIZE}}
+\index{IP\_HDR\_SIZE@{IP\_HDR\_SIZE}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{IP\_HDR\_SIZE}{IP\_HDR\_SIZE}}
+{\footnotesize\ttfamily \#define IP\+\_\+\+HDR\+\_\+\+SIZE~(sizeof(\mbox{\hyperlink{net__compat_8h_ab8e3e0ce7d556793e0e95cb4107aebf6}{IPHDR}}))}
+
+\Hypertarget{net__compat_8h_a36d5454811c538292f7b9f86198dfe81}\label{net__compat_8h_a36d5454811c538292f7b9f86198dfe81} 
+\index{net\_compat.h@{net\_compat.h}!IP\_IHL@{IP\_IHL}}
+\index{IP\_IHL@{IP\_IHL}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{IP\_IHL}{IP\_IHL}}
+{\footnotesize\ttfamily \#define IP\+\_\+\+IHL(\begin{DoxyParamCaption}\item[{}]{ip }\end{DoxyParamCaption})~((ip)-\/$>$ihl)}
+
+\Hypertarget{net__compat_8h_aee1b8b56089b1cb125d02b458c7d9bcf}\label{net__compat_8h_aee1b8b56089b1cb125d02b458c7d9bcf} 
+\index{net\_compat.h@{net\_compat.h}!IP\_PROTO@{IP\_PROTO}}
+\index{IP\_PROTO@{IP\_PROTO}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{IP\_PROTO}{IP\_PROTO}}
+{\footnotesize\ttfamily \#define IP\+\_\+\+PROTO(\begin{DoxyParamCaption}\item[{}]{ip }\end{DoxyParamCaption})~((ip)-\/$>$protocol)}
+
+\Hypertarget{net__compat_8h_af689e38412b5c3fff9057d3e8c473816}\label{net__compat_8h_af689e38412b5c3fff9057d3e8c473816} 
+\index{net\_compat.h@{net\_compat.h}!IP\_SADDR@{IP\_SADDR}}
+\index{IP\_SADDR@{IP\_SADDR}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{IP\_SADDR}{IP\_SADDR}}
+{\footnotesize\ttfamily \#define IP\+\_\+\+SADDR(\begin{DoxyParamCaption}\item[{}]{ip }\end{DoxyParamCaption})~((ip)-\/$>$saddr)}
+
+\Hypertarget{net__compat_8h_a6024923103b508a050ba8c6fe0cad932}\label{net__compat_8h_a6024923103b508a050ba8c6fe0cad932} 
+\index{net\_compat.h@{net\_compat.h}!IP\_TOTLEN@{IP\_TOTLEN}}
+\index{IP\_TOTLEN@{IP\_TOTLEN}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{IP\_TOTLEN}{IP\_TOTLEN}}
+{\footnotesize\ttfamily \#define IP\+\_\+\+TOTLEN(\begin{DoxyParamCaption}\item[{}]{ip }\end{DoxyParamCaption})~((ip)-\/$>$tot\+\_\+len)}
+
+\Hypertarget{net__compat_8h_a3ab0370bcba2a4a90757ad652b06295d}\label{net__compat_8h_a3ab0370bcba2a4a90757ad652b06295d} 
+\index{net\_compat.h@{net\_compat.h}!IP\_TTL\_FIELD@{IP\_TTL\_FIELD}}
+\index{IP\_TTL\_FIELD@{IP\_TTL\_FIELD}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{IP\_TTL\_FIELD}{IP\_TTL\_FIELD}}
+{\footnotesize\ttfamily \#define IP\+\_\+\+TTL\+\_\+\+FIELD(\begin{DoxyParamCaption}\item[{}]{ip }\end{DoxyParamCaption})~((ip)-\/$>$ttl)}
+
+\Hypertarget{net__compat_8h_a3c91f96e313050356541f0eab67678c2}\label{net__compat_8h_a3c91f96e313050356541f0eab67678c2} 
+\index{net\_compat.h@{net\_compat.h}!IP\_VER@{IP\_VER}}
+\index{IP\_VER@{IP\_VER}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{IP\_VER}{IP\_VER}}
+{\footnotesize\ttfamily \#define IP\+\_\+\+VER(\begin{DoxyParamCaption}\item[{}]{ip }\end{DoxyParamCaption})~((ip)-\/$>$version)}
+
+\Hypertarget{net__compat_8h_ab8e3e0ce7d556793e0e95cb4107aebf6}\label{net__compat_8h_ab8e3e0ce7d556793e0e95cb4107aebf6} 
+\index{net\_compat.h@{net\_compat.h}!IPHDR@{IPHDR}}
+\index{IPHDR@{IPHDR}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{IPHDR}{IPHDR}}
+{\footnotesize\ttfamily \#define IPHDR~struct iphdr}
+
+\Hypertarget{net__compat_8h_a0225f451f770b111075d284ee22d72d1}\label{net__compat_8h_a0225f451f770b111075d284ee22d72d1} 
+\index{net\_compat.h@{net\_compat.h}!TCP\_ACK@{TCP\_ACK}}
+\index{TCP\_ACK@{TCP\_ACK}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{TCP\_ACK}{TCP\_ACK}}
+{\footnotesize\ttfamily \#define TCP\+\_\+\+ACK(\begin{DoxyParamCaption}\item[{}]{tcp }\end{DoxyParamCaption})~((tcp)-\/$>$ack\+\_\+seq)}
+
+\Hypertarget{net__compat_8h_ad1a0281221b8653a560ac4ff24a130ae}\label{net__compat_8h_ad1a0281221b8653a560ac4ff24a130ae} 
+\index{net\_compat.h@{net\_compat.h}!TCP\_CHECK@{TCP\_CHECK}}
+\index{TCP\_CHECK@{TCP\_CHECK}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{TCP\_CHECK}{TCP\_CHECK}}
+{\footnotesize\ttfamily \#define TCP\+\_\+\+CHECK(\begin{DoxyParamCaption}\item[{}]{tcp }\end{DoxyParamCaption})~((tcp)-\/$>$check)}
+
+\Hypertarget{net__compat_8h_a355c5c68b3fc4b8dcd0b0ed62c9f060a}\label{net__compat_8h_a355c5c68b3fc4b8dcd0b0ed62c9f060a} 
+\index{net\_compat.h@{net\_compat.h}!TCP\_DOFF@{TCP\_DOFF}}
+\index{TCP\_DOFF@{TCP\_DOFF}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{TCP\_DOFF}{TCP\_DOFF}}
+{\footnotesize\ttfamily \#define TCP\+\_\+\+DOFF(\begin{DoxyParamCaption}\item[{}]{tcp }\end{DoxyParamCaption})~((tcp)-\/$>$doff)}
+
+\Hypertarget{net__compat_8h_a22c8318cd1f46467985c4b7467f5edb2}\label{net__compat_8h_a22c8318cd1f46467985c4b7467f5edb2} 
+\index{net\_compat.h@{net\_compat.h}!TCP\_DPORT@{TCP\_DPORT}}
+\index{TCP\_DPORT@{TCP\_DPORT}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{TCP\_DPORT}{TCP\_DPORT}}
+{\footnotesize\ttfamily \#define TCP\+\_\+\+DPORT(\begin{DoxyParamCaption}\item[{}]{tcp }\end{DoxyParamCaption})~((tcp)-\/$>$dest)}
+
+\Hypertarget{net__compat_8h_adeabdf8035947a19d77b94b48e9776e8}\label{net__compat_8h_adeabdf8035947a19d77b94b48e9776e8} 
+\index{net\_compat.h@{net\_compat.h}!TCP\_HAS\_FLAG@{TCP\_HAS\_FLAG}}
+\index{TCP\_HAS\_FLAG@{TCP\_HAS\_FLAG}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{TCP\_HAS\_FLAG}{TCP\_HAS\_FLAG}}
+{\footnotesize\ttfamily \#define TCP\+\_\+\+HAS\+\_\+\+FLAG(\begin{DoxyParamCaption}\item[{}]{tcp,  }\item[{}]{flag }\end{DoxyParamCaption})}
+
+{\bfseries Value\+:}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\ \ \ \ (\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ (((flag)\ \&\ \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba141036a606e6268cb2f3fd8e6e5a1efb}{TCP\_FIN}})\ \&\&\ (tcp)-\/>fin)\ ||\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ (((flag)\ \&\ \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba0f6163bad1a8062c0a24226f9d2a4dfb}{TCP\_SYN}})\ \&\&\ (tcp)-\/>syn)\ ||\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ (((flag)\ \&\ \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba48c46359239656107862c2e71640860d}{TCP\_RST}})\ \&\&\ (tcp)-\/>rst)\ ||\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ (((flag)\ \&\ \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba425820ce230e55d9ef5ef6efba1c884c}{TCP\_PSH}})\ \&\&\ (tcp)-\/>psh)\ ||\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ (((flag)\ \&\ \mbox{\hyperlink{net__compat_8h_a0225f451f770b111075d284ee22d72d1}{TCP\_ACK}})\ \&\&\ (tcp)-\/>ack)\ ||\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ (((flag)\ \&\ \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55baba61bd3fe95fa2c8b675e65524cef28a}{TCP\_URG}})\ \&\&\ (tcp)-\/>urg)\ \(\backslash\)}
+\DoxyCodeLine{)}
+
+\end{DoxyCode}
+\Hypertarget{net__compat_8h_a4aa33be88ac83928f17cbccf84079de3}\label{net__compat_8h_a4aa33be88ac83928f17cbccf84079de3} 
+\index{net\_compat.h@{net\_compat.h}!TCP\_HDR\_SIZE@{TCP\_HDR\_SIZE}}
+\index{TCP\_HDR\_SIZE@{TCP\_HDR\_SIZE}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{TCP\_HDR\_SIZE}{TCP\_HDR\_SIZE}}
+{\footnotesize\ttfamily \#define TCP\+\_\+\+HDR\+\_\+\+SIZE~(sizeof(\mbox{\hyperlink{net__compat_8h_ac8d5dd2352c813af2833dc532b67c37e}{TCPHDR}}))}
+
+\Hypertarget{net__compat_8h_a4158fedc828afe1d801f6fc93a3d35db}\label{net__compat_8h_a4158fedc828afe1d801f6fc93a3d35db} 
+\index{net\_compat.h@{net\_compat.h}!TCP\_SEQ@{TCP\_SEQ}}
+\index{TCP\_SEQ@{TCP\_SEQ}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{TCP\_SEQ}{TCP\_SEQ}}
+{\footnotesize\ttfamily \#define TCP\+\_\+\+SEQ(\begin{DoxyParamCaption}\item[{}]{tcp }\end{DoxyParamCaption})~((tcp)-\/$>$seq)}
+
+\Hypertarget{net__compat_8h_a8efd70ba8a5994a914efe42cef7f6d2c}\label{net__compat_8h_a8efd70ba8a5994a914efe42cef7f6d2c} 
+\index{net\_compat.h@{net\_compat.h}!TCP\_SET\_ACK@{TCP\_SET\_ACK}}
+\index{TCP\_SET\_ACK@{TCP\_SET\_ACK}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{TCP\_SET\_ACK}{TCP\_SET\_ACK}}
+{\footnotesize\ttfamily \#define TCP\+\_\+\+SET\+\_\+\+ACK(\begin{DoxyParamCaption}\item[{}]{tcp,  }\item[{}]{on }\end{DoxyParamCaption})~((tcp)-\/$>$ack = ((on) ? 1 \+: 0))}
+
+\Hypertarget{net__compat_8h_a5340b1056df49da3bdb993a4fd61319d}\label{net__compat_8h_a5340b1056df49da3bdb993a4fd61319d} 
+\index{net\_compat.h@{net\_compat.h}!TCP\_SET\_FLAGS@{TCP\_SET\_FLAGS}}
+\index{TCP\_SET\_FLAGS@{TCP\_SET\_FLAGS}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{TCP\_SET\_FLAGS}{TCP\_SET\_FLAGS}}
+{\footnotesize\ttfamily \#define TCP\+\_\+\+SET\+\_\+\+FLAGS(\begin{DoxyParamCaption}\item[{}]{tcp,  }\item[{}]{flags }\end{DoxyParamCaption})}
+
+{\bfseries Value\+:}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\ \ \ \ \textcolor{keywordflow}{do}\ \{\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ if\ ((flags)\ \&\ \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba141036a606e6268cb2f3fd8e6e5a1efb}{TCP\_FIN}})\ (tcp)-\/>fin\ =\ 1;\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ if\ ((flags)\ \&\ \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba0f6163bad1a8062c0a24226f9d2a4dfb}{TCP\_SYN}})\ (tcp)-\/>syn\ =\ 1;\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ if\ ((flags)\ \&\ \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba48c46359239656107862c2e71640860d}{TCP\_RST}})\ (tcp)-\/>rst\ =\ 1;\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ if\ ((flags)\ \&\ \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba425820ce230e55d9ef5ef6efba1c884c}{TCP\_PSH}})\ (tcp)-\/>psh\ =\ 1;\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ if\ ((flags)\ \&\ \mbox{\hyperlink{net__compat_8h_a0225f451f770b111075d284ee22d72d1}{TCP\_ACK}})\ (tcp)-\/>ack\ =\ 1;\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ if\ ((flags)\ \&\ \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55baba61bd3fe95fa2c8b675e65524cef28a}{TCP\_URG}})\ (tcp)-\/>urg\ =\ 1;\ \(\backslash\)}
+\DoxyCodeLine{\}\ \textcolor{keywordflow}{while}\ (0)}
+
+\end{DoxyCode}
+\Hypertarget{net__compat_8h_aa8eee22eb616f4882acf4c5750e50e62}\label{net__compat_8h_aa8eee22eb616f4882acf4c5750e50e62} 
+\index{net\_compat.h@{net\_compat.h}!TCP\_SET\_RST@{TCP\_SET\_RST}}
+\index{TCP\_SET\_RST@{TCP\_SET\_RST}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{TCP\_SET\_RST}{TCP\_SET\_RST}}
+{\footnotesize\ttfamily \#define TCP\+\_\+\+SET\+\_\+\+RST(\begin{DoxyParamCaption}\item[{}]{tcp }\end{DoxyParamCaption})~((tcp)-\/$>$rst = 1)}
+
+\Hypertarget{net__compat_8h_af319add857b33e31c5c9139c4acb325e}\label{net__compat_8h_af319add857b33e31c5c9139c4acb325e} 
+\index{net\_compat.h@{net\_compat.h}!TCP\_SPORT@{TCP\_SPORT}}
+\index{TCP\_SPORT@{TCP\_SPORT}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{TCP\_SPORT}{TCP\_SPORT}}
+{\footnotesize\ttfamily \#define TCP\+\_\+\+SPORT(\begin{DoxyParamCaption}\item[{}]{tcp }\end{DoxyParamCaption})~((tcp)-\/$>$source)}
+
+\Hypertarget{net__compat_8h_a22bcb2b7c5a837525c2e023fcd98b2d2}\label{net__compat_8h_a22bcb2b7c5a837525c2e023fcd98b2d2} 
+\index{net\_compat.h@{net\_compat.h}!TCP\_WIN@{TCP\_WIN}}
+\index{TCP\_WIN@{TCP\_WIN}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{TCP\_WIN}{TCP\_WIN}}
+{\footnotesize\ttfamily \#define TCP\+\_\+\+WIN(\begin{DoxyParamCaption}\item[{}]{tcp }\end{DoxyParamCaption})~((tcp)-\/$>$window)}
+
+\Hypertarget{net__compat_8h_ac8d5dd2352c813af2833dc532b67c37e}\label{net__compat_8h_ac8d5dd2352c813af2833dc532b67c37e} 
+\index{net\_compat.h@{net\_compat.h}!TCPHDR@{TCPHDR}}
+\index{TCPHDR@{TCPHDR}!net\_compat.h@{net\_compat.h}}
+\doxysubsubsection{\texorpdfstring{TCPHDR}{TCPHDR}}
+{\footnotesize\ttfamily \#define TCPHDR~struct tcphdr}
+

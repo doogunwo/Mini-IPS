@@ -13,6 +13,7 @@ BOT_SUFFIX="${BOT_SUFFIX:-}"
 BOT_SEED="${BOT_SEED:-10}"
 BOT_VERBOSE="${BOT_VERBOSE:-1}"
 BOT_COUNT="${BOT_COUNT:-20}"
+BOT_CPU="${BOT_CPU:-4}"
 
 set -- \
   /app/bot \
@@ -38,4 +39,4 @@ if [ "${BOT_VERBOSE}" = "1" ]; then
   set -- "$@" -verbose
 fi
 
-exec "$@"
+exec taskset -c "${BOT_CPU}" "$@"

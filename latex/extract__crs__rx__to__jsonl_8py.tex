@@ -1,0 +1,47 @@
+\doxysection{ips/rules/tools/extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.py File Reference}
+\hypertarget{extract__crs__rx__to__jsonl_8py}{}\label{extract__crs__rx__to__jsonl_8py}\index{ips/rules/tools/extract\_crs\_rx\_to\_jsonl.py@{ips/rules/tools/extract\_crs\_rx\_to\_jsonl.py}}
+\doxysubsubsection*{Namespaces}
+\begin{DoxyCompactItemize}
+\item 
+namespace \mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl}}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+list\mbox{[}str\mbox{]} \mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_a8172397f19f1d8acd0baeb014a6c9b0f}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+split\+\_\+rules}} (str text)
+\item 
+str \mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_ab81b2d0d867af7f711f0d68c4646695d}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+normalize\+\_\+ws}} (str value)
+\item 
+str \mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_ab76ed007a5c740e94e18914f548f356a}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+unquote\+\_\+modsec}} (str value)
+\item 
+tuple\mbox{[}str, str\mbox{]} \mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_a742967bf991e09c034aad2e6c8fadd79}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+infer\+\_\+policy}} (str conf\+\_\+name)
+\item 
+str \mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_ae61b0eb140180ed6a2fd0032d32a473b}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+infer\+\_\+ctx}} (str variables, str conf\+\_\+name, str pid)
+\item 
+dict\texorpdfstring{$\vert$}{|}None \mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_a2d9364ca4871b3e99be34b066272fb6a}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+extract\+\_\+rule}} (str rule\+\_\+text, pathlib.\+Path source\+\_\+file)
+\item 
+Iterable\mbox{[}pathlib.\+Path\mbox{]} \mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_a2f37080be90f6f3137f86b020bad6022}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+iter\+\_\+conf\+\_\+files}} (pathlib.\+Path root)
+\item 
+int \mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_ae5be1648fb9464004ecea8c58d4af0e7}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+main}} ()
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Variables}
+\begin{DoxyCompactItemize}
+\item 
+tuple \mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_a6aeb6a8a817a2c313e7bf82cdbf05a06}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+FILE\+\_\+\+POLICY\+\_\+\+MAP}}
+\item 
+tuple \mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_a5ea0da020f17bfdf2070f2eabd40e699}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+CTX\+\_\+\+PATTERNS}}
+\item 
+dict \mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_a0c763edeb5e8ced9c3e6d001db187ec1}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+SEVERITY\+\_\+\+TO\+\_\+\+PRIO}}
+\item 
+\mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_a12023d47903bf66adaf62567e47917a7}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+RULE\+\_\+\+START\+\_\+\+RE}} = re.\+compile(r"{}\texorpdfstring{$^\wedge$}{\string^}\textbackslash{}s\texorpdfstring{$\ast$}{*}Sec\+Rule\textbackslash{}s+"{}, re.\+M)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_a88980e30b3ed41838fb951d4cb8c95e0}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+RX\+\_\+\+RE}} = re.\+compile(r"{}@rx\textbackslash{}s+(.+?)(?=\textbackslash{}s\texorpdfstring{$\ast$}{*}(?\+:\textbackslash{}"{}?,\textbackslash{}s\texorpdfstring{$\ast$}{*}\texorpdfstring{$\vert$}{|}t\+:\texorpdfstring{$\vert$}{|}tag\+:\texorpdfstring{$\vert$}{|}msg\+:\texorpdfstring{$\vert$}{|}id\+:\texorpdfstring{$\vert$}{|}phase\+:\texorpdfstring{$\vert$}{|}severity\+:\texorpdfstring{$\vert$}{|}ver\+:\texorpdfstring{$\vert$}{|}rev\+:\texorpdfstring{$\vert$}{|}setvar\+:\texorpdfstring{$\vert$}{|}ctl\+:\texorpdfstring{$\vert$}{|}chain\textbackslash{}b\texorpdfstring{$\vert$}{|}\$))"{}, re.\+I \texorpdfstring{$\vert$}{|} re.\+S)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_afa73f9e00fc78374b035bedc4f60a4c8}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+ID\+\_\+\+RE}} = re.\+compile(r"{}\textbackslash{}bid\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\textbackslash{}d+)"{}, re.\+I)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_a1423a98d80e2a0ae9ca56926250a6ecd}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+SEVERITY\+\_\+\+RE}} = re.\+compile(r"{}\textbackslash{}bseverity\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\mbox{[}A-\/Z\mbox{]}+)"{}, re.\+I)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_a5082218604dd8f00d6915b796f253873}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+MSG\+\_\+\+RE}} = re.\+compile(r"{}\textbackslash{}bmsg\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}(\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]})(.\texorpdfstring{$\ast$}{*}?)\textbackslash{}1"{}, re.\+I \texorpdfstring{$\vert$}{|} re.\+S)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__rx__to__jsonl_a11fc8665f301afbd7636b2836b113b7a}{extract\+\_\+crs\+\_\+rx\+\_\+to\+\_\+jsonl.\+TAG\+\_\+\+RE}} = re.\+compile(r"{}\textbackslash{}btag\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}(\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]})(.\texorpdfstring{$\ast$}{*}?)\textbackslash{}1"{}, re.\+I \texorpdfstring{$\vert$}{|} re.\+S)
+\end{DoxyCompactItemize}

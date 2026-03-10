@@ -10,6 +10,7 @@ services:
       SERVER_IP: ${SERVER_CONTAINER_IP:-172.31.0.60}
       SERVER_PORT: ${SERVER_PORT:-8080}
       SERVER_GATEWAY: ${IPS_CONTAINER_IP:-172.31.0.59}
+      SERVER_CPU: ${SERVER_CPU:-3}
     stdin_open: true
     tty: true
     cap_add:
@@ -49,6 +50,7 @@ services:
       BOT_SEED: ${BOT_SEED:-10}
       BOT_VERBOSE: ${BOT_VERBOSE:-1}
       BOT_COUNT: ${BOT_COUNT:-20}
+      BOT_CPU: ${BOT_CPU:-4}
     stdin_open: true
     tty: true
     networks:
@@ -68,6 +70,9 @@ services:
       IFACE: ${IPS_IFACE:-eth0}
       BPF: tcp and host ${SERVER_CONTAINER_IP:-172.31.0.60} and port ${SERVER_PORT:-8080}
       MODE: ${IPS_MODE:-sniffing}
+      MAIN_CPU: ${MAIN_CPU:-0}
+      INGEST_CPU: ${INGEST_CPU:-1}
+      WEB_CPU: ${WEB_CPU:-2}
     stdin_open: true
     tty: true
     cap_add:

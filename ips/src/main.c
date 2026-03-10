@@ -472,18 +472,6 @@ static void app_log_attack(app_shared_t *shared,
     free(texts_esc);
 }
 
-/**
- * @brief 단조 시계를 기준으로 현재 시각(us)을 계산한다.
- * @return 현재 시각(us)
- */
-static uint64_t monotonic_us(void)
-{
-    struct timespec ts;
-
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000000ULL + (uint64_t)ts.tv_nsec / 1000ULL;
-}
-
 static void on_sigint(int signo)
 {
     (void)signo;
@@ -1514,6 +1502,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "log init failed\n");
         return 1;
     }
+    /* 원자적 변수 초기화 */
+    /* 여러 스레드가 동시에 접근하는 '공유 통계 지표(Statistics)'를 안전하게 0으로 초기화*/
     atomic_init(&shared.http_msgs, 0);
     atomic_init(&shared.reqs, 0);
     atomic_init(&shared.resps, 0);

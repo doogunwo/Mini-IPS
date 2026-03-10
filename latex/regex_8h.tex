@@ -1,0 +1,299 @@
+\doxysection{ips/include/regex.h File Reference}
+\hypertarget{regex_8h}{}\label{regex_8h}\index{ips/include/regex.h@{ips/include/regex.h}}
+
+
+IPS 시그니처 및 정책 정의  
+
+
+{\ttfamily \#include $<$stddef.\+h$>$}\newline
+Include dependency graph for regex.\+h\+:
+% FIG 0
+This graph shows which files directly or indirectly include this file\+:
+% FIG 1
+\doxysubsubsection*{Classes}
+\begin{DoxyCompactItemize}
+\item 
+struct \mbox{\hyperlink{structIPS__Signature}{IPS\+\_\+\+Signature}}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Macros}
+\begin{DoxyCompactItemize}
+\item 
+\#define \mbox{\hyperlink{regex_8h_aa4e6ca5644c98fa3c4adc762832c1768}{POLICY\+\_\+\+LIST}}
+\item 
+\#define \mbox{\hyperlink{regex_8h_a06f8360cf021ac0d640a89859074e323}{X}}(ename,  sname)~ename,
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Enumerations}
+\begin{DoxyCompactItemize}
+\item 
+enum \mbox{\hyperlink{regex_8h_aeb612f798f3c16a9434dcec1319185a6}{POLICY}} \{ \mbox{\hyperlink{regex_8h_aeb612f798f3c16a9434dcec1319185a6a99e83da8ef178ee5f926dbd882e75d45}{POLICY\+\_\+\+START}} = 0
+, \mbox{\hyperlink{regex_8h_aeb612f798f3c16a9434dcec1319185a6a589bd21eb8686cd9ab553c0fae3e38fe}{POLICY\+\_\+\+MAX}}
+ \}
+\item 
+enum \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}} \{ \newline
+\mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a039c9447a5b37bbaae9144b03ea5e81d}{IPS\+\_\+\+CTX\+\_\+\+ALL}} = 0
+, \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a1c72cb00d0acb98bd5f1e90c9175836f}{IPS\+\_\+\+CTX\+\_\+\+REQUEST\+\_\+\+URI}}
+, \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20adc652bd59d91717785a3cf56b3d46dcd}{IPS\+\_\+\+CTX\+\_\+\+ARGS}}
+, \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a9494bd081760165062c03cd16ef79c3c}{IPS\+\_\+\+CTX\+\_\+\+ARGS\+\_\+\+NAMES}}
+, \newline
+\mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20ae59fd536d8e246e7538bc15273e8307c}{IPS\+\_\+\+CTX\+\_\+\+REQUEST\+\_\+\+HEADERS}}
+, \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a0c1170bca022e9da4f9850c62efc8d5a}{IPS\+\_\+\+CTX\+\_\+\+REQUEST\+\_\+\+BODY}}
+, \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a226a5d3d3ab117b5020f7eeda17ccb47}{IPS\+\_\+\+CTX\+\_\+\+RESPONSE\+\_\+\+BODY}}
+ \}
+\item 
+enum \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbd}{ips\+\_\+operator\+\_\+t}} \{ \newline
+\mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbdaff5c16de4c1a0e734b22ccdbabcec464}{IPS\+\_\+\+OP\+\_\+\+RX}} = 0
+, \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbda9a46c3f79a6f36517e32b2bdc78bd22a}{IPS\+\_\+\+OP\+\_\+\+PM}}
+, \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbda8aa94834f58a8aaec6252c83b3b1c686}{IPS\+\_\+\+OP\+\_\+\+PM\+\_\+\+FROM\+\_\+\+FILE}}
+, \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbda977d1b33dfa2b3f953d08da3191d2f01}{IPS\+\_\+\+OP\+\_\+\+CONTAINS}}
+, \newline
+\mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbdab84f212a493f9eee58f19125dfa50862}{IPS\+\_\+\+OP\+\_\+\+BEGINS\+\_\+\+WITH}}
+, \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbda504db11fbe16277f15b35d04866a71e2}{IPS\+\_\+\+OP\+\_\+\+ENDS\+\_\+\+WITH}}
+, \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbda136a49546087b227161e3f0939d5f0ce}{IPS\+\_\+\+OP\+\_\+\+STREQ}}
+, \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbda3351f4272ceeb259c1b1ba7b9b27e02b}{IPS\+\_\+\+OP\+\_\+\+WITHIN}}
+, \newline
+\mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbdafae3270ba9ca096a30045e62ce35ef4a}{IPS\+\_\+\+OP\+\_\+\+DETECT\+\_\+\+SQLI}}
+, \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbdacbed646913ffd57f4f0e6dfdef28f8fe}{IPS\+\_\+\+OP\+\_\+\+DETECT\+\_\+\+XSS}}
+, \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbda38be3f9f5e8b5f07e11a57189f9c6a61}{IPS\+\_\+\+OP\+\_\+\+EQ}}
+, \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbdabdeaf3dc7a93cd936ac188f3adbbd310}{IPS\+\_\+\+OP\+\_\+\+GE}}
+, \newline
+\mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbda07d842e2413b62536cb43f16ea3417a8}{IPS\+\_\+\+OP\+\_\+\+GT}}
+, \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbda659525fd113156c5c5cd0acb121cd0a7}{IPS\+\_\+\+OP\+\_\+\+LT}}
+, \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbdaef3946360ea7e36cd12fa4a401d56a95}{IPS\+\_\+\+OP\+\_\+\+VALIDATE\+\_\+\+BYTE\+\_\+\+RANGE}}
+, \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbda696aed7d2047741de59f35a2c79f4d52}{IPS\+\_\+\+OP\+\_\+\+IP\+\_\+\+MATCH}}
+, \newline
+\mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbda2667d1031976c42c768e08eec25ccbad}{IPS\+\_\+\+OP\+\_\+\+UNKNOWN}}
+ \}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+const char \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{regex_8h_ae3b490c2254e66d0f1f348b4229dbee4}{get\+\_\+policy\+\_\+name}} (\mbox{\hyperlink{regex_8h_aeb612f798f3c16a9434dcec1319185a6}{POLICY}} p)
+\item 
+\mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbd}{ips\+\_\+operator\+\_\+t}} \mbox{\hyperlink{regex_8h_ac062562ffc78a945922ec078e2f45142}{ips\+\_\+operator\+\_\+from\+\_\+string}} (const char \texorpdfstring{$\ast$}{*}name)
+\item 
+const char \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{regex_8h_a484c07918612a3be1623f80de7d2a50e}{ips\+\_\+operator\+\_\+name}} (\mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbd}{ips\+\_\+operator\+\_\+t}} op)
+\item 
+int \mbox{\hyperlink{regex_8h_ae1e3a979dc674604f5966cd13a76c99c}{regex\+\_\+load\+\_\+signatures}} (const char \texorpdfstring{$\ast$}{*}jsonl\+\_\+path)
+\item 
+void \mbox{\hyperlink{regex_8h_a407aa8194d60cfb099b59010c5979157}{regex\+\_\+unload\+\_\+signatures}} (void)
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Variables}
+\begin{DoxyCompactItemize}
+\item 
+const \mbox{\hyperlink{structIPS__Signature}{IPS\+\_\+\+Signature}} \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{regex_8h_a5a4ffa176863c68bbc29616699e6b0e6}{g\+\_\+ips\+\_\+signatures}}
+\item 
+int \mbox{\hyperlink{regex_8h_a31b67306df41359e2468b52cc1205640}{g\+\_\+signature\+\_\+count}}
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+IPS 시그니처 및 정책 정의 
+
+
+
+\doxysubsection{Macro Definition Documentation}
+\Hypertarget{regex_8h_aa4e6ca5644c98fa3c4adc762832c1768}\label{regex_8h_aa4e6ca5644c98fa3c4adc762832c1768} 
+\index{regex.h@{regex.h}!POLICY\_LIST@{POLICY\_LIST}}
+\index{POLICY\_LIST@{POLICY\_LIST}!regex.h@{regex.h}}
+\doxysubsubsection{\texorpdfstring{POLICY\_LIST}{POLICY\_LIST}}
+{\footnotesize\ttfamily \#define POLICY\+\_\+\+LIST}
+
+{\bfseries Value\+:}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{\ \ \ \ \mbox{\hyperlink{regex_8h_a06f8360cf021ac0d640a89859074e323}{X}}(POLICY\_SQL\_INJECTION,\ \ \ \ \ \ \ \textcolor{stringliteral}{"{}SQL\_INJECTION"{}})\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ X(POLICY\_XSS,\ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{"{}XSS"{}})\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ X(POLICY\_COMMAND\_INJECTION,\ \ \ \textcolor{stringliteral}{"{}COMMAND\_INJECTION"{}})\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ X(POLICY\_DIRECTORY\_TRAVERS,\ \ \ \textcolor{stringliteral}{"{}DIRECTORY\_TRAVERSAL"{}})\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ X(POLICY\_APP\_WEAK,\ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{"{}APP\_WEAK"{}})\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ X(POLICY\_SCANNER,\ \ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{"{}SCANNER"{}})\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ X(POLICY\_PROTOCOL\_VIOLATION,\ \ \textcolor{stringliteral}{"{}PROTOCOL\_VIOLATION"{}})\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ X(POLICY\_INFO\_LEAK,\ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{"{}INFO\_LEAK"{}})\ \(\backslash\)}
+\DoxyCodeLine{\ \ \ \ X(POLICY\_WEBSHELL,\ \ \ \ \ \ \ \ \ \ \ \ \textcolor{stringliteral}{"{}WEBSHELL"{}})}
+
+\end{DoxyCode}
+\Hypertarget{regex_8h_a06f8360cf021ac0d640a89859074e323}\label{regex_8h_a06f8360cf021ac0d640a89859074e323} 
+\index{regex.h@{regex.h}!X@{X}}
+\index{X@{X}!regex.h@{regex.h}}
+\doxysubsubsection{\texorpdfstring{X}{X}}
+{\footnotesize\ttfamily \#define X(\begin{DoxyParamCaption}\item[{}]{ename,  }\item[{}]{sname }\end{DoxyParamCaption})~ename,}
+
+
+
+\doxysubsection{Enumeration Type Documentation}
+\Hypertarget{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}\label{regex_8h_a447e660c80da5734c7bbfc87bbb64e20} 
+\index{regex.h@{regex.h}!ips\_context\_t@{ips\_context\_t}}
+\index{ips\_context\_t@{ips\_context\_t}!regex.h@{regex.h}}
+\doxysubsubsection{\texorpdfstring{ips\_context\_t}{ips\_context\_t}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}}}
+
+시그니처를 평가할 HTTP 파싱 컨텍스트이다. \begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_CTX\_ALL@{IPS\_CTX\_ALL}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_CTX\_ALL@{IPS\_CTX\_ALL}}}\Hypertarget{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a039c9447a5b37bbaae9144b03ea5e81d}\label{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a039c9447a5b37bbaae9144b03ea5e81d} 
+IPS\+\_\+\+CTX\+\_\+\+ALL&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_CTX\_REQUEST\_URI@{IPS\_CTX\_REQUEST\_URI}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_CTX\_REQUEST\_URI@{IPS\_CTX\_REQUEST\_URI}}}\Hypertarget{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a1c72cb00d0acb98bd5f1e90c9175836f}\label{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a1c72cb00d0acb98bd5f1e90c9175836f} 
+IPS\+\_\+\+CTX\+\_\+\+REQUEST\+\_\+\+URI&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_CTX\_ARGS@{IPS\_CTX\_ARGS}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_CTX\_ARGS@{IPS\_CTX\_ARGS}}}\Hypertarget{regex_8h_a447e660c80da5734c7bbfc87bbb64e20adc652bd59d91717785a3cf56b3d46dcd}\label{regex_8h_a447e660c80da5734c7bbfc87bbb64e20adc652bd59d91717785a3cf56b3d46dcd} 
+IPS\+\_\+\+CTX\+\_\+\+ARGS&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_CTX\_ARGS\_NAMES@{IPS\_CTX\_ARGS\_NAMES}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_CTX\_ARGS\_NAMES@{IPS\_CTX\_ARGS\_NAMES}}}\Hypertarget{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a9494bd081760165062c03cd16ef79c3c}\label{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a9494bd081760165062c03cd16ef79c3c} 
+IPS\+\_\+\+CTX\+\_\+\+ARGS\+\_\+\+NAMES&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_CTX\_REQUEST\_HEADERS@{IPS\_CTX\_REQUEST\_HEADERS}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_CTX\_REQUEST\_HEADERS@{IPS\_CTX\_REQUEST\_HEADERS}}}\Hypertarget{regex_8h_a447e660c80da5734c7bbfc87bbb64e20ae59fd536d8e246e7538bc15273e8307c}\label{regex_8h_a447e660c80da5734c7bbfc87bbb64e20ae59fd536d8e246e7538bc15273e8307c} 
+IPS\+\_\+\+CTX\+\_\+\+REQUEST\+\_\+\+HEADERS&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_CTX\_REQUEST\_BODY@{IPS\_CTX\_REQUEST\_BODY}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_CTX\_REQUEST\_BODY@{IPS\_CTX\_REQUEST\_BODY}}}\Hypertarget{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a0c1170bca022e9da4f9850c62efc8d5a}\label{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a0c1170bca022e9da4f9850c62efc8d5a} 
+IPS\+\_\+\+CTX\+\_\+\+REQUEST\+\_\+\+BODY&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_CTX\_RESPONSE\_BODY@{IPS\_CTX\_RESPONSE\_BODY}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_CTX\_RESPONSE\_BODY@{IPS\_CTX\_RESPONSE\_BODY}}}\Hypertarget{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a226a5d3d3ab117b5020f7eeda17ccb47}\label{regex_8h_a447e660c80da5734c7bbfc87bbb64e20a226a5d3d3ab117b5020f7eeda17ccb47} 
+IPS\+\_\+\+CTX\+\_\+\+RESPONSE\+\_\+\+BODY&\\
+\hline
+
+\end{DoxyEnumFields}
+\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbd}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbd} 
+\index{regex.h@{regex.h}!ips\_operator\_t@{ips\_operator\_t}}
+\index{ips\_operator\_t@{ips\_operator\_t}!regex.h@{regex.h}}
+\doxysubsubsection{\texorpdfstring{ips\_operator\_t}{ips\_operator\_t}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbd}{ips\+\_\+operator\+\_\+t}}}
+
+CRS operator 유형이다. \begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_RX@{IPS\_OP\_RX}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_RX@{IPS\_OP\_RX}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbdaff5c16de4c1a0e734b22ccdbabcec464}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbdaff5c16de4c1a0e734b22ccdbabcec464} 
+IPS\+\_\+\+OP\+\_\+\+RX&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_PM@{IPS\_OP\_PM}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_PM@{IPS\_OP\_PM}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbda9a46c3f79a6f36517e32b2bdc78bd22a}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbda9a46c3f79a6f36517e32b2bdc78bd22a} 
+IPS\+\_\+\+OP\+\_\+\+PM&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_PM\_FROM\_FILE@{IPS\_OP\_PM\_FROM\_FILE}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_PM\_FROM\_FILE@{IPS\_OP\_PM\_FROM\_FILE}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbda8aa94834f58a8aaec6252c83b3b1c686}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbda8aa94834f58a8aaec6252c83b3b1c686} 
+IPS\+\_\+\+OP\+\_\+\+PM\+\_\+\+FROM\+\_\+\+FILE&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_CONTAINS@{IPS\_OP\_CONTAINS}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_CONTAINS@{IPS\_OP\_CONTAINS}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbda977d1b33dfa2b3f953d08da3191d2f01}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbda977d1b33dfa2b3f953d08da3191d2f01} 
+IPS\+\_\+\+OP\+\_\+\+CONTAINS&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_BEGINS\_WITH@{IPS\_OP\_BEGINS\_WITH}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_BEGINS\_WITH@{IPS\_OP\_BEGINS\_WITH}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbdab84f212a493f9eee58f19125dfa50862}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbdab84f212a493f9eee58f19125dfa50862} 
+IPS\+\_\+\+OP\+\_\+\+BEGINS\+\_\+\+WITH&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_ENDS\_WITH@{IPS\_OP\_ENDS\_WITH}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_ENDS\_WITH@{IPS\_OP\_ENDS\_WITH}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbda504db11fbe16277f15b35d04866a71e2}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbda504db11fbe16277f15b35d04866a71e2} 
+IPS\+\_\+\+OP\+\_\+\+ENDS\+\_\+\+WITH&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_STREQ@{IPS\_OP\_STREQ}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_STREQ@{IPS\_OP\_STREQ}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbda136a49546087b227161e3f0939d5f0ce}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbda136a49546087b227161e3f0939d5f0ce} 
+IPS\+\_\+\+OP\+\_\+\+STREQ&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_WITHIN@{IPS\_OP\_WITHIN}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_WITHIN@{IPS\_OP\_WITHIN}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbda3351f4272ceeb259c1b1ba7b9b27e02b}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbda3351f4272ceeb259c1b1ba7b9b27e02b} 
+IPS\+\_\+\+OP\+\_\+\+WITHIN&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_DETECT\_SQLI@{IPS\_OP\_DETECT\_SQLI}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_DETECT\_SQLI@{IPS\_OP\_DETECT\_SQLI}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbdafae3270ba9ca096a30045e62ce35ef4a}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbdafae3270ba9ca096a30045e62ce35ef4a} 
+IPS\+\_\+\+OP\+\_\+\+DETECT\+\_\+\+SQLI&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_DETECT\_XSS@{IPS\_OP\_DETECT\_XSS}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_DETECT\_XSS@{IPS\_OP\_DETECT\_XSS}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbdacbed646913ffd57f4f0e6dfdef28f8fe}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbdacbed646913ffd57f4f0e6dfdef28f8fe} 
+IPS\+\_\+\+OP\+\_\+\+DETECT\+\_\+\+XSS&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_EQ@{IPS\_OP\_EQ}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_EQ@{IPS\_OP\_EQ}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbda38be3f9f5e8b5f07e11a57189f9c6a61}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbda38be3f9f5e8b5f07e11a57189f9c6a61} 
+IPS\+\_\+\+OP\+\_\+\+EQ&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_GE@{IPS\_OP\_GE}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_GE@{IPS\_OP\_GE}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbdabdeaf3dc7a93cd936ac188f3adbbd310}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbdabdeaf3dc7a93cd936ac188f3adbbd310} 
+IPS\+\_\+\+OP\+\_\+\+GE&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_GT@{IPS\_OP\_GT}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_GT@{IPS\_OP\_GT}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbda07d842e2413b62536cb43f16ea3417a8}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbda07d842e2413b62536cb43f16ea3417a8} 
+IPS\+\_\+\+OP\+\_\+\+GT&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_LT@{IPS\_OP\_LT}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_LT@{IPS\_OP\_LT}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbda659525fd113156c5c5cd0acb121cd0a7}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbda659525fd113156c5c5cd0acb121cd0a7} 
+IPS\+\_\+\+OP\+\_\+\+LT&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_VALIDATE\_BYTE\_RANGE@{IPS\_OP\_VALIDATE\_BYTE\_RANGE}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_VALIDATE\_BYTE\_RANGE@{IPS\_OP\_VALIDATE\_BYTE\_RANGE}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbdaef3946360ea7e36cd12fa4a401d56a95}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbdaef3946360ea7e36cd12fa4a401d56a95} 
+IPS\+\_\+\+OP\+\_\+\+VALIDATE\+\_\+\+BYTE\+\_\+\+RANGE&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_IP\_MATCH@{IPS\_OP\_IP\_MATCH}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_IP\_MATCH@{IPS\_OP\_IP\_MATCH}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbda696aed7d2047741de59f35a2c79f4d52}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbda696aed7d2047741de59f35a2c79f4d52} 
+IPS\+\_\+\+OP\+\_\+\+IP\+\_\+\+MATCH&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{IPS\_OP\_UNKNOWN@{IPS\_OP\_UNKNOWN}!regex.h@{regex.h}}\index{regex.h@{regex.h}!IPS\_OP\_UNKNOWN@{IPS\_OP\_UNKNOWN}}}\Hypertarget{regex_8h_a30f6273ed0d636852676a58dfbd15fbda2667d1031976c42c768e08eec25ccbad}\label{regex_8h_a30f6273ed0d636852676a58dfbd15fbda2667d1031976c42c768e08eec25ccbad} 
+IPS\+\_\+\+OP\+\_\+\+UNKNOWN&\\
+\hline
+
+\end{DoxyEnumFields}
+\Hypertarget{regex_8h_aeb612f798f3c16a9434dcec1319185a6}\label{regex_8h_aeb612f798f3c16a9434dcec1319185a6} 
+\index{regex.h@{regex.h}!POLICY@{POLICY}}
+\index{POLICY@{POLICY}!regex.h@{regex.h}}
+\doxysubsubsection{\texorpdfstring{POLICY}{POLICY}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{regex_8h_aeb612f798f3c16a9434dcec1319185a6}{POLICY}}}
+
+정규식 시그니처 테이블에서 사용하는 정책 식별자이다. \begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{POLICY\_START@{POLICY\_START}!regex.h@{regex.h}}\index{regex.h@{regex.h}!POLICY\_START@{POLICY\_START}}}\Hypertarget{regex_8h_aeb612f798f3c16a9434dcec1319185a6a99e83da8ef178ee5f926dbd882e75d45}\label{regex_8h_aeb612f798f3c16a9434dcec1319185a6a99e83da8ef178ee5f926dbd882e75d45} 
+POLICY\+\_\+\+START&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{POLICY\_MAX@{POLICY\_MAX}!regex.h@{regex.h}}\index{regex.h@{regex.h}!POLICY\_MAX@{POLICY\_MAX}}}\Hypertarget{regex_8h_aeb612f798f3c16a9434dcec1319185a6a589bd21eb8686cd9ab553c0fae3e38fe}\label{regex_8h_aeb612f798f3c16a9434dcec1319185a6a589bd21eb8686cd9ab553c0fae3e38fe} 
+POLICY\+\_\+\+MAX&\\
+\hline
+
+\end{DoxyEnumFields}
+
+
+\doxysubsection{Function Documentation}
+\Hypertarget{regex_8h_ae3b490c2254e66d0f1f348b4229dbee4}\label{regex_8h_ae3b490c2254e66d0f1f348b4229dbee4} 
+\index{regex.h@{regex.h}!get\_policy\_name@{get\_policy\_name}}
+\index{get\_policy\_name@{get\_policy\_name}!regex.h@{regex.h}}
+\doxysubsubsection{\texorpdfstring{get\_policy\_name()}{get\_policy\_name()}}
+{\footnotesize\ttfamily const char \texorpdfstring{$\ast$}{*} get\+\_\+policy\+\_\+name (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{regex_8h_aeb612f798f3c16a9434dcec1319185a6}{POLICY}}}]{p }\end{DoxyParamCaption})}
+
+정책 식별자의 출력용 이름을 돌려준다. \Hypertarget{regex_8h_ac062562ffc78a945922ec078e2f45142}\label{regex_8h_ac062562ffc78a945922ec078e2f45142} 
+\index{regex.h@{regex.h}!ips\_operator\_from\_string@{ips\_operator\_from\_string}}
+\index{ips\_operator\_from\_string@{ips\_operator\_from\_string}!regex.h@{regex.h}}
+\doxysubsubsection{\texorpdfstring{ips\_operator\_from\_string()}{ips\_operator\_from\_string()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbd}{ips\+\_\+operator\+\_\+t}} ips\+\_\+operator\+\_\+from\+\_\+string (\begin{DoxyParamCaption}\item[{const char \texorpdfstring{$\ast$}{*}}]{name }\end{DoxyParamCaption})}
+
+CRS operator 이름을 enum으로 변환한다. \Hypertarget{regex_8h_a484c07918612a3be1623f80de7d2a50e}\label{regex_8h_a484c07918612a3be1623f80de7d2a50e} 
+\index{regex.h@{regex.h}!ips\_operator\_name@{ips\_operator\_name}}
+\index{ips\_operator\_name@{ips\_operator\_name}!regex.h@{regex.h}}
+\doxysubsubsection{\texorpdfstring{ips\_operator\_name()}{ips\_operator\_name()}}
+{\footnotesize\ttfamily const char \texorpdfstring{$\ast$}{*} ips\+\_\+operator\+\_\+name (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{regex_8h_a30f6273ed0d636852676a58dfbd15fbd}{ips\+\_\+operator\+\_\+t}}}]{op }\end{DoxyParamCaption})}
+
+CRS operator enum을 출력용 문자열로 변환한다. \Hypertarget{regex_8h_ae1e3a979dc674604f5966cd13a76c99c}\label{regex_8h_ae1e3a979dc674604f5966cd13a76c99c} 
+\index{regex.h@{regex.h}!regex\_load\_signatures@{regex\_load\_signatures}}
+\index{regex\_load\_signatures@{regex\_load\_signatures}!regex.h@{regex.h}}
+\doxysubsubsection{\texorpdfstring{regex\_load\_signatures()}{regex\_load\_signatures()}}
+{\footnotesize\ttfamily int regex\+\_\+load\+\_\+signatures (\begin{DoxyParamCaption}\item[{const char \texorpdfstring{$\ast$}{*}}]{jsonl\+\_\+path }\end{DoxyParamCaption})}
+
+기본 rules\+\_\+full.\+jsonl 또는 지정 경로에서 룰을 적재한다. \Hypertarget{regex_8h_a407aa8194d60cfb099b59010c5979157}\label{regex_8h_a407aa8194d60cfb099b59010c5979157} 
+\index{regex.h@{regex.h}!regex\_unload\_signatures@{regex\_unload\_signatures}}
+\index{regex\_unload\_signatures@{regex\_unload\_signatures}!regex.h@{regex.h}}
+\doxysubsubsection{\texorpdfstring{regex\_unload\_signatures()}{regex\_unload\_signatures()}}
+{\footnotesize\ttfamily void regex\+\_\+unload\+\_\+signatures (\begin{DoxyParamCaption}\item[{void}]{ }\end{DoxyParamCaption})}
+
+적재된 룰 메모리를 해제한다. 
+
+\doxysubsection{Variable Documentation}
+\Hypertarget{regex_8h_a5a4ffa176863c68bbc29616699e6b0e6}\label{regex_8h_a5a4ffa176863c68bbc29616699e6b0e6} 
+\index{regex.h@{regex.h}!g\_ips\_signatures@{g\_ips\_signatures}}
+\index{g\_ips\_signatures@{g\_ips\_signatures}!regex.h@{regex.h}}
+\doxysubsubsection{\texorpdfstring{g\_ips\_signatures}{g\_ips\_signatures}}
+{\footnotesize\ttfamily const \mbox{\hyperlink{structIPS__Signature}{IPS\+\_\+\+Signature}}\texorpdfstring{$\ast$}{*} g\+\_\+ips\+\_\+signatures\hspace{0.3cm}{\ttfamily [extern]}}
+
+내장 IPS 시그니처 전역 테이블이다. \Hypertarget{regex_8h_a31b67306df41359e2468b52cc1205640}\label{regex_8h_a31b67306df41359e2468b52cc1205640} 
+\index{regex.h@{regex.h}!g\_signature\_count@{g\_signature\_count}}
+\index{g\_signature\_count@{g\_signature\_count}!regex.h@{regex.h}}
+\doxysubsubsection{\texorpdfstring{g\_signature\_count}{g\_signature\_count}}
+{\footnotesize\ttfamily int g\+\_\+signature\+\_\+count\hspace{0.3cm}{\ttfamily [extern]}}
+
+내장 시그니처 테이블 엔트리 개수이다. 

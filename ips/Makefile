@@ -44,6 +44,7 @@ LOG_DIR := logs
 
 MAIN_BIN := $(BUILD_DIR)/main
 REGEX_COMPAT_BIN := $(BUILD_DIR)/test_regex_compat
+RID_PCRE_BIN := $(BUILD_DIR)/test_rid_pcre
 
 APP_SRCS := $(SRC_DIR)/main.c \
 	$(SRC_DIR)/driver.c \
@@ -60,7 +61,7 @@ UNIT_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .log,$(UNIT_NAMES)))
 UNIT_VG_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .valgrind.log,$(UNIT_NAMES)))
 MAIN_VG_LOG := $(LOG_DIR)/main.valgrind.log
 
-.PHONY: all clean run units main check_pcre valgrind-units valgrind-main regex-compat
+.PHONY: all clean run units main check_pcre valgrind-units valgrind-main regex-compat test-rid-pcre
 
 all: units $(MAIN_BIN)
 
@@ -68,6 +69,9 @@ main: $(MAIN_BIN)
 
 regex-compat: $(REGEX_COMPAT_BIN)
 	./$(REGEX_COMPAT_BIN)
+
+test-rid-pcre: $(RID_PCRE_BIN)
+	./$(RID_PCRE_BIN)
 
 $(BUILD_DIR) $(LOG_DIR):
 	mkdir -p $@
@@ -77,6 +81,12 @@ $(MAIN_BIN): check_pcre $(APP_SRCS) | $(BUILD_DIR)
 
 $(REGEX_COMPAT_BIN): $(TEST_DIR)/test_regex_compat.c | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) $< -o $@ $(LDFLAGS) $(PCRE_LIBS) $(HS_LIBS) $(LDLIBS)
+
+$(RID_PCRE_BIN): check_pcre $(TEST_DIR)/test_rid_pcre.c \
+	$(SRC_DIR)/detect.c $(SRC_DIR)/engine.c $(SRC_DIR)/regex.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
+		$(TEST_DIR)/test_rid_pcre.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c $(SRC_DIR)/regex.c \
+		-o $@ $(LDFLAGS) $(PCRE_LIBS) $(HS_LIBS) $(LDLIBS)
 
 run: all
 	./$(MAIN_BIN)

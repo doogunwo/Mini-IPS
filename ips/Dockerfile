@@ -25,7 +25,8 @@ RUN apt-get update && \
         tzdata \
         iptables \
         iproute2 \
-        procps && \
+        procps \
+        util-linux && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

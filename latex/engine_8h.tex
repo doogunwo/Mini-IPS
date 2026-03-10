@@ -1,0 +1,103 @@
+\doxysection{ips/include/engine.h File Reference}
+\hypertarget{engine_8h}{}\label{engine_8h}\index{ips/include/engine.h@{ips/include/engine.h}}
+
+
+IPS 룰 실행 엔진 내부 인터페이스  
+
+
+{\ttfamily \#include $<$stddef.\+h$>$}\newline
+{\ttfamily \#include $<$stdint.\+h$>$}\newline
+{\ttfamily \#include "{}detect.\+h"{}}\newline
+Include dependency graph for engine.\+h\+:
+% FIG 0
+This graph shows which files directly or indirectly include this file\+:
+% FIG 1
+\doxysubsubsection*{Typedefs}
+\begin{DoxyCompactItemize}
+\item 
+typedef struct \mbox{\hyperlink{structengine__runtime}{engine\+\_\+runtime}} \mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+int \mbox{\hyperlink{engine_8h_aa7f48c81f865afb1ef49b47c1b0ff04a}{engine\+\_\+set\+\_\+backend\+\_\+name}} (const char \texorpdfstring{$\ast$}{*}name, char \texorpdfstring{$\ast$}{*}errbuf, size\+\_\+t errbuf\+\_\+size)
+\item 
+\mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{engine_8h_a1e06b3a15e376103ab6d5d1a9af0c1eb}{engine\+\_\+runtime\+\_\+create}} (const \mbox{\hyperlink{structIPS__Signature}{IPS\+\_\+\+Signature}} \texorpdfstring{$\ast$}{*}const \texorpdfstring{$\ast$}{*}rules, unsigned int rule\+\_\+count, \mbox{\hyperlink{detect_8h_a803eb3e7c38b629abdcae85384a099bc}{detect\+\_\+jit\+\_\+mode\+\_\+t}} jit\+\_\+mode, char \texorpdfstring{$\ast$}{*}errbuf, size\+\_\+t errbuf\+\_\+size)
+\item 
+void \mbox{\hyperlink{engine_8h_ab9e909d86873a91fba77ce80cd89b7b9}{engine\+\_\+runtime\+\_\+destroy}} (\mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*}runtime)
+\item 
+int \mbox{\hyperlink{engine_8h_a157c294d0ed833da9a8431af4595c4a9}{engine\+\_\+runtime\+\_\+match\+\_\+first}} (\mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*}runtime, const uint8\+\_\+t \texorpdfstring{$\ast$}{*}data, size\+\_\+t len, \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}} ctx, const \mbox{\hyperlink{structIPS__Signature}{IPS\+\_\+\+Signature}} \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}matched\+\_\+rule, char \texorpdfstring{$\ast$}{*}errbuf, size\+\_\+t errbuf\+\_\+size)
+\item 
+int \mbox{\hyperlink{engine_8h_a1b83c7c1fe66988c97b48e9d9e6d03e6}{engine\+\_\+runtime\+\_\+collect\+\_\+matches}} (\mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*}runtime, const uint8\+\_\+t \texorpdfstring{$\ast$}{*}data, size\+\_\+t len, \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}} ctx, \mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}} \texorpdfstring{$\ast$}{*}matches, char \texorpdfstring{$\ast$}{*}errbuf, size\+\_\+t errbuf\+\_\+size)
+\item 
+int \mbox{\hyperlink{engine_8h_a9f6b0a5959c79f78e0bcfcae04ca2a56}{engine\+\_\+runtime\+\_\+collect\+\_\+matches\+\_\+timed}} (\mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*}runtime, const uint8\+\_\+t \texorpdfstring{$\ast$}{*}data, size\+\_\+t len, \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}} ctx, \mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}} \texorpdfstring{$\ast$}{*}matches, uint64\+\_\+t \texorpdfstring{$\ast$}{*}elapsed\+\_\+us\+\_\+sum, char \texorpdfstring{$\ast$}{*}errbuf, size\+\_\+t errbuf\+\_\+size)
+\item 
+const char \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{engine_8h_a24aaae4ecb067bc484d7a30963e99490}{engine\+\_\+runtime\+\_\+backend\+\_\+name}} (const \mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*}runtime)
+\item 
+int \mbox{\hyperlink{engine_8h_a6ad720327aecc2ed4b8ca785cc0fe3ad}{engine\+\_\+runtime\+\_\+jit\+\_\+enabled}} (const \mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*}runtime)
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+IPS 룰 실행 엔진 내부 인터페이스 
+
+
+
+\doxysubsection{Typedef Documentation}
+\Hypertarget{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}\label{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d} 
+\index{engine.h@{engine.h}!engine\_runtime\_t@{engine\_runtime\_t}}
+\index{engine\_runtime\_t@{engine\_runtime\_t}!engine.h@{engine.h}}
+\doxysubsubsection{\texorpdfstring{engine\_runtime\_t}{engine\_runtime\_t}}
+{\footnotesize\ttfamily typedef struct \mbox{\hyperlink{structengine__runtime}{engine\+\_\+runtime}} \mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}}}
+
+
+
+\doxysubsection{Function Documentation}
+\Hypertarget{engine_8h_a24aaae4ecb067bc484d7a30963e99490}\label{engine_8h_a24aaae4ecb067bc484d7a30963e99490} 
+\index{engine.h@{engine.h}!engine\_runtime\_backend\_name@{engine\_runtime\_backend\_name}}
+\index{engine\_runtime\_backend\_name@{engine\_runtime\_backend\_name}!engine.h@{engine.h}}
+\doxysubsubsection{\texorpdfstring{engine\_runtime\_backend\_name()}{engine\_runtime\_backend\_name()}}
+{\footnotesize\ttfamily const char \texorpdfstring{$\ast$}{*} engine\+\_\+runtime\+\_\+backend\+\_\+name (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{runtime }\end{DoxyParamCaption})}
+
+\Hypertarget{engine_8h_a1b83c7c1fe66988c97b48e9d9e6d03e6}\label{engine_8h_a1b83c7c1fe66988c97b48e9d9e6d03e6} 
+\index{engine.h@{engine.h}!engine\_runtime\_collect\_matches@{engine\_runtime\_collect\_matches}}
+\index{engine\_runtime\_collect\_matches@{engine\_runtime\_collect\_matches}!engine.h@{engine.h}}
+\doxysubsubsection{\texorpdfstring{engine\_runtime\_collect\_matches()}{engine\_runtime\_collect\_matches()}}
+{\footnotesize\ttfamily int engine\+\_\+runtime\+\_\+collect\+\_\+matches (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{runtime,  }\item[{const uint8\+\_\+t \texorpdfstring{$\ast$}{*}}]{data,  }\item[{size\+\_\+t}]{len,  }\item[{\mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}}}]{ctx,  }\item[{\mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{matches,  }\item[{char \texorpdfstring{$\ast$}{*}}]{errbuf,  }\item[{size\+\_\+t}]{errbuf\+\_\+size }\end{DoxyParamCaption})}
+
+\Hypertarget{engine_8h_a9f6b0a5959c79f78e0bcfcae04ca2a56}\label{engine_8h_a9f6b0a5959c79f78e0bcfcae04ca2a56} 
+\index{engine.h@{engine.h}!engine\_runtime\_collect\_matches\_timed@{engine\_runtime\_collect\_matches\_timed}}
+\index{engine\_runtime\_collect\_matches\_timed@{engine\_runtime\_collect\_matches\_timed}!engine.h@{engine.h}}
+\doxysubsubsection{\texorpdfstring{engine\_runtime\_collect\_matches\_timed()}{engine\_runtime\_collect\_matches\_timed()}}
+{\footnotesize\ttfamily int engine\+\_\+runtime\+\_\+collect\+\_\+matches\+\_\+timed (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{runtime,  }\item[{const uint8\+\_\+t \texorpdfstring{$\ast$}{*}}]{data,  }\item[{size\+\_\+t}]{len,  }\item[{\mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}}}]{ctx,  }\item[{\mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{matches,  }\item[{uint64\+\_\+t \texorpdfstring{$\ast$}{*}}]{elapsed\+\_\+us\+\_\+sum,  }\item[{char \texorpdfstring{$\ast$}{*}}]{errbuf,  }\item[{size\+\_\+t}]{errbuf\+\_\+size }\end{DoxyParamCaption})}
+
+\Hypertarget{engine_8h_a1e06b3a15e376103ab6d5d1a9af0c1eb}\label{engine_8h_a1e06b3a15e376103ab6d5d1a9af0c1eb} 
+\index{engine.h@{engine.h}!engine\_runtime\_create@{engine\_runtime\_create}}
+\index{engine\_runtime\_create@{engine\_runtime\_create}!engine.h@{engine.h}}
+\doxysubsubsection{\texorpdfstring{engine\_runtime\_create()}{engine\_runtime\_create()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*} engine\+\_\+runtime\+\_\+create (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{structIPS__Signature}{IPS\+\_\+\+Signature}} \texorpdfstring{$\ast$}{*}const \texorpdfstring{$\ast$}{*}}]{rules,  }\item[{unsigned int}]{rule\+\_\+count,  }\item[{\mbox{\hyperlink{detect_8h_a803eb3e7c38b629abdcae85384a099bc}{detect\+\_\+jit\+\_\+mode\+\_\+t}}}]{jit\+\_\+mode,  }\item[{char \texorpdfstring{$\ast$}{*}}]{errbuf,  }\item[{size\+\_\+t}]{errbuf\+\_\+size }\end{DoxyParamCaption})}
+
+\Hypertarget{engine_8h_ab9e909d86873a91fba77ce80cd89b7b9}\label{engine_8h_ab9e909d86873a91fba77ce80cd89b7b9} 
+\index{engine.h@{engine.h}!engine\_runtime\_destroy@{engine\_runtime\_destroy}}
+\index{engine\_runtime\_destroy@{engine\_runtime\_destroy}!engine.h@{engine.h}}
+\doxysubsubsection{\texorpdfstring{engine\_runtime\_destroy()}{engine\_runtime\_destroy()}}
+{\footnotesize\ttfamily void engine\+\_\+runtime\+\_\+destroy (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{runtime }\end{DoxyParamCaption})}
+
+\Hypertarget{engine_8h_a6ad720327aecc2ed4b8ca785cc0fe3ad}\label{engine_8h_a6ad720327aecc2ed4b8ca785cc0fe3ad} 
+\index{engine.h@{engine.h}!engine\_runtime\_jit\_enabled@{engine\_runtime\_jit\_enabled}}
+\index{engine\_runtime\_jit\_enabled@{engine\_runtime\_jit\_enabled}!engine.h@{engine.h}}
+\doxysubsubsection{\texorpdfstring{engine\_runtime\_jit\_enabled()}{engine\_runtime\_jit\_enabled()}}
+{\footnotesize\ttfamily int engine\+\_\+runtime\+\_\+jit\+\_\+enabled (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{runtime }\end{DoxyParamCaption})}
+
+\Hypertarget{engine_8h_a157c294d0ed833da9a8431af4595c4a9}\label{engine_8h_a157c294d0ed833da9a8431af4595c4a9} 
+\index{engine.h@{engine.h}!engine\_runtime\_match\_first@{engine\_runtime\_match\_first}}
+\index{engine\_runtime\_match\_first@{engine\_runtime\_match\_first}!engine.h@{engine.h}}
+\doxysubsubsection{\texorpdfstring{engine\_runtime\_match\_first()}{engine\_runtime\_match\_first()}}
+{\footnotesize\ttfamily int engine\+\_\+runtime\+\_\+match\+\_\+first (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{runtime,  }\item[{const uint8\+\_\+t \texorpdfstring{$\ast$}{*}}]{data,  }\item[{size\+\_\+t}]{len,  }\item[{\mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}}}]{ctx,  }\item[{const \mbox{\hyperlink{structIPS__Signature}{IPS\+\_\+\+Signature}} \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}}]{matched\+\_\+rule,  }\item[{char \texorpdfstring{$\ast$}{*}}]{errbuf,  }\item[{size\+\_\+t}]{errbuf\+\_\+size }\end{DoxyParamCaption})}
+
+\Hypertarget{engine_8h_aa7f48c81f865afb1ef49b47c1b0ff04a}\label{engine_8h_aa7f48c81f865afb1ef49b47c1b0ff04a} 
+\index{engine.h@{engine.h}!engine\_set\_backend\_name@{engine\_set\_backend\_name}}
+\index{engine\_set\_backend\_name@{engine\_set\_backend\_name}!engine.h@{engine.h}}
+\doxysubsubsection{\texorpdfstring{engine\_set\_backend\_name()}{engine\_set\_backend\_name()}}
+{\footnotesize\ttfamily int engine\+\_\+set\+\_\+backend\+\_\+name (\begin{DoxyParamCaption}\item[{const char \texorpdfstring{$\ast$}{*}}]{name,  }\item[{char \texorpdfstring{$\ast$}{*}}]{errbuf,  }\item[{size\+\_\+t}]{errbuf\+\_\+size }\end{DoxyParamCaption})}
+

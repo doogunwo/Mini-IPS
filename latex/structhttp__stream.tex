@@ -1,0 +1,81 @@
+\doxysection{http\+\_\+stream Struct Reference}
+\hypertarget{structhttp__stream}{}\label{structhttp__stream}\index{http\_stream@{http\_stream}}
+
+
+Collaboration diagram for http\+\_\+stream\+:
+% FIG 0
+\doxysubsubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+uint8\+\_\+t \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{structhttp__stream_ad3592e5a7b3969d644d4a32473887f18}{buf}}
+\item 
+size\+\_\+t \mbox{\hyperlink{structhttp__stream_a0f981c9dc6fa53099b3395db4a4128b8}{len}}
+\item 
+size\+\_\+t \mbox{\hyperlink{structhttp__stream_a920b022cb1aaf58e1420b06f7688cb9c}{cap}}
+\item 
+size\+\_\+t \mbox{\hyperlink{structhttp__stream_a340eb5af58744503cfc4a3d04526acb7}{max\+\_\+buffer\+\_\+bytes}}
+\item 
+size\+\_\+t \mbox{\hyperlink{structhttp__stream_a3e4725a3c773a05290ca43c32652bb55}{max\+\_\+body\+\_\+bytes}}
+\item 
+\mbox{\hyperlink{http__stream_8c_a5476219b0e414ba0afd802ed80ceeaf2}{msg\+\_\+node\+\_\+t}} \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{structhttp__stream_a7a1b6bdef04cefb841ba4c59154d718e}{q\+\_\+head}}
+\item 
+\mbox{\hyperlink{http__stream_8c_a5476219b0e414ba0afd802ed80ceeaf2}{msg\+\_\+node\+\_\+t}} \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{structhttp__stream_a923cc419e7b0196250bebdc711fa424e}{q\+\_\+tail}}
+\item 
+char \mbox{\hyperlink{structhttp__stream_ac1908eec971abff494f7032adb8e7b24}{last\+\_\+err}} \mbox{[}128\mbox{]}
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Member Data Documentation}
+\Hypertarget{structhttp__stream_ad3592e5a7b3969d644d4a32473887f18}\label{structhttp__stream_ad3592e5a7b3969d644d4a32473887f18} 
+\index{http\_stream@{http\_stream}!buf@{buf}}
+\index{buf@{buf}!http\_stream@{http\_stream}}
+\doxysubsubsection{\texorpdfstring{buf}{buf}}
+{\footnotesize\ttfamily uint8\+\_\+t\texorpdfstring{$\ast$}{*} http\+\_\+stream\+::buf}
+
+\Hypertarget{structhttp__stream_a920b022cb1aaf58e1420b06f7688cb9c}\label{structhttp__stream_a920b022cb1aaf58e1420b06f7688cb9c} 
+\index{http\_stream@{http\_stream}!cap@{cap}}
+\index{cap@{cap}!http\_stream@{http\_stream}}
+\doxysubsubsection{\texorpdfstring{cap}{cap}}
+{\footnotesize\ttfamily size\+\_\+t http\+\_\+stream\+::cap}
+
+\Hypertarget{structhttp__stream_ac1908eec971abff494f7032adb8e7b24}\label{structhttp__stream_ac1908eec971abff494f7032adb8e7b24} 
+\index{http\_stream@{http\_stream}!last\_err@{last\_err}}
+\index{last\_err@{last\_err}!http\_stream@{http\_stream}}
+\doxysubsubsection{\texorpdfstring{last\_err}{last\_err}}
+{\footnotesize\ttfamily char http\+\_\+stream\+::last\+\_\+err\mbox{[}128\mbox{]}}
+
+\Hypertarget{structhttp__stream_a0f981c9dc6fa53099b3395db4a4128b8}\label{structhttp__stream_a0f981c9dc6fa53099b3395db4a4128b8} 
+\index{http\_stream@{http\_stream}!len@{len}}
+\index{len@{len}!http\_stream@{http\_stream}}
+\doxysubsubsection{\texorpdfstring{len}{len}}
+{\footnotesize\ttfamily size\+\_\+t http\+\_\+stream\+::len}
+
+\Hypertarget{structhttp__stream_a3e4725a3c773a05290ca43c32652bb55}\label{structhttp__stream_a3e4725a3c773a05290ca43c32652bb55} 
+\index{http\_stream@{http\_stream}!max\_body\_bytes@{max\_body\_bytes}}
+\index{max\_body\_bytes@{max\_body\_bytes}!http\_stream@{http\_stream}}
+\doxysubsubsection{\texorpdfstring{max\_body\_bytes}{max\_body\_bytes}}
+{\footnotesize\ttfamily size\+\_\+t http\+\_\+stream\+::max\+\_\+body\+\_\+bytes}
+
+\Hypertarget{structhttp__stream_a340eb5af58744503cfc4a3d04526acb7}\label{structhttp__stream_a340eb5af58744503cfc4a3d04526acb7} 
+\index{http\_stream@{http\_stream}!max\_buffer\_bytes@{max\_buffer\_bytes}}
+\index{max\_buffer\_bytes@{max\_buffer\_bytes}!http\_stream@{http\_stream}}
+\doxysubsubsection{\texorpdfstring{max\_buffer\_bytes}{max\_buffer\_bytes}}
+{\footnotesize\ttfamily size\+\_\+t http\+\_\+stream\+::max\+\_\+buffer\+\_\+bytes}
+
+\Hypertarget{structhttp__stream_a7a1b6bdef04cefb841ba4c59154d718e}\label{structhttp__stream_a7a1b6bdef04cefb841ba4c59154d718e} 
+\index{http\_stream@{http\_stream}!q\_head@{q\_head}}
+\index{q\_head@{q\_head}!http\_stream@{http\_stream}}
+\doxysubsubsection{\texorpdfstring{q\_head}{q\_head}}
+{\footnotesize\ttfamily \mbox{\hyperlink{http__stream_8c_a5476219b0e414ba0afd802ed80ceeaf2}{msg\+\_\+node\+\_\+t}}\texorpdfstring{$\ast$}{*} http\+\_\+stream\+::q\+\_\+head}
+
+\Hypertarget{structhttp__stream_a923cc419e7b0196250bebdc711fa424e}\label{structhttp__stream_a923cc419e7b0196250bebdc711fa424e} 
+\index{http\_stream@{http\_stream}!q\_tail@{q\_tail}}
+\index{q\_tail@{q\_tail}!http\_stream@{http\_stream}}
+\doxysubsubsection{\texorpdfstring{q\_tail}{q\_tail}}
+{\footnotesize\ttfamily \mbox{\hyperlink{http__stream_8c_a5476219b0e414ba0afd802ed80ceeaf2}{msg\+\_\+node\+\_\+t}}\texorpdfstring{$\ast$}{*} http\+\_\+stream\+::q\+\_\+tail}
+
+
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+ips/src/\mbox{\hyperlink{http__stream_8c}{http\+\_\+stream.\+c}}\end{DoxyCompactItemize}

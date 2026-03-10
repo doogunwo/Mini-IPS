@@ -526,6 +526,9 @@ int main(int argc, char **argv)
     }
 
     for (int i = 0; i < cfg.count; i++) {
+        const char *size_name = "uri_size";
+        size_t size_value = cfg.uri_size;
+
         if (send_all(fd, attack_req, strlen(attack_req)) != 0) {
             perror("send");
             printf("disconnected after %d attack requests\n", i);
@@ -534,13 +537,20 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        printf("sent %d: attack mode=%s payload=%s uri_size=%zu body_size=%zu header_size=%zu\n",
+        if (cfg.mode == MODE_BODY) {
+            size_name = "body_size";
+            size_value = cfg.body_size;
+        } else if (cfg.mode == MODE_HEADER) {
+            size_name = "header_size";
+            size_value = cfg.header_size;
+        }
+
+        printf("sent %d: attack mode=%s payload=%s %s=%zu\n",
             i + 1,
             mode_name(cfg.mode),
             payload_name(cfg.payload),
-            cfg.uri_size,
-            cfg.body_size,
-            cfg.header_size);
+            size_name,
+            size_value);
 
         if (cfg.verbose) {
             print_tcp_info(fd);

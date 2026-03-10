@@ -1,0 +1,238 @@
+\doxysection{ips/include/detect.h File Reference}
+\hypertarget{detect_8h}{}\label{detect_8h}\index{ips/include/detect.h@{ips/include/detect.h}}
+
+
+탐지 엔진 공개 인터페이스  
+
+
+{\ttfamily \#include $<$stddef.\+h$>$}\newline
+{\ttfamily \#include $<$stdint.\+h$>$}\newline
+{\ttfamily \#include "{}regex.\+h"{}}\newline
+Include dependency graph for detect.\+h\+:
+% FIG 0
+This graph shows which files directly or indirectly include this file\+:
+% FIG 1
+\doxysubsubsection*{Classes}
+\begin{DoxyCompactItemize}
+\item 
+struct \mbox{\hyperlink{structdetect__match__t}{detect\+\_\+match\+\_\+t}}
+\item 
+struct \mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Typedefs}
+\begin{DoxyCompactItemize}
+\item 
+typedef struct \mbox{\hyperlink{structdetect__engine}{detect\+\_\+engine}} \mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Enumerations}
+\begin{DoxyCompactItemize}
+\item 
+enum \mbox{\hyperlink{detect_8h_a803eb3e7c38b629abdcae85384a099bc}{detect\+\_\+jit\+\_\+mode\+\_\+t}} \{ \mbox{\hyperlink{detect_8h_a803eb3e7c38b629abdcae85384a099bca8f4dcd3832e49fab35fc302039e3753c}{DETECT\+\_\+\+JIT\+\_\+\+AUTO}} = -\/1
+, \mbox{\hyperlink{detect_8h_a803eb3e7c38b629abdcae85384a099bca89c5b15e5574d166fc9632c06f53d930}{DETECT\+\_\+\+JIT\+\_\+\+OFF}} = 0
+, \mbox{\hyperlink{detect_8h_a803eb3e7c38b629abdcae85384a099bca585720baed1e394523cb14f8191d1bcf}{DETECT\+\_\+\+JIT\+\_\+\+ON}} = 1
+ \}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{detect_8h_ac1a156f710b75999a293f5bfdc68d1a5}{detect\+\_\+engine\+\_\+create}} (const char \texorpdfstring{$\ast$}{*}policy\+\_\+name, \mbox{\hyperlink{detect_8h_a803eb3e7c38b629abdcae85384a099bc}{detect\+\_\+jit\+\_\+mode\+\_\+t}} jit\+\_\+mode)
+\begin{DoxyCompactList}\small\item\em 탐지 엔진 인스턴스 생성 \end{DoxyCompactList}\item 
+void \mbox{\hyperlink{detect_8h_a1fddcc96030af84584b1cb67db7a0057}{detect\+\_\+engine\+\_\+destroy}} (\mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}e)
+\begin{DoxyCompactList}\small\item\em 생성된 탐지 엔진을 해제한다. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{detect_8h_abef373e348be41388fca327e7837b355}{detect\+\_\+engine\+\_\+match}} (\mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}e, const uint8\+\_\+t \texorpdfstring{$\ast$}{*}data, size\+\_\+t len, const \mbox{\hyperlink{structIPS__Signature}{IPS\+\_\+\+Signature}} \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}matched\+\_\+rule)
+\begin{DoxyCompactList}\small\item\em 기본 컨텍스트로 입력 버퍼를 탐지한다. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{detect_8h_a467c366e2d3c8fc694fdd9bfef9018fa}{detect\+\_\+engine\+\_\+match\+\_\+ctx}} (\mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}e, const uint8\+\_\+t \texorpdfstring{$\ast$}{*}data, size\+\_\+t len, \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}} ctx, const \mbox{\hyperlink{structIPS__Signature}{IPS\+\_\+\+Signature}} \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}matched\+\_\+rule)
+\begin{DoxyCompactList}\small\item\em 지정한 IPS 컨텍스트로 입력 버퍼를 탐지한다. \end{DoxyCompactList}\item 
+int \mbox{\hyperlink{detect_8h_a1be58d66f185434448fb52c78e671083}{detect\+\_\+engine\+\_\+collect\+\_\+matches\+\_\+ctx}} (\mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}e, const uint8\+\_\+t \texorpdfstring{$\ast$}{*}data, size\+\_\+t len, \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}} ctx, \mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}} \texorpdfstring{$\ast$}{*}matches)
+\item 
+int \mbox{\hyperlink{detect_8h_aef4b6c42d62ca4ae690ecbe4ad1575fb}{detect\+\_\+engine\+\_\+collect\+\_\+matches\+\_\+ctx\+\_\+timed}} (\mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}e, const uint8\+\_\+t \texorpdfstring{$\ast$}{*}data, size\+\_\+t len, \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}} ctx, \mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}} \texorpdfstring{$\ast$}{*}matches, uint64\+\_\+t \texorpdfstring{$\ast$}{*}elapsed\+\_\+us\+\_\+sum)
+\item 
+void \mbox{\hyperlink{detect_8h_ae3d71dd750c5c576c60efb67a955ab41}{detect\+\_\+match\+\_\+list\+\_\+init}} (\mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}} \texorpdfstring{$\ast$}{*}matches)
+\item 
+void \mbox{\hyperlink{detect_8h_a4b6723fa7692cb9794c58d19a74ea074}{detect\+\_\+match\+\_\+list\+\_\+free}} (\mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}} \texorpdfstring{$\ast$}{*}matches)
+\item 
+const char \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{detect_8h_a8734e39ab680f5f98147cfaeb7d381d1}{detect\+\_\+engine\+\_\+last\+\_\+error}} (const \mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}e)
+\begin{DoxyCompactList}\small\item\em 디버깅과 로그 출력을 위해 마지막 내부 오류 문자열을 돌려준다. \end{DoxyCompactList}\item 
+const char \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{detect_8h_a3a21c20c70cc930942a29b946f9b3b76}{detect\+\_\+engine\+\_\+backend\+\_\+name}} (const \mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}e)
+\item 
+int \mbox{\hyperlink{detect_8h_aa2c6292bb0f68cce5528a267c78a4852}{detect\+\_\+engine\+\_\+jit\+\_\+enabled}} (const \mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}e)
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+탐지 엔진 공개 인터페이스 
+
+
+
+\doxysubsection{Typedef Documentation}
+\Hypertarget{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}\label{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d} 
+\index{detect.h@{detect.h}!detect\_engine\_t@{detect\_engine\_t}}
+\index{detect\_engine\_t@{detect\_engine\_t}!detect.h@{detect.h}}
+\doxysubsubsection{\texorpdfstring{detect\_engine\_t}{detect\_engine\_t}}
+{\footnotesize\ttfamily typedef struct \mbox{\hyperlink{structdetect__engine}{detect\+\_\+engine}} \mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}}}
+
+
+
+\doxysubsection{Enumeration Type Documentation}
+\Hypertarget{detect_8h_a803eb3e7c38b629abdcae85384a099bc}\label{detect_8h_a803eb3e7c38b629abdcae85384a099bc} 
+\index{detect.h@{detect.h}!detect\_jit\_mode\_t@{detect\_jit\_mode\_t}}
+\index{detect\_jit\_mode\_t@{detect\_jit\_mode\_t}!detect.h@{detect.h}}
+\doxysubsubsection{\texorpdfstring{detect\_jit\_mode\_t}{detect\_jit\_mode\_t}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{detect_8h_a803eb3e7c38b629abdcae85384a099bc}{detect\+\_\+jit\+\_\+mode\+\_\+t}}}
+
+\begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{DETECT\_JIT\_AUTO@{DETECT\_JIT\_AUTO}!detect.h@{detect.h}}\index{detect.h@{detect.h}!DETECT\_JIT\_AUTO@{DETECT\_JIT\_AUTO}}}\Hypertarget{detect_8h_a803eb3e7c38b629abdcae85384a099bca8f4dcd3832e49fab35fc302039e3753c}\label{detect_8h_a803eb3e7c38b629abdcae85384a099bca8f4dcd3832e49fab35fc302039e3753c} 
+DETECT\+\_\+\+JIT\+\_\+\+AUTO&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{DETECT\_JIT\_OFF@{DETECT\_JIT\_OFF}!detect.h@{detect.h}}\index{detect.h@{detect.h}!DETECT\_JIT\_OFF@{DETECT\_JIT\_OFF}}}\Hypertarget{detect_8h_a803eb3e7c38b629abdcae85384a099bca89c5b15e5574d166fc9632c06f53d930}\label{detect_8h_a803eb3e7c38b629abdcae85384a099bca89c5b15e5574d166fc9632c06f53d930} 
+DETECT\+\_\+\+JIT\+\_\+\+OFF&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{DETECT\_JIT\_ON@{DETECT\_JIT\_ON}!detect.h@{detect.h}}\index{detect.h@{detect.h}!DETECT\_JIT\_ON@{DETECT\_JIT\_ON}}}\Hypertarget{detect_8h_a803eb3e7c38b629abdcae85384a099bca585720baed1e394523cb14f8191d1bcf}\label{detect_8h_a803eb3e7c38b629abdcae85384a099bca585720baed1e394523cb14f8191d1bcf} 
+DETECT\+\_\+\+JIT\+\_\+\+ON&\\
+\hline
+
+\end{DoxyEnumFields}
+
+
+\doxysubsection{Function Documentation}
+\Hypertarget{detect_8h_a3a21c20c70cc930942a29b946f9b3b76}\label{detect_8h_a3a21c20c70cc930942a29b946f9b3b76} 
+\index{detect.h@{detect.h}!detect\_engine\_backend\_name@{detect\_engine\_backend\_name}}
+\index{detect\_engine\_backend\_name@{detect\_engine\_backend\_name}!detect.h@{detect.h}}
+\doxysubsubsection{\texorpdfstring{detect\_engine\_backend\_name()}{detect\_engine\_backend\_name()}}
+{\footnotesize\ttfamily const char \texorpdfstring{$\ast$}{*} detect\+\_\+engine\+\_\+backend\+\_\+name (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{e }\end{DoxyParamCaption})}
+
+\Hypertarget{detect_8h_a1be58d66f185434448fb52c78e671083}\label{detect_8h_a1be58d66f185434448fb52c78e671083} 
+\index{detect.h@{detect.h}!detect\_engine\_collect\_matches\_ctx@{detect\_engine\_collect\_matches\_ctx}}
+\index{detect\_engine\_collect\_matches\_ctx@{detect\_engine\_collect\_matches\_ctx}!detect.h@{detect.h}}
+\doxysubsubsection{\texorpdfstring{detect\_engine\_collect\_matches\_ctx()}{detect\_engine\_collect\_matches\_ctx()}}
+{\footnotesize\ttfamily int detect\+\_\+engine\+\_\+collect\+\_\+matches\+\_\+ctx (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{e,  }\item[{const uint8\+\_\+t \texorpdfstring{$\ast$}{*}}]{data,  }\item[{size\+\_\+t}]{len,  }\item[{\mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}}}]{ctx,  }\item[{\mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{matches }\end{DoxyParamCaption})}
+
+\Hypertarget{detect_8h_aef4b6c42d62ca4ae690ecbe4ad1575fb}\label{detect_8h_aef4b6c42d62ca4ae690ecbe4ad1575fb} 
+\index{detect.h@{detect.h}!detect\_engine\_collect\_matches\_ctx\_timed@{detect\_engine\_collect\_matches\_ctx\_timed}}
+\index{detect\_engine\_collect\_matches\_ctx\_timed@{detect\_engine\_collect\_matches\_ctx\_timed}!detect.h@{detect.h}}
+\doxysubsubsection{\texorpdfstring{detect\_engine\_collect\_matches\_ctx\_timed()}{detect\_engine\_collect\_matches\_ctx\_timed()}}
+{\footnotesize\ttfamily int detect\+\_\+engine\+\_\+collect\+\_\+matches\+\_\+ctx\+\_\+timed (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{e,  }\item[{const uint8\+\_\+t \texorpdfstring{$\ast$}{*}}]{data,  }\item[{size\+\_\+t}]{len,  }\item[{\mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}}}]{ctx,  }\item[{\mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{matches,  }\item[{uint64\+\_\+t \texorpdfstring{$\ast$}{*}}]{elapsed\+\_\+us\+\_\+sum }\end{DoxyParamCaption})}
+
+\Hypertarget{detect_8h_ac1a156f710b75999a293f5bfdc68d1a5}\label{detect_8h_ac1a156f710b75999a293f5bfdc68d1a5} 
+\index{detect.h@{detect.h}!detect\_engine\_create@{detect\_engine\_create}}
+\index{detect\_engine\_create@{detect\_engine\_create}!detect.h@{detect.h}}
+\doxysubsubsection{\texorpdfstring{detect\_engine\_create()}{detect\_engine\_create()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*} detect\+\_\+engine\+\_\+create (\begin{DoxyParamCaption}\item[{const char \texorpdfstring{$\ast$}{*}}]{policy\+\_\+name,  }\item[{\mbox{\hyperlink{detect_8h_a803eb3e7c38b629abdcae85384a099bc}{detect\+\_\+jit\+\_\+mode\+\_\+t}}}]{jit\+\_\+mode }\end{DoxyParamCaption})}
+
+
+
+탐지 엔진 인스턴스 생성 
+
+입력받은 정책 이름을 바탕으로 탐지 엔진을 초기화하고 메모리를 할당한다. JIT 모드 설정에 따라 룰 컴파일 방식을 결정한다. 
+\begin{DoxyParams}{Parameters}
+{\em policy\+\_\+name} & 탐지에 사용할 정책 파일 경로 또는 이름 문자열 \\
+\hline
+{\em jit\+\_\+mode} & JIT(Just-\/\+In-\/\+Time) 컴파일러 활성화 및 모드 설정값 \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+생성된 detect\+\_\+engine\+\_\+t 객체의 포인터, 생성 실패 시 NULL 반환 
+\end{DoxyReturn}
+\Hypertarget{detect_8h_a1fddcc96030af84584b1cb67db7a0057}\label{detect_8h_a1fddcc96030af84584b1cb67db7a0057} 
+\index{detect.h@{detect.h}!detect\_engine\_destroy@{detect\_engine\_destroy}}
+\index{detect\_engine\_destroy@{detect\_engine\_destroy}!detect.h@{detect.h}}
+\doxysubsubsection{\texorpdfstring{detect\_engine\_destroy()}{detect\_engine\_destroy()}}
+{\footnotesize\ttfamily void detect\+\_\+engine\+\_\+destroy (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{e }\end{DoxyParamCaption})}
+
+
+
+생성된 탐지 엔진을 해제한다. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em e} & 탐지 엔진 핸들. \\
+\hline
+\end{DoxyParams}
+\Hypertarget{detect_8h_aa2c6292bb0f68cce5528a267c78a4852}\label{detect_8h_aa2c6292bb0f68cce5528a267c78a4852} 
+\index{detect.h@{detect.h}!detect\_engine\_jit\_enabled@{detect\_engine\_jit\_enabled}}
+\index{detect\_engine\_jit\_enabled@{detect\_engine\_jit\_enabled}!detect.h@{detect.h}}
+\doxysubsubsection{\texorpdfstring{detect\_engine\_jit\_enabled()}{detect\_engine\_jit\_enabled()}}
+{\footnotesize\ttfamily int detect\+\_\+engine\+\_\+jit\+\_\+enabled (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{e }\end{DoxyParamCaption})}
+
+\Hypertarget{detect_8h_a8734e39ab680f5f98147cfaeb7d381d1}\label{detect_8h_a8734e39ab680f5f98147cfaeb7d381d1} 
+\index{detect.h@{detect.h}!detect\_engine\_last\_error@{detect\_engine\_last\_error}}
+\index{detect\_engine\_last\_error@{detect\_engine\_last\_error}!detect.h@{detect.h}}
+\doxysubsubsection{\texorpdfstring{detect\_engine\_last\_error()}{detect\_engine\_last\_error()}}
+{\footnotesize\ttfamily const char \texorpdfstring{$\ast$}{*} detect\+\_\+engine\+\_\+last\+\_\+error (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{e }\end{DoxyParamCaption})}
+
+
+
+디버깅과 로그 출력을 위해 마지막 내부 오류 문자열을 돌려준다. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em e} & 탐지 엔진 핸들. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+내부 오류 문자열 포인터. 
+\end{DoxyReturn}
+\Hypertarget{detect_8h_abef373e348be41388fca327e7837b355}\label{detect_8h_abef373e348be41388fca327e7837b355} 
+\index{detect.h@{detect.h}!detect\_engine\_match@{detect\_engine\_match}}
+\index{detect\_engine\_match@{detect\_engine\_match}!detect.h@{detect.h}}
+\doxysubsubsection{\texorpdfstring{detect\_engine\_match()}{detect\_engine\_match()}}
+{\footnotesize\ttfamily int detect\+\_\+engine\+\_\+match (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{e,  }\item[{const uint8\+\_\+t \texorpdfstring{$\ast$}{*}}]{data,  }\item[{size\+\_\+t}]{len,  }\item[{const \mbox{\hyperlink{structIPS__Signature}{IPS\+\_\+\+Signature}} \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}}]{matched\+\_\+rule }\end{DoxyParamCaption})}
+
+
+
+기본 컨텍스트로 입력 버퍼를 탐지한다. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em e} & 탐지 엔진 핸들. \\
+\hline
+{\em data} & 입력 버퍼. \\
+\hline
+{\em len} & 입력 길이. \\
+\hline
+{\em matched\+\_\+rule} & 최초 매칭된 룰을 돌려줄 출력 포인터. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+매칭이면 1, 미매칭이면 0, 오류이면 음수. 
+\end{DoxyReturn}
+\Hypertarget{detect_8h_a467c366e2d3c8fc694fdd9bfef9018fa}\label{detect_8h_a467c366e2d3c8fc694fdd9bfef9018fa} 
+\index{detect.h@{detect.h}!detect\_engine\_match\_ctx@{detect\_engine\_match\_ctx}}
+\index{detect\_engine\_match\_ctx@{detect\_engine\_match\_ctx}!detect.h@{detect.h}}
+\doxysubsubsection{\texorpdfstring{detect\_engine\_match\_ctx()}{detect\_engine\_match\_ctx()}}
+{\footnotesize\ttfamily int detect\+\_\+engine\+\_\+match\+\_\+ctx (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{detect_8h_a3ca18159efbc9bd253614b5d5a54d32d}{detect\+\_\+engine\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{e,  }\item[{const uint8\+\_\+t \texorpdfstring{$\ast$}{*}}]{data,  }\item[{size\+\_\+t}]{len,  }\item[{\mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}}}]{ctx,  }\item[{const \mbox{\hyperlink{structIPS__Signature}{IPS\+\_\+\+Signature}} \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}}]{matched\+\_\+rule }\end{DoxyParamCaption})}
+
+
+
+지정한 IPS 컨텍스트로 입력 버퍼를 탐지한다. 
+
+
+\begin{DoxyParams}{Parameters}
+{\em e} & 탐지 엔진 핸들. \\
+\hline
+{\em data} & 입력 버퍼. \\
+\hline
+{\em len} & 입력 길이. \\
+\hline
+{\em ctx} & IPS 파싱 컨텍스트. \\
+\hline
+{\em matched\+\_\+rule} & 최초 매칭된 룰을 돌려줄 출력 포인터. \\
+\hline
+\end{DoxyParams}
+\begin{DoxyReturn}{Returns}
+매칭이면 1, 미매칭이면 0, 오류이면 음수. 
+\end{DoxyReturn}
+\Hypertarget{detect_8h_a4b6723fa7692cb9794c58d19a74ea074}\label{detect_8h_a4b6723fa7692cb9794c58d19a74ea074} 
+\index{detect.h@{detect.h}!detect\_match\_list\_free@{detect\_match\_list\_free}}
+\index{detect\_match\_list\_free@{detect\_match\_list\_free}!detect.h@{detect.h}}
+\doxysubsubsection{\texorpdfstring{detect\_match\_list\_free()}{detect\_match\_list\_free()}}
+{\footnotesize\ttfamily void detect\+\_\+match\+\_\+list\+\_\+free (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{matches }\end{DoxyParamCaption})}
+
+\Hypertarget{detect_8h_ae3d71dd750c5c576c60efb67a955ab41}\label{detect_8h_ae3d71dd750c5c576c60efb67a955ab41} 
+\index{detect.h@{detect.h}!detect\_match\_list\_init@{detect\_match\_list\_init}}
+\index{detect\_match\_list\_init@{detect\_match\_list\_init}!detect.h@{detect.h}}
+\doxysubsubsection{\texorpdfstring{detect\_match\_list\_init()}{detect\_match\_list\_init()}}
+{\footnotesize\ttfamily void detect\+\_\+match\+\_\+list\+\_\+init (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{matches }\end{DoxyParamCaption})}
+

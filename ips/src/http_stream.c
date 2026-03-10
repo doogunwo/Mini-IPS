@@ -365,6 +365,9 @@ static http_stream_rc_t parse_one(http_stream_t *s, int *produced)
 {
     size_t hdr_end_pos;
     size_t msg_hdr_len;
+    size_t start_line_end;
+    size_t headers_only_off;
+    size_t headers_only_len;
     http_message_t m;
     size_t body_off;
     size_t consumed = 0;
@@ -380,11 +383,6 @@ static http_stream_rc_t parse_one(http_stream_t *s, int *produced)
     memset(&m, 0, sizeof(m));
     m.content_length = -1;
 
-    m.headers_raw = (uint8_t *)malloc(msg_hdr_len);
-    if (!m.headers_raw) return HTTP_STREAM_ENOMEM;
-    memcpy(m.headers_raw, s->buf, msg_hdr_len);
-    m.headers_raw_len = msg_hdr_len;
-
     {
         http_stream_rc_t rc = parse_headers_meta(&m, s->buf, msg_hdr_len, s->max_body_bytes);
         if (rc != HTTP_STREAM_OK) {
@@ -392,6 +390,29 @@ static http_stream_rc_t parse_one(http_stream_t *s, int *produced)
             return rc;
         }
     }
+
+    if (!memmem_crlf(s->buf, msg_hdr_len, &start_line_end)) {
+        http_message_free(&m);
+        return HTTP_STREAM_EPROTO;
+    }
+
+    headers_only_off = start_line_end + 2;
+    if (headers_only_off > hdr_end_pos) {
+        headers_only_len = 0;
+    } else {
+        headers_only_len = hdr_end_pos - headers_only_off;
+    }
+
+    m.headers_raw = (uint8_t *)malloc(headers_only_len + 1);
+    if (!m.headers_raw) {
+        http_message_free(&m);
+        return HTTP_STREAM_ENOMEM;
+    }
+    if (headers_only_len > 0) {
+        memcpy(m.headers_raw, s->buf + headers_only_off, headers_only_len);
+    }
+    m.headers_raw[headers_only_len] = '\0';
+    m.headers_raw_len = headers_only_len;
 
     if(m.chunked && m.content_length >=0 ) {
         http_message_free(&m);

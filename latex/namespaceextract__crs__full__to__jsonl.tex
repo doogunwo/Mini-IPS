@@ -1,0 +1,247 @@
+\doxysection{extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl Namespace Reference}
+\hypertarget{namespaceextract__crs__full__to__jsonl}{}\label{namespaceextract__crs__full__to__jsonl}\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+str \mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a58bc8a4211417d990d5846aadeaa6ea7}{normalize\+\_\+ws}} (str value)
+\item 
+list\mbox{[}str\mbox{]} \mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a8d576b1eaa8a5c5f6fb8ba418a501d17}{split\+\_\+rules}} (str text)
+\item 
+str \mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a83f4c47f7dda0456284314d98de6c762}{extract\+\_\+rule\+\_\+statement}} (str rule\+\_\+block)
+\item 
+tuple\mbox{[}str, str\mbox{]} \mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_acfbeca6c0ef7f2e856b08395b6960ad9}{infer\+\_\+policy}} (str conf\+\_\+name)
+\item 
+str\texorpdfstring{$\vert$}{|}None \mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_ae57dab3516492098fdc90c12831986e9}{map\+\_\+target\+\_\+to\+\_\+ctx}} (str target, str conf\+\_\+name, str pid)
+\item 
+list\mbox{[}str\mbox{]} \mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a3ba0908a5cf34b10159b44b52f8740aa}{parse\+\_\+targets}} (str variables, str conf\+\_\+name, str pid)
+\item 
+dict \mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_af72cfa5cb0308b4f6a5b993b75a1ce62}{parse\+\_\+actions}} (str raw\+\_\+actions)
+\item 
+list\mbox{[}str\mbox{]} \mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_aa7bc4b1d21cbb931c72e780e0ac99880}{load\+\_\+data\+\_\+file\+\_\+values}} (pathlib.\+Path base\+\_\+dir, str name)
+\item 
+dict \mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a38a3ac3af0694105b9ad393f57453b1d}{parse\+\_\+operator}} (str raw\+\_\+operator, pathlib.\+Path conf\+\_\+dir)
+\item 
+dict\texorpdfstring{$\vert$}{|}None \mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a38deb162e5f41258827e0ebe8251c794}{extract\+\_\+rule}} (str rule\+\_\+text, pathlib.\+Path source\+\_\+file)
+\item 
+Iterable\mbox{[}pathlib.\+Path\mbox{]} \mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a45d7364c4b45e56be68f0f213cdf4704}{iter\+\_\+conf\+\_\+files}} (pathlib.\+Path root)
+\item 
+int \mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_abcf43dd024f7175819cec2891dbdd73d}{main}} ()
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Variables}
+\begin{DoxyCompactItemize}
+\item 
+tuple \mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a62436ffd8389194cf91c379426b63ff9}{FILE\+\_\+\+POLICY\+\_\+\+MAP}}
+\item 
+dict \mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a583a64291c3132cc0325aedbe0100ecd}{SEVERITY\+\_\+\+TO\+\_\+\+PRIO}}
+\item 
+\mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_abc9081f936aeac18ea3dae76a6104a63}{RULE\+\_\+\+START\+\_\+\+RE}} = re.\+compile(r"{}\texorpdfstring{$^\wedge$}{\string^}\textbackslash{}s\texorpdfstring{$\ast$}{*}Sec\+Rule\textbackslash{}s+"{}, re.\+M)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a92995c8e5fe394c45e5fd8ba0da359b1}{ID\+\_\+\+RE}} = re.\+compile(r"{}\textbackslash{}bid\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\textbackslash{}d+)"{}, re.\+I)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_ab56ce02a103725c44582c0abbd46a11e}{SEVERITY\+\_\+\+RE}} = re.\+compile(r"{}\textbackslash{}bseverity\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\mbox{[}A-\/Z\mbox{]}+)"{}, re.\+I)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a05d795789fd81adf01d5d4e5318326a5}{MSG\+\_\+\+RE}} = re.\+compile(r"{}\textbackslash{}bmsg\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}(\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]})(.\texorpdfstring{$\ast$}{*}?)\textbackslash{}1"{}, re.\+I \texorpdfstring{$\vert$}{|} re.\+S)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a1dbb2d10aa34c40d8305d9a10124c54f}{TAG\+\_\+\+RE}} = re.\+compile(r"{}\textbackslash{}btag\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}(\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]})(.\texorpdfstring{$\ast$}{*}?)\textbackslash{}1"{}, re.\+I \texorpdfstring{$\vert$}{|} re.\+S)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a1f86c05e38d65d6b3594deb3f764fefa}{PHASE\+\_\+\+RE}} = re.\+compile(r"{}\textbackslash{}bphase\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}(\textbackslash{}d+)"{}, re.\+I)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a5da90a5ade24b011228f9d67a4cd99e8}{REV\+\_\+\+RE}} = re.\+compile(r"{}\textbackslash{}brev\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\mbox{[}\texorpdfstring{$^\wedge$}{\string^},\textquotesingle{}\textbackslash{}"{}\mbox{]}+)"{}, re.\+I)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a469a2a5d5f28e6d5d24334aaecf8d440}{VER\+\_\+\+RE}} = re.\+compile(r"{}\textbackslash{}bver\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\mbox{[}\texorpdfstring{$^\wedge$}{\string^},\textquotesingle{}\textbackslash{}"{}\mbox{]}+)"{}, re.\+I)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a104c0445b4f08edd46b3a617b1d4d9d0}{SETVAR\+\_\+\+RE}} = re.\+compile(r"{}\textbackslash{}bsetvar\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\mbox{[}\texorpdfstring{$^\wedge$}{\string^},\textquotesingle{}\textbackslash{}"{}\mbox{]}+)"{}, re.\+I)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a5d7e30a4ceb6b8ccca12ca459ba9f113}{CTL\+\_\+\+RE}} = re.\+compile(r"{}\textbackslash{}bctl\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\mbox{[}\texorpdfstring{$^\wedge$}{\string^},\textquotesingle{}\textbackslash{}"{}\mbox{]}+)"{}, re.\+I)
+\item 
+\mbox{\hyperlink{namespaceextract__crs__full__to__jsonl_a21c556f58482b769f2e652b48314987c}{TRANSFORM\+\_\+\+RE}} = re.\+compile(r"{}\textbackslash{}bt\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\mbox{[}\texorpdfstring{$^\wedge$}{\string^},\textquotesingle{}\textbackslash{}"{}\mbox{]}+)"{}, re.\+I)
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+\begin{DoxyVerb}OWASP CRS .conf 파일의 SecRule 전체를 JSONL로 변환한다.
+\end{DoxyVerb}
+ 
+
+\doxysubsection{Function Documentation}
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a38deb162e5f41258827e0ebe8251c794}\label{namespaceextract__crs__full__to__jsonl_a38deb162e5f41258827e0ebe8251c794} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!extract\_rule@{extract\_rule}}
+\index{extract\_rule@{extract\_rule}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{extract\_rule()}{extract\_rule()}}
+{\footnotesize\ttfamily  dict \texorpdfstring{$\vert$}{|} None extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+extract\+\_\+rule (\begin{DoxyParamCaption}\item[{str}]{rule\+\_\+text,  }\item[{pathlib.\+Path}]{source\+\_\+file }\end{DoxyParamCaption})}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a83f4c47f7dda0456284314d98de6c762}\label{namespaceextract__crs__full__to__jsonl_a83f4c47f7dda0456284314d98de6c762} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!extract\_rule\_statement@{extract\_rule\_statement}}
+\index{extract\_rule\_statement@{extract\_rule\_statement}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{extract\_rule\_statement()}{extract\_rule\_statement()}}
+{\footnotesize\ttfamily  str extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+extract\+\_\+rule\+\_\+statement (\begin{DoxyParamCaption}\item[{str}]{rule\+\_\+block }\end{DoxyParamCaption})}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_acfbeca6c0ef7f2e856b08395b6960ad9}\label{namespaceextract__crs__full__to__jsonl_acfbeca6c0ef7f2e856b08395b6960ad9} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!infer\_policy@{infer\_policy}}
+\index{infer\_policy@{infer\_policy}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{infer\_policy()}{infer\_policy()}}
+{\footnotesize\ttfamily  tuple\mbox{[}str, str\mbox{]} extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+infer\+\_\+policy (\begin{DoxyParamCaption}\item[{str}]{conf\+\_\+name }\end{DoxyParamCaption})}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a45d7364c4b45e56be68f0f213cdf4704}\label{namespaceextract__crs__full__to__jsonl_a45d7364c4b45e56be68f0f213cdf4704} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!iter\_conf\_files@{iter\_conf\_files}}
+\index{iter\_conf\_files@{iter\_conf\_files}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{iter\_conf\_files()}{iter\_conf\_files()}}
+{\footnotesize\ttfamily  Iterable\mbox{[}pathlib.\+Path\mbox{]} extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+iter\+\_\+conf\+\_\+files (\begin{DoxyParamCaption}\item[{pathlib.\+Path}]{root }\end{DoxyParamCaption})}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_aa7bc4b1d21cbb931c72e780e0ac99880}\label{namespaceextract__crs__full__to__jsonl_aa7bc4b1d21cbb931c72e780e0ac99880} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!load\_data\_file\_values@{load\_data\_file\_values}}
+\index{load\_data\_file\_values@{load\_data\_file\_values}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{load\_data\_file\_values()}{load\_data\_file\_values()}}
+{\footnotesize\ttfamily  list\mbox{[}str\mbox{]} extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+load\+\_\+data\+\_\+file\+\_\+values (\begin{DoxyParamCaption}\item[{pathlib.\+Path}]{base\+\_\+dir,  }\item[{str}]{name }\end{DoxyParamCaption})}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_abcf43dd024f7175819cec2891dbdd73d}\label{namespaceextract__crs__full__to__jsonl_abcf43dd024f7175819cec2891dbdd73d} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!main@{main}}
+\index{main@{main}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{main()}{main()}}
+{\footnotesize\ttfamily  int extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+main (\begin{DoxyParamCaption}\item[{void}]{ }\end{DoxyParamCaption})}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_ae57dab3516492098fdc90c12831986e9}\label{namespaceextract__crs__full__to__jsonl_ae57dab3516492098fdc90c12831986e9} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!map\_target\_to\_ctx@{map\_target\_to\_ctx}}
+\index{map\_target\_to\_ctx@{map\_target\_to\_ctx}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{map\_target\_to\_ctx()}{map\_target\_to\_ctx()}}
+{\footnotesize\ttfamily  str \texorpdfstring{$\vert$}{|} None extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+map\+\_\+target\+\_\+to\+\_\+ctx (\begin{DoxyParamCaption}\item[{str}]{target,  }\item[{str}]{conf\+\_\+name,  }\item[{str}]{pid }\end{DoxyParamCaption})}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a58bc8a4211417d990d5846aadeaa6ea7}\label{namespaceextract__crs__full__to__jsonl_a58bc8a4211417d990d5846aadeaa6ea7} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!normalize\_ws@{normalize\_ws}}
+\index{normalize\_ws@{normalize\_ws}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{normalize\_ws()}{normalize\_ws()}}
+{\footnotesize\ttfamily  str extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+normalize\+\_\+ws (\begin{DoxyParamCaption}\item[{str}]{value }\end{DoxyParamCaption})}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_af72cfa5cb0308b4f6a5b993b75a1ce62}\label{namespaceextract__crs__full__to__jsonl_af72cfa5cb0308b4f6a5b993b75a1ce62} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!parse\_actions@{parse\_actions}}
+\index{parse\_actions@{parse\_actions}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{parse\_actions()}{parse\_actions()}}
+{\footnotesize\ttfamily  dict extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+parse\+\_\+actions (\begin{DoxyParamCaption}\item[{str}]{raw\+\_\+actions }\end{DoxyParamCaption})}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a38a3ac3af0694105b9ad393f57453b1d}\label{namespaceextract__crs__full__to__jsonl_a38a3ac3af0694105b9ad393f57453b1d} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!parse\_operator@{parse\_operator}}
+\index{parse\_operator@{parse\_operator}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{parse\_operator()}{parse\_operator()}}
+{\footnotesize\ttfamily  dict extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+parse\+\_\+operator (\begin{DoxyParamCaption}\item[{str}]{raw\+\_\+operator,  }\item[{pathlib.\+Path}]{conf\+\_\+dir }\end{DoxyParamCaption})}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a3ba0908a5cf34b10159b44b52f8740aa}\label{namespaceextract__crs__full__to__jsonl_a3ba0908a5cf34b10159b44b52f8740aa} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!parse\_targets@{parse\_targets}}
+\index{parse\_targets@{parse\_targets}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{parse\_targets()}{parse\_targets()}}
+{\footnotesize\ttfamily  list\mbox{[}str\mbox{]} extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+parse\+\_\+targets (\begin{DoxyParamCaption}\item[{str}]{variables,  }\item[{str}]{conf\+\_\+name,  }\item[{str}]{pid }\end{DoxyParamCaption})}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a8d576b1eaa8a5c5f6fb8ba418a501d17}\label{namespaceextract__crs__full__to__jsonl_a8d576b1eaa8a5c5f6fb8ba418a501d17} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!split\_rules@{split\_rules}}
+\index{split\_rules@{split\_rules}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{split\_rules()}{split\_rules()}}
+{\footnotesize\ttfamily  list\mbox{[}str\mbox{]} extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+split\+\_\+rules (\begin{DoxyParamCaption}\item[{str}]{text }\end{DoxyParamCaption})}
+
+
+
+\doxysubsection{Variable Documentation}
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a5d7e30a4ceb6b8ccca12ca459ba9f113}\label{namespaceextract__crs__full__to__jsonl_a5d7e30a4ceb6b8ccca12ca459ba9f113} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!CTL\_RE@{CTL\_RE}}
+\index{CTL\_RE@{CTL\_RE}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{CTL\_RE}{CTL\_RE}}
+{\footnotesize\ttfamily extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+CTL\+\_\+\+RE = re.\+compile(r"{}\textbackslash{}bctl\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\mbox{[}\texorpdfstring{$^\wedge$}{\string^},\textquotesingle{}\textbackslash{}"{}\mbox{]}+)"{}, re.\+I)}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a62436ffd8389194cf91c379426b63ff9}\label{namespaceextract__crs__full__to__jsonl_a62436ffd8389194cf91c379426b63ff9} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!FILE\_POLICY\_MAP@{FILE\_POLICY\_MAP}}
+\index{FILE\_POLICY\_MAP@{FILE\_POLICY\_MAP}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{FILE\_POLICY\_MAP}{FILE\_POLICY\_MAP}}
+{\footnotesize\ttfamily tuple extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+FILE\+\_\+\+POLICY\+\_\+\+MAP}
+
+{\bfseries Initial value\+:}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{00001\ =\ \ (}
+\DoxyCodeLine{00002\ \ \ \ \ (re.compile(\textcolor{stringliteral}{r"{}REQUEST-\/913-\/.*SCANNER"{}},\ re.I),\ (\textcolor{stringliteral}{"{}POLICY\_SCANNER"{}},\ \textcolor{stringliteral}{"{}SCANNER"{}})),}
+\DoxyCodeLine{00003\ \ \ \ \ (re.compile(\textcolor{stringliteral}{r"{}REQUEST-\/920-\/.*PROTOCOL"{}},\ re.I),\ (\textcolor{stringliteral}{"{}POLICY\_PROTOCOL\_VIOLATION"{}},\ \textcolor{stringliteral}{"{}PROTOCOL\_VIOLATION"{}})),}
+\DoxyCodeLine{00004\ \ \ \ \ (re.compile(\textcolor{stringliteral}{r"{}REQUEST-\/921-\/.*PROTOCOL"{}},\ re.I),\ (\textcolor{stringliteral}{"{}POLICY\_PROTOCOL\_VIOLATION"{}},\ \textcolor{stringliteral}{"{}PROTOCOL\_VIOLATION"{}})),}
+\DoxyCodeLine{00005\ \ \ \ \ (re.compile(\textcolor{stringliteral}{r"{}REQUEST-\/922-\/.*MULTIPART"{}},\ re.I),\ (\textcolor{stringliteral}{"{}POLICY\_PROTOCOL\_VIOLATION"{}},\ \textcolor{stringliteral}{"{}PROTOCOL\_VIOLATION"{}})),}
+\DoxyCodeLine{00006\ \ \ \ \ (re.compile(\textcolor{stringliteral}{r"{}REQUEST-\/930-\/.*LFI|REQUEST-\/930-\/.*TRAVERSAL"{}},\ re.I),\ (\textcolor{stringliteral}{"{}POLICY\_DIRECTORY\_TRAVERS"{}},\ \textcolor{stringliteral}{"{}DIRECTORY\_TRAVERSAL"{}})),}
+\DoxyCodeLine{00007\ \ \ \ \ (re.compile(\textcolor{stringliteral}{r"{}REQUEST-\/931-\/.*RFI|REQUEST-\/932-\/.*RCE"{}},\ re.I),\ (\textcolor{stringliteral}{"{}POLICY\_COMMAND\_INJECTION"{}},\ \textcolor{stringliteral}{"{}COMMAND\_INJECTION"{}})),}
+\DoxyCodeLine{00008\ \ \ \ \ (re.compile(\textcolor{stringliteral}{r"{}REQUEST-\/933-\/.*PHP|REQUEST-\/934-\/.*GENERIC|REQUEST-\/944-\/.*JAVA"{}},\ re.I),\ (\textcolor{stringliteral}{"{}POLICY\_COMMAND\_INJECTION"{}},\ \textcolor{stringliteral}{"{}COMMAND\_INJECTION"{}})),}
+\DoxyCodeLine{00009\ \ \ \ \ (re.compile(\textcolor{stringliteral}{r"{}REQUEST-\/941-\/.*XSS"{}},\ re.I),\ (\textcolor{stringliteral}{"{}POLICY\_XSS"{}},\ \textcolor{stringliteral}{"{}XSS"{}})),}
+\DoxyCodeLine{00010\ \ \ \ \ (re.compile(\textcolor{stringliteral}{r"{}REQUEST-\/942-\/.*SQLI"{}},\ re.I),\ (\textcolor{stringliteral}{"{}POLICY\_SQL\_INJECTION"{}},\ \textcolor{stringliteral}{"{}SQL\_INJECTION"{}})),}
+\DoxyCodeLine{00011\ \ \ \ \ (re.compile(\textcolor{stringliteral}{r"{}REQUEST-\/943-\/.*SESSION"{}},\ re.I),\ (\textcolor{stringliteral}{"{}POLICY\_APP\_WEAK"{}},\ \textcolor{stringliteral}{"{}APP\_WEAK"{}})),}
+\DoxyCodeLine{00012\ \ \ \ \ (re.compile(\textcolor{stringliteral}{r"{}RESPONSE-\/95\(\backslash\)\(\backslash\)d-\/.*DATA-\/LEAKAGES"{}},\ re.I),\ (\textcolor{stringliteral}{"{}POLICY\_INFO\_LEAK"{}},\ \textcolor{stringliteral}{"{}INFO\_LEAK"{}})),}
+\DoxyCodeLine{00013\ \ \ \ \ (re.compile(\textcolor{stringliteral}{r"{}RESPONSE-\/955-\/.*WEB-\/SHELLS"{}},\ re.I),\ (\textcolor{stringliteral}{"{}POLICY\_WEBSHELL"{}},\ \textcolor{stringliteral}{"{}WEBSHELL"{}})),}
+\DoxyCodeLine{00014\ )}
+
+\end{DoxyCode}
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a92995c8e5fe394c45e5fd8ba0da359b1}\label{namespaceextract__crs__full__to__jsonl_a92995c8e5fe394c45e5fd8ba0da359b1} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!ID\_RE@{ID\_RE}}
+\index{ID\_RE@{ID\_RE}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{ID\_RE}{ID\_RE}}
+{\footnotesize\ttfamily extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+ID\+\_\+\+RE = re.\+compile(r"{}\textbackslash{}bid\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\textbackslash{}d+)"{}, re.\+I)}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a05d795789fd81adf01d5d4e5318326a5}\label{namespaceextract__crs__full__to__jsonl_a05d795789fd81adf01d5d4e5318326a5} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!MSG\_RE@{MSG\_RE}}
+\index{MSG\_RE@{MSG\_RE}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{MSG\_RE}{MSG\_RE}}
+{\footnotesize\ttfamily extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+MSG\+\_\+\+RE = re.\+compile(r"{}\textbackslash{}bmsg\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}(\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]})(.\texorpdfstring{$\ast$}{*}?)\textbackslash{}1"{}, re.\+I \texorpdfstring{$\vert$}{|} re.\+S)}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a1f86c05e38d65d6b3594deb3f764fefa}\label{namespaceextract__crs__full__to__jsonl_a1f86c05e38d65d6b3594deb3f764fefa} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!PHASE\_RE@{PHASE\_RE}}
+\index{PHASE\_RE@{PHASE\_RE}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{PHASE\_RE}{PHASE\_RE}}
+{\footnotesize\ttfamily extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+PHASE\+\_\+\+RE = re.\+compile(r"{}\textbackslash{}bphase\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}(\textbackslash{}d+)"{}, re.\+I)}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a5da90a5ade24b011228f9d67a4cd99e8}\label{namespaceextract__crs__full__to__jsonl_a5da90a5ade24b011228f9d67a4cd99e8} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!REV\_RE@{REV\_RE}}
+\index{REV\_RE@{REV\_RE}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{REV\_RE}{REV\_RE}}
+{\footnotesize\ttfamily extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+REV\+\_\+\+RE = re.\+compile(r"{}\textbackslash{}brev\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\mbox{[}\texorpdfstring{$^\wedge$}{\string^},\textquotesingle{}\textbackslash{}"{}\mbox{]}+)"{}, re.\+I)}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_abc9081f936aeac18ea3dae76a6104a63}\label{namespaceextract__crs__full__to__jsonl_abc9081f936aeac18ea3dae76a6104a63} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!RULE\_START\_RE@{RULE\_START\_RE}}
+\index{RULE\_START\_RE@{RULE\_START\_RE}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{RULE\_START\_RE}{RULE\_START\_RE}}
+{\footnotesize\ttfamily extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+RULE\+\_\+\+START\+\_\+\+RE = re.\+compile(r"{}\texorpdfstring{$^\wedge$}{\string^}\textbackslash{}s\texorpdfstring{$\ast$}{*}Sec\+Rule\textbackslash{}s+"{}, re.\+M)}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a104c0445b4f08edd46b3a617b1d4d9d0}\label{namespaceextract__crs__full__to__jsonl_a104c0445b4f08edd46b3a617b1d4d9d0} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!SETVAR\_RE@{SETVAR\_RE}}
+\index{SETVAR\_RE@{SETVAR\_RE}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{SETVAR\_RE}{SETVAR\_RE}}
+{\footnotesize\ttfamily extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+SETVAR\+\_\+\+RE = re.\+compile(r"{}\textbackslash{}bsetvar\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\mbox{[}\texorpdfstring{$^\wedge$}{\string^},\textquotesingle{}\textbackslash{}"{}\mbox{]}+)"{}, re.\+I)}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_ab56ce02a103725c44582c0abbd46a11e}\label{namespaceextract__crs__full__to__jsonl_ab56ce02a103725c44582c0abbd46a11e} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!SEVERITY\_RE@{SEVERITY\_RE}}
+\index{SEVERITY\_RE@{SEVERITY\_RE}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{SEVERITY\_RE}{SEVERITY\_RE}}
+{\footnotesize\ttfamily extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+SEVERITY\+\_\+\+RE = re.\+compile(r"{}\textbackslash{}bseverity\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\mbox{[}A-\/Z\mbox{]}+)"{}, re.\+I)}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a583a64291c3132cc0325aedbe0100ecd}\label{namespaceextract__crs__full__to__jsonl_a583a64291c3132cc0325aedbe0100ecd} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!SEVERITY\_TO\_PRIO@{SEVERITY\_TO\_PRIO}}
+\index{SEVERITY\_TO\_PRIO@{SEVERITY\_TO\_PRIO}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{SEVERITY\_TO\_PRIO}{SEVERITY\_TO\_PRIO}}
+{\footnotesize\ttfamily dict extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+SEVERITY\+\_\+\+TO\+\_\+\+PRIO}
+
+{\bfseries Initial value\+:}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{00001\ =\ \ \{}
+\DoxyCodeLine{00002\ \ \ \ \ \textcolor{stringliteral}{"{}CRITICAL"{}}:\ 5,}
+\DoxyCodeLine{00003\ \ \ \ \ \textcolor{stringliteral}{"{}ERROR"{}}:\ 4,}
+\DoxyCodeLine{00004\ \ \ \ \ \textcolor{stringliteral}{"{}WARNING"{}}:\ 3,}
+\DoxyCodeLine{00005\ \ \ \ \ \textcolor{stringliteral}{"{}NOTICE"{}}:\ 2,}
+\DoxyCodeLine{00006\ \}}
+
+\end{DoxyCode}
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a1dbb2d10aa34c40d8305d9a10124c54f}\label{namespaceextract__crs__full__to__jsonl_a1dbb2d10aa34c40d8305d9a10124c54f} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!TAG\_RE@{TAG\_RE}}
+\index{TAG\_RE@{TAG\_RE}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{TAG\_RE}{TAG\_RE}}
+{\footnotesize\ttfamily extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+TAG\+\_\+\+RE = re.\+compile(r"{}\textbackslash{}btag\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}(\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]})(.\texorpdfstring{$\ast$}{*}?)\textbackslash{}1"{}, re.\+I \texorpdfstring{$\vert$}{|} re.\+S)}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a21c556f58482b769f2e652b48314987c}\label{namespaceextract__crs__full__to__jsonl_a21c556f58482b769f2e652b48314987c} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!TRANSFORM\_RE@{TRANSFORM\_RE}}
+\index{TRANSFORM\_RE@{TRANSFORM\_RE}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{TRANSFORM\_RE}{TRANSFORM\_RE}}
+{\footnotesize\ttfamily extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+TRANSFORM\+\_\+\+RE = re.\+compile(r"{}\textbackslash{}bt\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\mbox{[}\texorpdfstring{$^\wedge$}{\string^},\textquotesingle{}\textbackslash{}"{}\mbox{]}+)"{}, re.\+I)}
+
+\Hypertarget{namespaceextract__crs__full__to__jsonl_a469a2a5d5f28e6d5d24334aaecf8d440}\label{namespaceextract__crs__full__to__jsonl_a469a2a5d5f28e6d5d24334aaecf8d440} 
+\index{extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}!VER\_RE@{VER\_RE}}
+\index{VER\_RE@{VER\_RE}!extract\_crs\_full\_to\_jsonl@{extract\_crs\_full\_to\_jsonl}}
+\doxysubsubsection{\texorpdfstring{VER\_RE}{VER\_RE}}
+{\footnotesize\ttfamily extract\+\_\+crs\+\_\+full\+\_\+to\+\_\+jsonl.\+VER\+\_\+\+RE = re.\+compile(r"{}\textbackslash{}bver\textbackslash{}s\texorpdfstring{$\ast$}{*}\+:\textbackslash{}s\texorpdfstring{$\ast$}{*}\mbox{[}\textquotesingle{}\textbackslash{}"{}\mbox{]}?(\mbox{[}\texorpdfstring{$^\wedge$}{\string^},\textquotesingle{}\textbackslash{}"{}\mbox{]}+)"{}, re.\+I)}
+

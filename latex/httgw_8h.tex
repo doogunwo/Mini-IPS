@@ -1,0 +1,444 @@
+\doxysection{ips/include/httgw.h File Reference}
+\hypertarget{httgw_8h}{}\label{httgw_8h}\index{ips/include/httgw.h@{ips/include/httgw.h}}
+
+
+HTTP 게이트웨이 공개 인터페이스  
+
+
+{\ttfamily \#include $<$stddef.\+h$>$}\newline
+{\ttfamily \#include $<$stdint.\+h$>$}\newline
+{\ttfamily \#include $<$stdlib.\+h$>$}\newline
+{\ttfamily \#include $<$string.\+h$>$}\newline
+{\ttfamily \#include "{}http\+\_\+stream.\+h"{}}\newline
+Include dependency graph for httgw.\+h\+:
+% FIG 0
+This graph shows which files directly or indirectly include this file\+:
+% FIG 1
+\doxysubsubsection*{Classes}
+\begin{DoxyCompactItemize}
+\item 
+struct \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}}
+\item 
+struct \mbox{\hyperlink{structhttgw__stats__t}{httgw\+\_\+stats\+\_\+t}}
+\item 
+struct \mbox{\hyperlink{structip__node}{ip\+\_\+node}}
+\item 
+struct \mbox{\hyperlink{structhttgw__callbacks__t}{httgw\+\_\+callbacks\+\_\+t}}
+\item 
+struct \mbox{\hyperlink{structhttgw__cfg__t}{httgw\+\_\+cfg\+\_\+t}}
+\item 
+struct \mbox{\hyperlink{structtx__ctx}{tx\+\_\+ctx}}
+\item 
+struct \mbox{\hyperlink{structhttgw__sess__snapshot__t}{httgw\+\_\+sess\+\_\+snapshot\+\_\+t}}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Typedefs}
+\begin{DoxyCompactItemize}
+\item 
+typedef void(\texorpdfstring{$\ast$}{*} \mbox{\hyperlink{httgw_8h_a55e2d70d8d18ba1032926658dd256b35}{httgw\+\_\+on\+\_\+request\+\_\+cb}}) (const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} \texorpdfstring{$\ast$}{*}flow, \mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095d}{tcp\+\_\+dir\+\_\+t}} dir, const \mbox{\hyperlink{structhttp__message__t}{http\+\_\+message\+\_\+t}} \texorpdfstring{$\ast$}{*}msg, const char \texorpdfstring{$\ast$}{*}query, size\+\_\+t query\+\_\+len, void \texorpdfstring{$\ast$}{*}user)
+\item 
+typedef struct \mbox{\hyperlink{structip__node}{ip\+\_\+node}} \mbox{\hyperlink{httgw_8h_a3f785f275039b1cc1016dda252db815b}{ip\+\_\+node\+\_\+t}}
+\item 
+typedef void(\texorpdfstring{$\ast$}{*} \mbox{\hyperlink{httgw_8h_a17cbbb417ce5f59e8eabede24a0d4cda}{httgw\+\_\+on\+\_\+response\+\_\+cb}}) (const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} \texorpdfstring{$\ast$}{*}flow, \mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095d}{tcp\+\_\+dir\+\_\+t}} dir, const \mbox{\hyperlink{structhttp__message__t}{http\+\_\+message\+\_\+t}} \texorpdfstring{$\ast$}{*}msg, void \texorpdfstring{$\ast$}{*}user)
+\item 
+typedef void(\texorpdfstring{$\ast$}{*} \mbox{\hyperlink{httgw_8h_aee15edeaaf361fdbd6c9b24dcb9213de}{httgw\+\_\+on\+\_\+error\+\_\+cb}}) (const char \texorpdfstring{$\ast$}{*}stage, const char \texorpdfstring{$\ast$}{*}detail, void \texorpdfstring{$\ast$}{*}user)
+\item 
+typedef struct \mbox{\hyperlink{structhttgw}{httgw}} \mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}}
+\item 
+typedef struct \mbox{\hyperlink{structtx__ctx}{tx\+\_\+ctx}} \mbox{\hyperlink{httgw_8h_acfe6f08cc5b8fb3f1edbf65a9309678b}{tx\+\_\+ctx\+\_\+t}}
+\item 
+typedef struct \mbox{\hyperlink{structhttgw__session}{httgw\+\_\+session}} \mbox{\hyperlink{httgw_8h_a37eeb278ffdb079dc16152608fd7e2a7}{httgw\+\_\+session\+\_\+t}}
+\item 
+typedef struct \mbox{\hyperlink{structip__hash}{ip\+\_\+hash}} \mbox{\hyperlink{httgw_8h_a5119cc34cc94f1acf46db0b85d289f53}{ip\+\_\+hash\+\_\+t}}
+\item 
+typedef int(\texorpdfstring{$\ast$}{*} \mbox{\hyperlink{httgw_8h_a164887578a36174fe219d50508d1b270}{httgw\+\_\+send\+\_\+rst\+\_\+fn}}) (void \texorpdfstring{$\ast$}{*}\mbox{\hyperlink{structtx__ctx}{tx\+\_\+ctx}}, const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} \texorpdfstring{$\ast$}{*}flow, \mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095d}{tcp\+\_\+dir\+\_\+t}} dir, uint32\+\_\+t seq, uint32\+\_\+t ack)
+\item 
+typedef struct httgw\+\_\+tp\+\_\+ctx \mbox{\hyperlink{httgw_8h_a857177a91abc9ac1e0403aaaa04840c7}{httgw\+\_\+tp\+\_\+ctx\+\_\+t}}
+\item 
+typedef struct httgw\+\_\+reverse\+\_\+ctx \mbox{\hyperlink{httgw_8h_a93408ca86382a26d295d28d9a64206a3}{httgw\+\_\+reverse\+\_\+ctx\+\_\+t}}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Enumerations}
+\begin{DoxyCompactItemize}
+\item 
+enum \{ \newline
+\mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba141036a606e6268cb2f3fd8e6e5a1efb}{TCP\+\_\+\+FIN}} = 0x01
+, \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba0f6163bad1a8062c0a24226f9d2a4dfb}{TCP\+\_\+\+SYN}} = 0x02
+, \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba48c46359239656107862c2e71640860d}{TCP\+\_\+\+RST}} = 0x04
+, \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba425820ce230e55d9ef5ef6efba1c884c}{TCP\+\_\+\+PSH}} = 0x08
+, \newline
+\mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba790ae97092ed8e95aac0b8363f703807}{TCP\+\_\+\+ACK}} = 0x10
+, \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55baba61bd3fe95fa2c8b675e65524cef28a}{TCP\+\_\+\+URG}} = 0x20
+, \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55bad0a5107cf860d426a4d59af0cab9cbd0}{TCP\+\_\+\+ECE}} = 0x40
+, \mbox{\hyperlink{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba77f28a0379f630069ee23775328b4e40}{TCP\+\_\+\+CWR}} = 0x80
+ \}
+\item 
+enum \mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095d}{tcp\+\_\+dir\+\_\+t}} \{ \mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095dac629365d8cb966b78b1b477d47800a7d}{DIR\+\_\+\+AB}} = 0
+, \mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095da51ecef12f06f58696f4b14e5f4eb7edc}{DIR\+\_\+\+BA}} = 1
+ \}
+\item 
+enum \mbox{\hyperlink{httgw_8h_a5cbabfdf94a24e5ef21e050be9ca2945}{reasm\+\_\+mode\+\_\+t}} \{ \mbox{\hyperlink{httgw_8h_a5cbabfdf94a24e5ef21e050be9ca2945adf08fecd0a8afe082ab3c7921e7ae373}{REASM\+\_\+\+MODE\+\_\+\+STRICT\+\_\+\+SYN}} = 0
+, \mbox{\hyperlink{httgw_8h_a5cbabfdf94a24e5ef21e050be9ca2945ad7a3e08c7971f058c1fff325def09a27}{REASM\+\_\+\+MODE\+\_\+\+LATE\+\_\+\+START}} = 1
+ \}
+\item 
+enum \mbox{\hyperlink{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973}{httgw\+\_\+mode\+\_\+t}} \{ \mbox{\hyperlink{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973af3192eecff67a377bd2c5d2a1db459be}{HTTGW\+\_\+\+MODE\+\_\+\+SNIFF}} = 0
+, \mbox{\hyperlink{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973af78c912dd00e96d676e61fae54aef761}{HTTGW\+\_\+\+MODE\+\_\+\+TP\+\_\+\+SYN}} = 1
+, \mbox{\hyperlink{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973a36a9198e1a1dcea8e9810344786850ba}{HTTGW\+\_\+\+MODE\+\_\+\+REVERSE}} = 2
+ \}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{httgw_8h_aca16027e97ca01aa3b7b0a3eb7e5aebe}{httgw\+\_\+create}} (const \mbox{\hyperlink{structhttgw__cfg__t}{httgw\+\_\+cfg\+\_\+t}} \texorpdfstring{$\ast$}{*}cfg, const \mbox{\hyperlink{structhttgw__callbacks__t}{httgw\+\_\+callbacks\+\_\+t}} \texorpdfstring{$\ast$}{*}cbs, void \texorpdfstring{$\ast$}{*}user)
+\item 
+void \mbox{\hyperlink{httgw_8h_ae2d7b649c94ab860b3b957954e316408}{httgw\+\_\+destroy}} (\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}gw)
+\item 
+int \mbox{\hyperlink{httgw_8h_a5da9cfea8707611853bfd6190513578c}{httgw\+\_\+set\+\_\+mode}} (\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}gw, \mbox{\hyperlink{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973}{httgw\+\_\+mode\+\_\+t}} mode)
+\item 
+int \mbox{\hyperlink{httgw_8h_a10f3e9a859a3d984135b7d35bea2bf1f}{httgw\+\_\+ingest\+\_\+packet}} (\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}gw, const uint8\+\_\+t \texorpdfstring{$\ast$}{*}pkt, uint32\+\_\+t caplen, uint64\+\_\+t ts\+\_\+ms)
+\item 
+void \mbox{\hyperlink{httgw_8h_a33e5b5da1fe7c2e613ef6d7609e87a4d}{httgw\+\_\+gc}} (\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}gw, uint64\+\_\+t now\+\_\+ms)
+\item 
+const \mbox{\hyperlink{structhttgw__stats__t}{httgw\+\_\+stats\+\_\+t}} \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{httgw_8h_a3a064229729a19b67572c41b8f44124c}{httgw\+\_\+stats}} (const \mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}gw)
+\item 
+int \mbox{\hyperlink{httgw_8h_a9c6eb004d974d032d58b1453f9254139}{httgw\+\_\+get\+\_\+session\+\_\+snapshot}} (const \mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}gw, const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} \texorpdfstring{$\ast$}{*}flow, \mbox{\hyperlink{structhttgw__sess__snapshot__t}{httgw\+\_\+sess\+\_\+snapshot\+\_\+t}} \texorpdfstring{$\ast$}{*}out)
+\item 
+int \mbox{\hyperlink{httgw_8h_a9492d55ad629b2b338e526e1850ceaf4}{httgw\+\_\+extract\+\_\+query}} (const \mbox{\hyperlink{structhttp__message__t}{http\+\_\+message\+\_\+t}} \texorpdfstring{$\ast$}{*}msg, const char \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}q, size\+\_\+t \texorpdfstring{$\ast$}{*}q\+\_\+len)
+\item 
+int \mbox{\hyperlink{httgw_8h_a3da2e3ca23637d78675afc5f8e857d28}{httgw\+\_\+header\+\_\+get}} (const \mbox{\hyperlink{structhttp__message__t}{http\+\_\+message\+\_\+t}} \texorpdfstring{$\ast$}{*}msg, const char \texorpdfstring{$\ast$}{*}name, const uint8\+\_\+t \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}value, size\+\_\+t \texorpdfstring{$\ast$}{*}value\+\_\+len)
+\item 
+int \mbox{\hyperlink{httgw_8h_a0b3d46f732bd9d1ebb2e674a9a2fd872}{tx\+\_\+ctx\+\_\+init}} (\mbox{\hyperlink{httgw_8h_acfe6f08cc5b8fb3f1edbf65a9309678b}{tx\+\_\+ctx\+\_\+t}} \texorpdfstring{$\ast$}{*}tx)
+\item 
+void \mbox{\hyperlink{httgw_8h_afa9fe9ae47bc5ebba583ac8445535d58}{tx\+\_\+ctx\+\_\+destroy}} (\mbox{\hyperlink{httgw_8h_acfe6f08cc5b8fb3f1edbf65a9309678b}{tx\+\_\+ctx\+\_\+t}} \texorpdfstring{$\ast$}{*}tx)
+\item 
+int \mbox{\hyperlink{httgw_8h_aacf71d31d40f531265e6c45b1531fbe6}{tx\+\_\+send\+\_\+l3}} (void \texorpdfstring{$\ast$}{*}ctx, const uint8\+\_\+t \texorpdfstring{$\ast$}{*}buf, size\+\_\+t len)
+\item 
+int \mbox{\hyperlink{httgw_8h_a3f9d982baa50c727a99dc121d4730a60}{tx\+\_\+send\+\_\+rst}} (void \texorpdfstring{$\ast$}{*}\mbox{\hyperlink{structtx__ctx}{tx\+\_\+ctx}}, const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} \texorpdfstring{$\ast$}{*}flow, \mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095d}{tcp\+\_\+dir\+\_\+t}} dir, uint32\+\_\+t seq, uint32\+\_\+t ack)
+\item 
+int \mbox{\hyperlink{httgw_8h_af64626ce8ce34c1337afc4cf86a362c6}{httgw\+\_\+set\+\_\+tx}} (\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}gw, \mbox{\hyperlink{httgw_8h_acfe6f08cc5b8fb3f1edbf65a9309678b}{tx\+\_\+ctx\+\_\+t}} \texorpdfstring{$\ast$}{*}tx)
+\item 
+int \mbox{\hyperlink{httgw_8h_a10fd30df7f808f3fc5b1ca7c47659446}{httgw\+\_\+request\+\_\+rst}} (\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}gw, const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} \texorpdfstring{$\ast$}{*}flow, \mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095d}{tcp\+\_\+dir\+\_\+t}} dir)
+\item 
+int \mbox{\hyperlink{httgw_8h_a27f29ee9c24cd6871b0d3ad69617f6b6}{httgw\+\_\+request\+\_\+rst\+\_\+with\+\_\+snapshot}} (\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}gw, const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} \texorpdfstring{$\ast$}{*}flow, \mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095d}{tcp\+\_\+dir\+\_\+t}} dir, const \mbox{\hyperlink{structhttgw__sess__snapshot__t}{httgw\+\_\+sess\+\_\+snapshot\+\_\+t}} \texorpdfstring{$\ast$}{*}snap)
+\item 
+int \mbox{\hyperlink{httgw_8h_aa56c2a0e797cc9f4f2da971fbc335d15}{sess\+\_\+get\+\_\+or\+\_\+create}} (\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}gw, const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} flow, uint64\+\_\+t ts\+\_\+ms)
+\item 
+int \mbox{\hyperlink{httgw_8h_a707f44f4df14315fa754b2a4d6261964}{sess\+\_\+lookup}} (const \mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}gw, const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} flow)
+\item 
+void \mbox{\hyperlink{httgw_8h_a2618e3397d6890561accde4d7df57e97}{sess\+\_\+gc}} (\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}gw, uint64\+\_\+t ts\+\_\+ms)
+\item 
+int \mbox{\hyperlink{httgw_8h_ac32e0564d03d7a985b44aea67d3dbf9d}{httgw\+\_\+tp\+\_\+mode\+\_\+init}} (\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}gw, const \mbox{\hyperlink{structhttgw__cfg__t}{httgw\+\_\+cfg\+\_\+t}} \texorpdfstring{$\ast$}{*}cfg, \mbox{\hyperlink{httgw_8h_a857177a91abc9ac1e0403aaaa04840c7}{httgw\+\_\+tp\+\_\+ctx\+\_\+t}} \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}out\+\_\+ctx)
+\item 
+void \mbox{\hyperlink{httgw_8h_a6f9a7fb76ae0ef60603ed3d22ad664e8}{httgw\+\_\+tp\+\_\+mode\+\_\+destroy}} (\mbox{\hyperlink{httgw_8h_a857177a91abc9ac1e0403aaaa04840c7}{httgw\+\_\+tp\+\_\+ctx\+\_\+t}} \texorpdfstring{$\ast$}{*}ctx)
+\item 
+int \mbox{\hyperlink{httgw_8h_acbd3f53726b10e9bba524ad64251fe08}{httgw\+\_\+reverse\+\_\+mode\+\_\+init}} (\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}gw, const \mbox{\hyperlink{structhttgw__cfg__t}{httgw\+\_\+cfg\+\_\+t}} \texorpdfstring{$\ast$}{*}cfg, \mbox{\hyperlink{httgw_8h_a93408ca86382a26d295d28d9a64206a3}{httgw\+\_\+reverse\+\_\+ctx\+\_\+t}} \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}out\+\_\+ctx)
+\item 
+void \mbox{\hyperlink{httgw_8h_a2486f0561cc34c342e14ac75a3d91bb5}{httgw\+\_\+reverse\+\_\+mode\+\_\+destroy}} (\mbox{\hyperlink{httgw_8h_a93408ca86382a26d295d28d9a64206a3}{httgw\+\_\+reverse\+\_\+ctx\+\_\+t}} \texorpdfstring{$\ast$}{*}ctx)
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Detailed Description}
+HTTP 게이트웨이 공개 인터페이스 
+
+
+
+\doxysubsection{Typedef Documentation}
+\Hypertarget{httgw_8h_aee15edeaaf361fdbd6c9b24dcb9213de}\label{httgw_8h_aee15edeaaf361fdbd6c9b24dcb9213de} 
+\index{httgw.h@{httgw.h}!httgw\_on\_error\_cb@{httgw\_on\_error\_cb}}
+\index{httgw\_on\_error\_cb@{httgw\_on\_error\_cb}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_on\_error\_cb}{httgw\_on\_error\_cb}}
+{\footnotesize\ttfamily typedef void(\texorpdfstring{$\ast$}{*} httgw\+\_\+on\+\_\+error\+\_\+cb) (const char \texorpdfstring{$\ast$}{*}stage, const char \texorpdfstring{$\ast$}{*}detail, void \texorpdfstring{$\ast$}{*}user)}
+
+파서 및 재조립 단계에서 사용하는 오류 콜백이다. \Hypertarget{httgw_8h_a55e2d70d8d18ba1032926658dd256b35}\label{httgw_8h_a55e2d70d8d18ba1032926658dd256b35} 
+\index{httgw.h@{httgw.h}!httgw\_on\_request\_cb@{httgw\_on\_request\_cb}}
+\index{httgw\_on\_request\_cb@{httgw\_on\_request\_cb}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_on\_request\_cb}{httgw\_on\_request\_cb}}
+{\footnotesize\ttfamily typedef void(\texorpdfstring{$\ast$}{*} httgw\+\_\+on\+\_\+request\+\_\+cb) (const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} \texorpdfstring{$\ast$}{*}flow, \mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095d}{tcp\+\_\+dir\+\_\+t}} dir, const \mbox{\hyperlink{structhttp__message__t}{http\+\_\+message\+\_\+t}} \texorpdfstring{$\ast$}{*}msg, const char \texorpdfstring{$\ast$}{*}query, size\+\_\+t query\+\_\+len, void \texorpdfstring{$\ast$}{*}user)}
+
+파싱된 클라이언트 요청을 전달하는 콜백이다. \Hypertarget{httgw_8h_a17cbbb417ce5f59e8eabede24a0d4cda}\label{httgw_8h_a17cbbb417ce5f59e8eabede24a0d4cda} 
+\index{httgw.h@{httgw.h}!httgw\_on\_response\_cb@{httgw\_on\_response\_cb}}
+\index{httgw\_on\_response\_cb@{httgw\_on\_response\_cb}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_on\_response\_cb}{httgw\_on\_response\_cb}}
+{\footnotesize\ttfamily typedef void(\texorpdfstring{$\ast$}{*} httgw\+\_\+on\+\_\+response\+\_\+cb) (const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} \texorpdfstring{$\ast$}{*}flow, \mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095d}{tcp\+\_\+dir\+\_\+t}} dir, const \mbox{\hyperlink{structhttp__message__t}{http\+\_\+message\+\_\+t}} \texorpdfstring{$\ast$}{*}msg, void \texorpdfstring{$\ast$}{*}user)}
+
+파싱된 서버 응답을 전달하는 콜백이다. \Hypertarget{httgw_8h_a93408ca86382a26d295d28d9a64206a3}\label{httgw_8h_a93408ca86382a26d295d28d9a64206a3} 
+\index{httgw.h@{httgw.h}!httgw\_reverse\_ctx\_t@{httgw\_reverse\_ctx\_t}}
+\index{httgw\_reverse\_ctx\_t@{httgw\_reverse\_ctx\_t}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_reverse\_ctx\_t}{httgw\_reverse\_ctx\_t}}
+{\footnotesize\ttfamily typedef struct httgw\+\_\+reverse\+\_\+ctx \mbox{\hyperlink{httgw_8h_a93408ca86382a26d295d28d9a64206a3}{httgw\+\_\+reverse\+\_\+ctx\+\_\+t}}}
+
+\Hypertarget{httgw_8h_a164887578a36174fe219d50508d1b270}\label{httgw_8h_a164887578a36174fe219d50508d1b270} 
+\index{httgw.h@{httgw.h}!httgw\_send\_rst\_fn@{httgw\_send\_rst\_fn}}
+\index{httgw\_send\_rst\_fn@{httgw\_send\_rst\_fn}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_send\_rst\_fn}{httgw\_send\_rst\_fn}}
+{\footnotesize\ttfamily typedef int(\texorpdfstring{$\ast$}{*} httgw\+\_\+send\+\_\+rst\+\_\+fn) (void \texorpdfstring{$\ast$}{*}\mbox{\hyperlink{structtx__ctx}{tx\+\_\+ctx}}, const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} \texorpdfstring{$\ast$}{*}flow, \mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095d}{tcp\+\_\+dir\+\_\+t}} dir, uint32\+\_\+t seq, uint32\+\_\+t ack)}
+
+게이트웨이가 사용하는 원시 RST 송신 콜백이다. \Hypertarget{httgw_8h_a37eeb278ffdb079dc16152608fd7e2a7}\label{httgw_8h_a37eeb278ffdb079dc16152608fd7e2a7} 
+\index{httgw.h@{httgw.h}!httgw\_session\_t@{httgw\_session\_t}}
+\index{httgw\_session\_t@{httgw\_session\_t}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_session\_t}{httgw\_session\_t}}
+{\footnotesize\ttfamily typedef struct \mbox{\hyperlink{structhttgw__session}{httgw\+\_\+session}} \mbox{\hyperlink{httgw_8h_a37eeb278ffdb079dc16152608fd7e2a7}{httgw\+\_\+session\+\_\+t}}}
+
+\Hypertarget{httgw_8h_abca10ebc07f49b33cce1049828421f2a}\label{httgw_8h_abca10ebc07f49b33cce1049828421f2a} 
+\index{httgw.h@{httgw.h}!httgw\_t@{httgw\_t}}
+\index{httgw\_t@{httgw\_t}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_t}{httgw\_t}}
+{\footnotesize\ttfamily typedef struct \mbox{\hyperlink{structhttgw}{httgw}} \mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}}}
+
+게이트웨이 내부 구조를 숨기는 핸들 타입이다. \Hypertarget{httgw_8h_a857177a91abc9ac1e0403aaaa04840c7}\label{httgw_8h_a857177a91abc9ac1e0403aaaa04840c7} 
+\index{httgw.h@{httgw.h}!httgw\_tp\_ctx\_t@{httgw\_tp\_ctx\_t}}
+\index{httgw\_tp\_ctx\_t@{httgw\_tp\_ctx\_t}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_tp\_ctx\_t}{httgw\_tp\_ctx\_t}}
+{\footnotesize\ttfamily typedef struct httgw\+\_\+tp\+\_\+ctx \mbox{\hyperlink{httgw_8h_a857177a91abc9ac1e0403aaaa04840c7}{httgw\+\_\+tp\+\_\+ctx\+\_\+t}}}
+
+\Hypertarget{httgw_8h_a5119cc34cc94f1acf46db0b85d289f53}\label{httgw_8h_a5119cc34cc94f1acf46db0b85d289f53} 
+\index{httgw.h@{httgw.h}!ip\_hash\_t@{ip\_hash\_t}}
+\index{ip\_hash\_t@{ip\_hash\_t}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{ip\_hash\_t}{ip\_hash\_t}}
+{\footnotesize\ttfamily typedef struct \mbox{\hyperlink{structip__hash}{ip\+\_\+hash}} \mbox{\hyperlink{httgw_8h_a5119cc34cc94f1acf46db0b85d289f53}{ip\+\_\+hash\+\_\+t}}}
+
+\Hypertarget{httgw_8h_a3f785f275039b1cc1016dda252db815b}\label{httgw_8h_a3f785f275039b1cc1016dda252db815b} 
+\index{httgw.h@{httgw.h}!ip\_node\_t@{ip\_node\_t}}
+\index{ip\_node\_t@{ip\_node\_t}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{ip\_node\_t}{ip\_node\_t}}
+{\footnotesize\ttfamily typedef struct \mbox{\hyperlink{structip__node}{ip\+\_\+node}} \mbox{\hyperlink{httgw_8h_a3f785f275039b1cc1016dda252db815b}{ip\+\_\+node\+\_\+t}}}
+
+IP 보조 테이블에서 사용하는 연결 리스트 노드이다. \Hypertarget{httgw_8h_acfe6f08cc5b8fb3f1edbf65a9309678b}\label{httgw_8h_acfe6f08cc5b8fb3f1edbf65a9309678b} 
+\index{httgw.h@{httgw.h}!tx\_ctx\_t@{tx\_ctx\_t}}
+\index{tx\_ctx\_t@{tx\_ctx\_t}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{tx\_ctx\_t}{tx\_ctx\_t}}
+{\footnotesize\ttfamily typedef struct \mbox{\hyperlink{structtx__ctx}{tx\+\_\+ctx}} \mbox{\hyperlink{httgw_8h_acfe6f08cc5b8fb3f1edbf65a9309678b}{tx\+\_\+ctx\+\_\+t}}}
+
+RST 주입에 사용하는 L3 송신 컨텍스트이다. 
+
+\doxysubsection{Enumeration Type Documentation}
+\Hypertarget{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55b}\label{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55b} 
+\doxysubsubsection{\texorpdfstring{anonymous enum}{anonymous enum}}
+{\footnotesize\ttfamily anonymous enum}
+
+\begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{TCP\_FIN@{TCP\_FIN}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!TCP\_FIN@{TCP\_FIN}}}\Hypertarget{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba141036a606e6268cb2f3fd8e6e5a1efb}\label{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba141036a606e6268cb2f3fd8e6e5a1efb} 
+TCP\+\_\+\+FIN&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{TCP\_SYN@{TCP\_SYN}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!TCP\_SYN@{TCP\_SYN}}}\Hypertarget{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba0f6163bad1a8062c0a24226f9d2a4dfb}\label{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba0f6163bad1a8062c0a24226f9d2a4dfb} 
+TCP\+\_\+\+SYN&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{TCP\_RST@{TCP\_RST}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!TCP\_RST@{TCP\_RST}}}\Hypertarget{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba48c46359239656107862c2e71640860d}\label{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba48c46359239656107862c2e71640860d} 
+TCP\+\_\+\+RST&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{TCP\_PSH@{TCP\_PSH}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!TCP\_PSH@{TCP\_PSH}}}\Hypertarget{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba425820ce230e55d9ef5ef6efba1c884c}\label{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba425820ce230e55d9ef5ef6efba1c884c} 
+TCP\+\_\+\+PSH&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{TCP\_ACK@{TCP\_ACK}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!TCP\_ACK@{TCP\_ACK}}}\Hypertarget{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba790ae97092ed8e95aac0b8363f703807}\label{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba790ae97092ed8e95aac0b8363f703807} 
+TCP\+\_\+\+ACK&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{TCP\_URG@{TCP\_URG}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!TCP\_URG@{TCP\_URG}}}\Hypertarget{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55baba61bd3fe95fa2c8b675e65524cef28a}\label{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55baba61bd3fe95fa2c8b675e65524cef28a} 
+TCP\+\_\+\+URG&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{TCP\_ECE@{TCP\_ECE}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!TCP\_ECE@{TCP\_ECE}}}\Hypertarget{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55bad0a5107cf860d426a4d59af0cab9cbd0}\label{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55bad0a5107cf860d426a4d59af0cab9cbd0} 
+TCP\+\_\+\+ECE&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{TCP\_CWR@{TCP\_CWR}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!TCP\_CWR@{TCP\_CWR}}}\Hypertarget{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba77f28a0379f630069ee23775328b4e40}\label{httgw_8h_a06fc87d81c62e9abb8790b6e5713c55ba77f28a0379f630069ee23775328b4e40} 
+TCP\+\_\+\+CWR&\\
+\hline
+
+\end{DoxyEnumFields}
+\Hypertarget{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973}\label{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973} 
+\index{httgw.h@{httgw.h}!httgw\_mode\_t@{httgw\_mode\_t}}
+\index{httgw\_mode\_t@{httgw\_mode\_t}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_mode\_t}{httgw\_mode\_t}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973}{httgw\+\_\+mode\+\_\+t}}}
+
+게이트웨이 동작 모드이다. \begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{HTTGW\_MODE\_SNIFF@{HTTGW\_MODE\_SNIFF}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!HTTGW\_MODE\_SNIFF@{HTTGW\_MODE\_SNIFF}}}\Hypertarget{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973af3192eecff67a377bd2c5d2a1db459be}\label{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973af3192eecff67a377bd2c5d2a1db459be} 
+HTTGW\+\_\+\+MODE\+\_\+\+SNIFF&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{HTTGW\_MODE\_TP\_SYN@{HTTGW\_MODE\_TP\_SYN}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!HTTGW\_MODE\_TP\_SYN@{HTTGW\_MODE\_TP\_SYN}}}\Hypertarget{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973af78c912dd00e96d676e61fae54aef761}\label{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973af78c912dd00e96d676e61fae54aef761} 
+HTTGW\+\_\+\+MODE\+\_\+\+TP\+\_\+\+SYN&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{HTTGW\_MODE\_REVERSE@{HTTGW\_MODE\_REVERSE}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!HTTGW\_MODE\_REVERSE@{HTTGW\_MODE\_REVERSE}}}\Hypertarget{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973a36a9198e1a1dcea8e9810344786850ba}\label{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973a36a9198e1a1dcea8e9810344786850ba} 
+HTTGW\+\_\+\+MODE\+\_\+\+REVERSE&\\
+\hline
+
+\end{DoxyEnumFields}
+\Hypertarget{httgw_8h_a5cbabfdf94a24e5ef21e050be9ca2945}\label{httgw_8h_a5cbabfdf94a24e5ef21e050be9ca2945} 
+\index{httgw.h@{httgw.h}!reasm\_mode\_t@{reasm\_mode\_t}}
+\index{reasm\_mode\_t@{reasm\_mode\_t}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{reasm\_mode\_t}{reasm\_mode\_t}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{httgw_8h_a5cbabfdf94a24e5ef21e050be9ca2945}{reasm\+\_\+mode\+\_\+t}}}
+
+중간부터 관측된 흐름에 대한 재조립 동작 모드이다. \begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{REASM\_MODE\_STRICT\_SYN@{REASM\_MODE\_STRICT\_SYN}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!REASM\_MODE\_STRICT\_SYN@{REASM\_MODE\_STRICT\_SYN}}}\Hypertarget{httgw_8h_a5cbabfdf94a24e5ef21e050be9ca2945adf08fecd0a8afe082ab3c7921e7ae373}\label{httgw_8h_a5cbabfdf94a24e5ef21e050be9ca2945adf08fecd0a8afe082ab3c7921e7ae373} 
+REASM\+\_\+\+MODE\+\_\+\+STRICT\+\_\+\+SYN&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{REASM\_MODE\_LATE\_START@{REASM\_MODE\_LATE\_START}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!REASM\_MODE\_LATE\_START@{REASM\_MODE\_LATE\_START}}}\Hypertarget{httgw_8h_a5cbabfdf94a24e5ef21e050be9ca2945ad7a3e08c7971f058c1fff325def09a27}\label{httgw_8h_a5cbabfdf94a24e5ef21e050be9ca2945ad7a3e08c7971f058c1fff325def09a27} 
+REASM\+\_\+\+MODE\+\_\+\+LATE\+\_\+\+START&\\
+\hline
+
+\end{DoxyEnumFields}
+\Hypertarget{httgw_8h_a09f320aa56709397a6e638d7eb88095d}\label{httgw_8h_a09f320aa56709397a6e638d7eb88095d} 
+\index{httgw.h@{httgw.h}!tcp\_dir\_t@{tcp\_dir\_t}}
+\index{tcp\_dir\_t@{tcp\_dir\_t}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{tcp\_dir\_t}{tcp\_dir\_t}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095d}{tcp\+\_\+dir\+\_\+t}}}
+
+TCP 흐름 내부의 패킷 방향을 나타낸다. \begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{DIR\_AB@{DIR\_AB}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!DIR\_AB@{DIR\_AB}}}\Hypertarget{httgw_8h_a09f320aa56709397a6e638d7eb88095dac629365d8cb966b78b1b477d47800a7d}\label{httgw_8h_a09f320aa56709397a6e638d7eb88095dac629365d8cb966b78b1b477d47800a7d} 
+DIR\+\_\+\+AB&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{DIR\_BA@{DIR\_BA}!httgw.h@{httgw.h}}\index{httgw.h@{httgw.h}!DIR\_BA@{DIR\_BA}}}\Hypertarget{httgw_8h_a09f320aa56709397a6e638d7eb88095da51ecef12f06f58696f4b14e5f4eb7edc}\label{httgw_8h_a09f320aa56709397a6e638d7eb88095da51ecef12f06f58696f4b14e5f4eb7edc} 
+DIR\+\_\+\+BA&\\
+\hline
+
+\end{DoxyEnumFields}
+
+
+\doxysubsection{Function Documentation}
+\Hypertarget{httgw_8h_aca16027e97ca01aa3b7b0a3eb7e5aebe}\label{httgw_8h_aca16027e97ca01aa3b7b0a3eb7e5aebe} 
+\index{httgw.h@{httgw.h}!httgw\_create@{httgw\_create}}
+\index{httgw\_create@{httgw\_create}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_create()}{httgw\_create()}}
+{\footnotesize\ttfamily \mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*} httgw\+\_\+create (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{structhttgw__cfg__t}{httgw\+\_\+cfg\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{cfg,  }\item[{const \mbox{\hyperlink{structhttgw__callbacks__t}{httgw\+\_\+callbacks\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{cbs,  }\item[{void \texorpdfstring{$\ast$}{*}}]{user }\end{DoxyParamCaption})}
+
+게이트웨이 인스턴스를 생성한다. \Hypertarget{httgw_8h_ae2d7b649c94ab860b3b957954e316408}\label{httgw_8h_ae2d7b649c94ab860b3b957954e316408} 
+\index{httgw.h@{httgw.h}!httgw\_destroy@{httgw\_destroy}}
+\index{httgw\_destroy@{httgw\_destroy}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_destroy()}{httgw\_destroy()}}
+{\footnotesize\ttfamily void httgw\+\_\+destroy (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{gw }\end{DoxyParamCaption})}
+
+게이트웨이 인스턴스와 모든 세션을 해제한다. \Hypertarget{httgw_8h_a9492d55ad629b2b338e526e1850ceaf4}\label{httgw_8h_a9492d55ad629b2b338e526e1850ceaf4} 
+\index{httgw.h@{httgw.h}!httgw\_extract\_query@{httgw\_extract\_query}}
+\index{httgw\_extract\_query@{httgw\_extract\_query}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_extract\_query()}{httgw\_extract\_query()}}
+{\footnotesize\ttfamily int httgw\+\_\+extract\+\_\+query (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{structhttp__message__t}{http\+\_\+message\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{msg,  }\item[{const char \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}}]{q,  }\item[{size\+\_\+t \texorpdfstring{$\ast$}{*}}]{q\+\_\+len }\end{DoxyParamCaption})}
+
+파싱된 요청 URI에서 query 부분을 추출한다. \Hypertarget{httgw_8h_a33e5b5da1fe7c2e613ef6d7609e87a4d}\label{httgw_8h_a33e5b5da1fe7c2e613ef6d7609e87a4d} 
+\index{httgw.h@{httgw.h}!httgw\_gc@{httgw\_gc}}
+\index{httgw\_gc@{httgw\_gc}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_gc()}{httgw\_gc()}}
+{\footnotesize\ttfamily void httgw\+\_\+gc (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{gw,  }\item[{uint64\+\_\+t}]{now\+\_\+ms }\end{DoxyParamCaption})}
+
+만료된 세션을 정리한다. \Hypertarget{httgw_8h_a9c6eb004d974d032d58b1453f9254139}\label{httgw_8h_a9c6eb004d974d032d58b1453f9254139} 
+\index{httgw.h@{httgw.h}!httgw\_get\_session\_snapshot@{httgw\_get\_session\_snapshot}}
+\index{httgw\_get\_session\_snapshot@{httgw\_get\_session\_snapshot}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_get\_session\_snapshot()}{httgw\_get\_session\_snapshot()}}
+{\footnotesize\ttfamily int httgw\+\_\+get\+\_\+session\+\_\+snapshot (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{gw,  }\item[{const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{flow,  }\item[{\mbox{\hyperlink{structhttgw__sess__snapshot__t}{httgw\+\_\+sess\+\_\+snapshot\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{out }\end{DoxyParamCaption})}
+
+지정한 흐름의 현재 TCP 상태 스냅샷을 복사한다. \Hypertarget{httgw_8h_a3da2e3ca23637d78675afc5f8e857d28}\label{httgw_8h_a3da2e3ca23637d78675afc5f8e857d28} 
+\index{httgw.h@{httgw.h}!httgw\_header\_get@{httgw\_header\_get}}
+\index{httgw\_header\_get@{httgw\_header\_get}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_header\_get()}{httgw\_header\_get()}}
+{\footnotesize\ttfamily int httgw\+\_\+header\+\_\+get (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{structhttp__message__t}{http\+\_\+message\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{msg,  }\item[{const char \texorpdfstring{$\ast$}{*}}]{name,  }\item[{const uint8\+\_\+t \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}}]{value,  }\item[{size\+\_\+t \texorpdfstring{$\ast$}{*}}]{value\+\_\+len }\end{DoxyParamCaption})}
+
+파싱된 HTTP 메시지에서 헤더 값을 조회한다. \Hypertarget{httgw_8h_a10f3e9a859a3d984135b7d35bea2bf1f}\label{httgw_8h_a10f3e9a859a3d984135b7d35bea2bf1f} 
+\index{httgw.h@{httgw.h}!httgw\_ingest\_packet@{httgw\_ingest\_packet}}
+\index{httgw\_ingest\_packet@{httgw\_ingest\_packet}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_ingest\_packet()}{httgw\_ingest\_packet()}}
+{\footnotesize\ttfamily int httgw\+\_\+ingest\+\_\+packet (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{gw,  }\item[{const uint8\+\_\+t \texorpdfstring{$\ast$}{*}}]{pkt,  }\item[{uint32\+\_\+t}]{caplen,  }\item[{uint64\+\_\+t}]{ts\+\_\+ms }\end{DoxyParamCaption})}
+
+캡처된 패킷 한 개를 TCP/\+HTTP 처리 파이프라인에 투입한다. \Hypertarget{httgw_8h_a10fd30df7f808f3fc5b1ca7c47659446}\label{httgw_8h_a10fd30df7f808f3fc5b1ca7c47659446} 
+\index{httgw.h@{httgw.h}!httgw\_request\_rst@{httgw\_request\_rst}}
+\index{httgw\_request\_rst@{httgw\_request\_rst}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_request\_rst()}{httgw\_request\_rst()}}
+{\footnotesize\ttfamily int httgw\+\_\+request\+\_\+rst (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{gw,  }\item[{const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{flow,  }\item[{\mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095d}{tcp\+\_\+dir\+\_\+t}}}]{dir }\end{DoxyParamCaption})}
+
+지정한 흐름 방향으로 RST 주입을 요청한다. \Hypertarget{httgw_8h_a27f29ee9c24cd6871b0d3ad69617f6b6}\label{httgw_8h_a27f29ee9c24cd6871b0d3ad69617f6b6} 
+\index{httgw.h@{httgw.h}!httgw\_request\_rst\_with\_snapshot@{httgw\_request\_rst\_with\_snapshot}}
+\index{httgw\_request\_rst\_with\_snapshot@{httgw\_request\_rst\_with\_snapshot}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_request\_rst\_with\_snapshot()}{httgw\_request\_rst\_with\_snapshot()}}
+{\footnotesize\ttfamily int httgw\+\_\+request\+\_\+rst\+\_\+with\+\_\+snapshot (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{gw,  }\item[{const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{flow,  }\item[{\mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095d}{tcp\+\_\+dir\+\_\+t}}}]{dir,  }\item[{const \mbox{\hyperlink{structhttgw__sess__snapshot__t}{httgw\+\_\+sess\+\_\+snapshot\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{snap }\end{DoxyParamCaption})}
+
+미리 확보한 TCP 상태 스냅샷으로 RST 주입을 요청한다. \Hypertarget{httgw_8h_a2486f0561cc34c342e14ac75a3d91bb5}\label{httgw_8h_a2486f0561cc34c342e14ac75a3d91bb5} 
+\index{httgw.h@{httgw.h}!httgw\_reverse\_mode\_destroy@{httgw\_reverse\_mode\_destroy}}
+\index{httgw\_reverse\_mode\_destroy@{httgw\_reverse\_mode\_destroy}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_reverse\_mode\_destroy()}{httgw\_reverse\_mode\_destroy()}}
+{\footnotesize\ttfamily void httgw\+\_\+reverse\+\_\+mode\+\_\+destroy (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_a93408ca86382a26d295d28d9a64206a3}{httgw\+\_\+reverse\+\_\+ctx\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{ctx }\end{DoxyParamCaption})}
+
+\Hypertarget{httgw_8h_acbd3f53726b10e9bba524ad64251fe08}\label{httgw_8h_acbd3f53726b10e9bba524ad64251fe08} 
+\index{httgw.h@{httgw.h}!httgw\_reverse\_mode\_init@{httgw\_reverse\_mode\_init}}
+\index{httgw\_reverse\_mode\_init@{httgw\_reverse\_mode\_init}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_reverse\_mode\_init()}{httgw\_reverse\_mode\_init()}}
+{\footnotesize\ttfamily int httgw\+\_\+reverse\+\_\+mode\+\_\+init (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{gw,  }\item[{const \mbox{\hyperlink{structhttgw__cfg__t}{httgw\+\_\+cfg\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{cfg,  }\item[{\mbox{\hyperlink{httgw_8h_a93408ca86382a26d295d28d9a64206a3}{httgw\+\_\+reverse\+\_\+ctx\+\_\+t}} \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}}]{out\+\_\+ctx }\end{DoxyParamCaption})}
+
+\Hypertarget{httgw_8h_a5da9cfea8707611853bfd6190513578c}\label{httgw_8h_a5da9cfea8707611853bfd6190513578c} 
+\index{httgw.h@{httgw.h}!httgw\_set\_mode@{httgw\_set\_mode}}
+\index{httgw\_set\_mode@{httgw\_set\_mode}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_set\_mode()}{httgw\_set\_mode()}}
+{\footnotesize\ttfamily int httgw\+\_\+set\+\_\+mode (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{gw,  }\item[{\mbox{\hyperlink{httgw_8h_a4a4d5e5ef519ea0f7b508d594b5a6973}{httgw\+\_\+mode\+\_\+t}}}]{mode }\end{DoxyParamCaption})}
+
+현재 실행 모드를 변경한다. \Hypertarget{httgw_8h_af64626ce8ce34c1337afc4cf86a362c6}\label{httgw_8h_af64626ce8ce34c1337afc4cf86a362c6} 
+\index{httgw.h@{httgw.h}!httgw\_set\_tx@{httgw\_set\_tx}}
+\index{httgw\_set\_tx@{httgw\_set\_tx}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_set\_tx()}{httgw\_set\_tx()}}
+{\footnotesize\ttfamily int httgw\+\_\+set\+\_\+tx (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{gw,  }\item[{\mbox{\hyperlink{httgw_8h_acfe6f08cc5b8fb3f1edbf65a9309678b}{tx\+\_\+ctx\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{tx }\end{DoxyParamCaption})}
+
+RST 주입에 사용할 원시 송신 컨텍스트를 등록한다. \Hypertarget{httgw_8h_a3a064229729a19b67572c41b8f44124c}\label{httgw_8h_a3a064229729a19b67572c41b8f44124c} 
+\index{httgw.h@{httgw.h}!httgw\_stats@{httgw\_stats}}
+\index{httgw\_stats@{httgw\_stats}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_stats()}{httgw\_stats()}}
+{\footnotesize\ttfamily const \mbox{\hyperlink{structhttgw__stats__t}{httgw\+\_\+stats\+\_\+t}} \texorpdfstring{$\ast$}{*} httgw\+\_\+stats (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{gw }\end{DoxyParamCaption})}
+
+읽기 전용 실행 통계를 돌려준다. \Hypertarget{httgw_8h_a6f9a7fb76ae0ef60603ed3d22ad664e8}\label{httgw_8h_a6f9a7fb76ae0ef60603ed3d22ad664e8} 
+\index{httgw.h@{httgw.h}!httgw\_tp\_mode\_destroy@{httgw\_tp\_mode\_destroy}}
+\index{httgw\_tp\_mode\_destroy@{httgw\_tp\_mode\_destroy}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_tp\_mode\_destroy()}{httgw\_tp\_mode\_destroy()}}
+{\footnotesize\ttfamily void httgw\+\_\+tp\+\_\+mode\+\_\+destroy (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_a857177a91abc9ac1e0403aaaa04840c7}{httgw\+\_\+tp\+\_\+ctx\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{ctx }\end{DoxyParamCaption})}
+
+\Hypertarget{httgw_8h_ac32e0564d03d7a985b44aea67d3dbf9d}\label{httgw_8h_ac32e0564d03d7a985b44aea67d3dbf9d} 
+\index{httgw.h@{httgw.h}!httgw\_tp\_mode\_init@{httgw\_tp\_mode\_init}}
+\index{httgw\_tp\_mode\_init@{httgw\_tp\_mode\_init}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{httgw\_tp\_mode\_init()}{httgw\_tp\_mode\_init()}}
+{\footnotesize\ttfamily int httgw\+\_\+tp\+\_\+mode\+\_\+init (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{gw,  }\item[{const \mbox{\hyperlink{structhttgw__cfg__t}{httgw\+\_\+cfg\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{cfg,  }\item[{\mbox{\hyperlink{httgw_8h_a857177a91abc9ac1e0403aaaa04840c7}{httgw\+\_\+tp\+\_\+ctx\+\_\+t}} \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}}]{out\+\_\+ctx }\end{DoxyParamCaption})}
+
+\Hypertarget{httgw_8h_a2618e3397d6890561accde4d7df57e97}\label{httgw_8h_a2618e3397d6890561accde4d7df57e97} 
+\index{httgw.h@{httgw.h}!sess\_gc@{sess\_gc}}
+\index{sess\_gc@{sess\_gc}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{sess\_gc()}{sess\_gc()}}
+{\footnotesize\ttfamily void sess\+\_\+gc (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{gw,  }\item[{uint64\+\_\+t}]{ts\+\_\+ms }\end{DoxyParamCaption})}
+
+세션 가비지 컬렉션을 수행하는 테스트용 헬퍼이다. \Hypertarget{httgw_8h_aa56c2a0e797cc9f4f2da971fbc335d15}\label{httgw_8h_aa56c2a0e797cc9f4f2da971fbc335d15} 
+\index{httgw.h@{httgw.h}!sess\_get\_or\_create@{sess\_get\_or\_create}}
+\index{sess\_get\_or\_create@{sess\_get\_or\_create}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{sess\_get\_or\_create()}{sess\_get\_or\_create()}}
+{\footnotesize\ttfamily int sess\+\_\+get\+\_\+or\+\_\+create (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{gw,  }\item[{const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}}}]{flow,  }\item[{uint64\+\_\+t}]{ts\+\_\+ms }\end{DoxyParamCaption})}
+
+필요 시 세션 엔트리를 생성하는 테스트용 헬퍼이다. \Hypertarget{httgw_8h_a707f44f4df14315fa754b2a4d6261964}\label{httgw_8h_a707f44f4df14315fa754b2a4d6261964} 
+\index{httgw.h@{httgw.h}!sess\_lookup@{sess\_lookup}}
+\index{sess\_lookup@{sess\_lookup}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{sess\_lookup()}{sess\_lookup()}}
+{\footnotesize\ttfamily int sess\+\_\+lookup (\begin{DoxyParamCaption}\item[{const \mbox{\hyperlink{httgw_8h_abca10ebc07f49b33cce1049828421f2a}{httgw\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{gw,  }\item[{const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}}}]{flow }\end{DoxyParamCaption})}
+
+세션 존재 여부를 확인하는 테스트용 헬퍼이다. \Hypertarget{httgw_8h_afa9fe9ae47bc5ebba583ac8445535d58}\label{httgw_8h_afa9fe9ae47bc5ebba583ac8445535d58} 
+\index{httgw.h@{httgw.h}!tx\_ctx\_destroy@{tx\_ctx\_destroy}}
+\index{tx\_ctx\_destroy@{tx\_ctx\_destroy}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{tx\_ctx\_destroy()}{tx\_ctx\_destroy()}}
+{\footnotesize\ttfamily void tx\+\_\+ctx\+\_\+destroy (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_acfe6f08cc5b8fb3f1edbf65a9309678b}{tx\+\_\+ctx\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{tx }\end{DoxyParamCaption})}
+
+원시 송신 컨텍스트를 정리한다. \Hypertarget{httgw_8h_a0b3d46f732bd9d1ebb2e674a9a2fd872}\label{httgw_8h_a0b3d46f732bd9d1ebb2e674a9a2fd872} 
+\index{httgw.h@{httgw.h}!tx\_ctx\_init@{tx\_ctx\_init}}
+\index{tx\_ctx\_init@{tx\_ctx\_init}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{tx\_ctx\_init()}{tx\_ctx\_init()}}
+{\footnotesize\ttfamily int tx\+\_\+ctx\+\_\+init (\begin{DoxyParamCaption}\item[{\mbox{\hyperlink{httgw_8h_acfe6f08cc5b8fb3f1edbf65a9309678b}{tx\+\_\+ctx\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{tx }\end{DoxyParamCaption})}
+
+원시 송신 컨텍스트를 초기화한다. \Hypertarget{httgw_8h_aacf71d31d40f531265e6c45b1531fbe6}\label{httgw_8h_aacf71d31d40f531265e6c45b1531fbe6} 
+\index{httgw.h@{httgw.h}!tx\_send\_l3@{tx\_send\_l3}}
+\index{tx\_send\_l3@{tx\_send\_l3}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{tx\_send\_l3()}{tx\_send\_l3()}}
+{\footnotesize\ttfamily int tx\+\_\+send\+\_\+l3 (\begin{DoxyParamCaption}\item[{void \texorpdfstring{$\ast$}{*}}]{ctx,  }\item[{const uint8\+\_\+t \texorpdfstring{$\ast$}{*}}]{buf,  }\item[{size\+\_\+t}]{len }\end{DoxyParamCaption})}
+
+이미 구성된 L3 패킷을 송신한다. \Hypertarget{httgw_8h_a3f9d982baa50c727a99dc121d4730a60}\label{httgw_8h_a3f9d982baa50c727a99dc121d4730a60} 
+\index{httgw.h@{httgw.h}!tx\_send\_rst@{tx\_send\_rst}}
+\index{tx\_send\_rst@{tx\_send\_rst}!httgw.h@{httgw.h}}
+\doxysubsubsection{\texorpdfstring{tx\_send\_rst()}{tx\_send\_rst()}}
+{\footnotesize\ttfamily int tx\+\_\+send\+\_\+rst (\begin{DoxyParamCaption}\item[{void \texorpdfstring{$\ast$}{*}}]{tx\+\_\+ctx,  }\item[{const \mbox{\hyperlink{structflow__key__t}{flow\+\_\+key\+\_\+t}} \texorpdfstring{$\ast$}{*}}]{flow,  }\item[{\mbox{\hyperlink{httgw_8h_a09f320aa56709397a6e638d7eb88095d}{tcp\+\_\+dir\+\_\+t}}}]{dir,  }\item[{uint32\+\_\+t}]{seq,  }\item[{uint32\+\_\+t}]{ack }\end{DoxyParamCaption})}
+
+TCP RST 패킷 한 개를 생성하고 송신한다. 

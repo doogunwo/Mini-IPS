@@ -1,0 +1,80 @@
+\doxysection{detect.\+h}
+\hypertarget{detect_8h_source}{}\label{detect_8h_source}\index{ips/include/detect.h@{ips/include/detect.h}}
+\mbox{\hyperlink{detect_8h}{Go to the documentation of this file.}}
+\begin{DoxyCode}{0}
+\DoxyCodeLine{00001\ }
+\DoxyCodeLine{00005\ \textcolor{preprocessor}{\#ifndef\ DETECT\_H}}
+\DoxyCodeLine{00006\ \textcolor{preprocessor}{\#define\ DETECT\_H}}
+\DoxyCodeLine{00007\ }
+\DoxyCodeLine{00008\ \textcolor{preprocessor}{\#include\ <stddef.h>}}
+\DoxyCodeLine{00009\ \textcolor{preprocessor}{\#include\ <stdint.h>}}
+\DoxyCodeLine{00010\ }
+\DoxyCodeLine{00011\ \textcolor{preprocessor}{\#include\ "{}\mbox{\hyperlink{regex_8h}{regex.h}}"{}}}
+\DoxyCodeLine{00012\ }
+\DoxyCodeLine{00013\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{enum}\ \{}
+\DoxyCodeLine{00014\ \ \ \ \ \mbox{\hyperlink{detect_8h_a803eb3e7c38b629abdcae85384a099bca8f4dcd3832e49fab35fc302039e3753c}{DETECT\_JIT\_AUTO}}\ =\ -\/1,}
+\DoxyCodeLine{00015\ \ \ \ \ \mbox{\hyperlink{detect_8h_a803eb3e7c38b629abdcae85384a099bca89c5b15e5574d166fc9632c06f53d930}{DETECT\_JIT\_OFF}}\ =\ 0,}
+\DoxyCodeLine{00016\ \ \ \ \ \mbox{\hyperlink{detect_8h_a803eb3e7c38b629abdcae85384a099bca585720baed1e394523cb14f8191d1bcf}{DETECT\_JIT\_ON}}\ =\ 1}
+\DoxyCodeLine{00017\ \}\ \mbox{\hyperlink{detect_8h_a803eb3e7c38b629abdcae85384a099bc}{detect\_jit\_mode\_t}};}
+\DoxyCodeLine{00018\ }
+\DoxyCodeLine{00019\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{struct\ }\mbox{\hyperlink{structdetect__engine}{detect\_engine}}\ \mbox{\hyperlink{structdetect__engine}{detect\_engine\_t}};}
+\DoxyCodeLine{00020\ }
+\DoxyCodeLine{00021\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{struct\ }\{}
+\DoxyCodeLine{00022\ \ \ \ \ \textcolor{keyword}{const}\ \mbox{\hyperlink{structIPS__Signature}{IPS\_Signature}}\ *\mbox{\hyperlink{structdetect__match__t_a8da2aea1775af7a28bf24b27cbbd4f08}{rule}};}
+\DoxyCodeLine{00023\ \ \ \ \ \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\_context\_t}}\ \mbox{\hyperlink{structdetect__match__t_a1049bfb15fdc842c38111a08bc5da4ba}{context}};}
+\DoxyCodeLine{00024\ \ \ \ \ \textcolor{keywordtype}{char}\ *\mbox{\hyperlink{structdetect__match__t_a1be0db32cbcec94325a2b363b35e4839}{matched\_text}};}
+\DoxyCodeLine{00025\ \ \ \ \ uint64\_t\ \mbox{\hyperlink{structdetect__match__t_a05ffda6cbf74272b96f826da6dda566f}{elapsed\_us}};}
+\DoxyCodeLine{00026\ \}\ \mbox{\hyperlink{structdetect__match__t}{detect\_match\_t}};}
+\DoxyCodeLine{00027\ }
+\DoxyCodeLine{00028\ \textcolor{keyword}{typedef}\ \textcolor{keyword}{struct\ }\{}
+\DoxyCodeLine{00029\ \ \ \ \ \mbox{\hyperlink{structdetect__match__t}{detect\_match\_t}}\ *\mbox{\hyperlink{structdetect__match__list__t_a52ad30c1164e89434cfce369385bfde2}{items}};}
+\DoxyCodeLine{00030\ \ \ \ \ \textcolor{keywordtype}{size\_t}\ \mbox{\hyperlink{structdetect__match__list__t_ab116084ed469bab2f0e457051136c3ff}{count}};}
+\DoxyCodeLine{00031\ \ \ \ \ \textcolor{keywordtype}{size\_t}\ \mbox{\hyperlink{structdetect__match__list__t_ae895ca49716795dd3a3dfe38d36433e8}{capacity}};}
+\DoxyCodeLine{00032\ \}\ \mbox{\hyperlink{structdetect__match__list__t}{detect\_match\_list\_t}};}
+\DoxyCodeLine{00033\ }
+\DoxyCodeLine{00042\ \mbox{\hyperlink{structdetect__engine}{detect\_engine\_t}}\ *\mbox{\hyperlink{detect_8h_ac1a156f710b75999a293f5bfdc68d1a5}{detect\_engine\_create}}(\textcolor{keyword}{const}\ \textcolor{keywordtype}{char}\ *policy\_name,\ \mbox{\hyperlink{detect_8h_a803eb3e7c38b629abdcae85384a099bc}{detect\_jit\_mode\_t}}\ jit\_mode);}
+\DoxyCodeLine{00043\ }
+\DoxyCodeLine{00048\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{detect_8h_a1fddcc96030af84584b1cb67db7a0057}{detect\_engine\_destroy}}(\mbox{\hyperlink{structdetect__engine}{detect\_engine\_t}}\ *e);}
+\DoxyCodeLine{00049\ }
+\DoxyCodeLine{00058\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{detect_8h_abef373e348be41388fca327e7837b355}{detect\_engine\_match}}(}
+\DoxyCodeLine{00059\ \ \ \ \ \mbox{\hyperlink{structdetect__engine}{detect\_engine\_t}}\ *e,}
+\DoxyCodeLine{00060\ \ \ \ \ \textcolor{keyword}{const}\ uint8\_t\ *data,}
+\DoxyCodeLine{00061\ \ \ \ \ \textcolor{keywordtype}{size\_t}\ len,}
+\DoxyCodeLine{00062\ \ \ \ \ \textcolor{keyword}{const}\ \mbox{\hyperlink{structIPS__Signature}{IPS\_Signature}}\ **matched\_rule}
+\DoxyCodeLine{00063\ );}
+\DoxyCodeLine{00064\ }
+\DoxyCodeLine{00074\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{detect_8h_a467c366e2d3c8fc694fdd9bfef9018fa}{detect\_engine\_match\_ctx}}(}
+\DoxyCodeLine{00075\ \ \ \ \ \mbox{\hyperlink{structdetect__engine}{detect\_engine\_t}}\ *e,}
+\DoxyCodeLine{00076\ \ \ \ \ \textcolor{keyword}{const}\ uint8\_t\ *data,}
+\DoxyCodeLine{00077\ \ \ \ \ \textcolor{keywordtype}{size\_t}\ len,}
+\DoxyCodeLine{00078\ \ \ \ \ \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\_context\_t}}\ ctx,}
+\DoxyCodeLine{00079\ \ \ \ \ \textcolor{keyword}{const}\ \mbox{\hyperlink{structIPS__Signature}{IPS\_Signature}}\ **matched\_rule}
+\DoxyCodeLine{00080\ );}
+\DoxyCodeLine{00081\ }
+\DoxyCodeLine{00082\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{detect_8h_a1be58d66f185434448fb52c78e671083}{detect\_engine\_collect\_matches\_ctx}}(}
+\DoxyCodeLine{00083\ \ \ \ \ \mbox{\hyperlink{structdetect__engine}{detect\_engine\_t}}\ *e,}
+\DoxyCodeLine{00084\ \ \ \ \ \textcolor{keyword}{const}\ uint8\_t\ *data,}
+\DoxyCodeLine{00085\ \ \ \ \ \textcolor{keywordtype}{size\_t}\ len,}
+\DoxyCodeLine{00086\ \ \ \ \ \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\_context\_t}}\ ctx,}
+\DoxyCodeLine{00087\ \ \ \ \ \mbox{\hyperlink{structdetect__match__list__t}{detect\_match\_list\_t}}\ *matches}
+\DoxyCodeLine{00088\ );}
+\DoxyCodeLine{00089\ }
+\DoxyCodeLine{00090\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{detect_8h_aef4b6c42d62ca4ae690ecbe4ad1575fb}{detect\_engine\_collect\_matches\_ctx\_timed}}(}
+\DoxyCodeLine{00091\ \ \ \ \ \mbox{\hyperlink{structdetect__engine}{detect\_engine\_t}}\ *e,}
+\DoxyCodeLine{00092\ \ \ \ \ \textcolor{keyword}{const}\ uint8\_t\ *data,}
+\DoxyCodeLine{00093\ \ \ \ \ \textcolor{keywordtype}{size\_t}\ len,}
+\DoxyCodeLine{00094\ \ \ \ \ \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\_context\_t}}\ ctx,}
+\DoxyCodeLine{00095\ \ \ \ \ \mbox{\hyperlink{structdetect__match__list__t}{detect\_match\_list\_t}}\ *matches,}
+\DoxyCodeLine{00096\ \ \ \ \ uint64\_t\ *elapsed\_us\_sum}
+\DoxyCodeLine{00097\ );}
+\DoxyCodeLine{00098\ }
+\DoxyCodeLine{00099\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{detect_8h_ae3d71dd750c5c576c60efb67a955ab41}{detect\_match\_list\_init}}(\mbox{\hyperlink{structdetect__match__list__t}{detect\_match\_list\_t}}\ *matches);}
+\DoxyCodeLine{00100\ \textcolor{keywordtype}{void}\ \mbox{\hyperlink{detect_8h_a4b6723fa7692cb9794c58d19a74ea074}{detect\_match\_list\_free}}(\mbox{\hyperlink{structdetect__match__list__t}{detect\_match\_list\_t}}\ *matches);}
+\DoxyCodeLine{00101\ }
+\DoxyCodeLine{00107\ \textcolor{keyword}{const}\ \textcolor{keywordtype}{char}\ *\mbox{\hyperlink{detect_8h_a8734e39ab680f5f98147cfaeb7d381d1}{detect\_engine\_last\_error}}(\textcolor{keyword}{const}\ \mbox{\hyperlink{structdetect__engine}{detect\_engine\_t}}\ *e);}
+\DoxyCodeLine{00108\ \textcolor{keyword}{const}\ \textcolor{keywordtype}{char}\ *\mbox{\hyperlink{detect_8h_a3a21c20c70cc930942a29b946f9b3b76}{detect\_engine\_backend\_name}}(\textcolor{keyword}{const}\ \mbox{\hyperlink{structdetect__engine}{detect\_engine\_t}}\ *e);}
+\DoxyCodeLine{00109\ \textcolor{keywordtype}{int}\ \mbox{\hyperlink{detect_8h_aa2c6292bb0f68cce5528a267c78a4852}{detect\_engine\_jit\_enabled}}(\textcolor{keyword}{const}\ \mbox{\hyperlink{structdetect__engine}{detect\_engine\_t}}\ *e);}
+\DoxyCodeLine{00110\ }
+\DoxyCodeLine{00111\ \textcolor{preprocessor}{\#endif}}
+
+\end{DoxyCode}

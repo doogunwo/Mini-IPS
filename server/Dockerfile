@@ -6,7 +6,8 @@ RUN apt-get update && \
         python3 \
         python3-pip \
         iptables \
-        iproute2 && \
+        iproute2 \
+        util-linux && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

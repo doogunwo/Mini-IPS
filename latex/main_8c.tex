@@ -1,0 +1,100 @@
+\doxysection{ips/src/main.c File Reference}
+\hypertarget{main_8c}{}\label{main_8c}\index{ips/src/main.c@{ips/src/main.c}}
+{\ttfamily \#include $<$signal.\+h$>$}\newline
+{\ttfamily \#include $<$stdarg.\+h$>$}\newline
+{\ttfamily \#include $<$stdint.\+h$>$}\newline
+{\ttfamily \#include $<$errno.\+h$>$}\newline
+{\ttfamily \#include $<$sys/stat.\+h$>$}\newline
+{\ttfamily \#include $<$time.\+h$>$}\newline
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+{\ttfamily \#include $<$stdlib.\+h$>$}\newline
+{\ttfamily \#include $<$string.\+h$>$}\newline
+{\ttfamily \#include $<$unistd.\+h$>$}\newline
+{\ttfamily \#include $<$sys/types.\+h$>$}\newline
+{\ttfamily \#include $<$pthread.\+h$>$}\newline
+{\ttfamily \#include $<$stdatomic.\+h$>$}\newline
+{\ttfamily \#include $<$ctype.\+h$>$}\newline
+{\ttfamily \#include "{}net\+\_\+compat.\+h"{}}\newline
+{\ttfamily \#include "{}detect.\+h"{}}\newline
+{\ttfamily \#include "{}engine.\+h"{}}\newline
+{\ttfamily \#include "{}driver.\+h"{}}\newline
+{\ttfamily \#include "{}httgw.\+h"{}}\newline
+Include dependency graph for main.\+c\+:
+% FIG 0
+\doxysubsubsection*{Classes}
+\begin{DoxyCompactItemize}
+\item 
+struct \mbox{\hyperlink{structrst__log__cache}{rst\+\_\+log\+\_\+cache}}
+\item 
+struct \mbox{\hyperlink{structapp__shared}{app\+\_\+shared}}
+\item 
+struct \mbox{\hyperlink{structapp__ctx}{app\+\_\+ctx}}
+\item 
+struct \mbox{\hyperlink{structstrbuf__t}{strbuf\+\_\+t}}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Macros}
+\begin{DoxyCompactItemize}
+\item 
+\#define \mbox{\hyperlink{main_8c_a8fb447618db946a9e2a596d9ea18763f}{\+\_\+\+DEFAULT\+\_\+\+SOURCE}}
+\item 
+\#define \mbox{\hyperlink{main_8c_a71589068c9dd4b351492990bddbb95ab}{THREADHOLD}}~5
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Typedefs}
+\begin{DoxyCompactItemize}
+\item 
+typedef struct \mbox{\hyperlink{structrst__log__cache}{rst\+\_\+log\+\_\+cache}} \mbox{\hyperlink{main_8c_a452ab4080871f27d881e51be71c96c49}{rst\+\_\+log\+\_\+cache\+\_\+t}}
+\item 
+typedef struct \mbox{\hyperlink{structapp__shared}{app\+\_\+shared}} \mbox{\hyperlink{main_8c_a811873eb6001eb7af2857df2d66abb19}{app\+\_\+shared\+\_\+t}}
+\item 
+typedef struct \mbox{\hyperlink{structapp__ctx}{app\+\_\+ctx}} \mbox{\hyperlink{main_8c_ab55e65be9b61d2b1a870faad07c7fef7}{app\+\_\+ctx\+\_\+t}}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+int \mbox{\hyperlink{main_8c_a3c04138a5bfe5d72780bb7e82a18e627}{main}} (int argc, char \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}argv)
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Macro Definition Documentation}
+\Hypertarget{main_8c_a8fb447618db946a9e2a596d9ea18763f}\label{main_8c_a8fb447618db946a9e2a596d9ea18763f} 
+\index{main.c@{main.c}!\_DEFAULT\_SOURCE@{\_DEFAULT\_SOURCE}}
+\index{\_DEFAULT\_SOURCE@{\_DEFAULT\_SOURCE}!main.c@{main.c}}
+\doxysubsubsection{\texorpdfstring{\_DEFAULT\_SOURCE}{\_DEFAULT\_SOURCE}}
+{\footnotesize\ttfamily \#define \+\_\+\+DEFAULT\+\_\+\+SOURCE}
+
+\Hypertarget{main_8c_a71589068c9dd4b351492990bddbb95ab}\label{main_8c_a71589068c9dd4b351492990bddbb95ab} 
+\index{main.c@{main.c}!THREADHOLD@{THREADHOLD}}
+\index{THREADHOLD@{THREADHOLD}!main.c@{main.c}}
+\doxysubsubsection{\texorpdfstring{THREADHOLD}{THREADHOLD}}
+{\footnotesize\ttfamily \#define THREADHOLD~5}
+
+
+
+\doxysubsection{Typedef Documentation}
+\Hypertarget{main_8c_ab55e65be9b61d2b1a870faad07c7fef7}\label{main_8c_ab55e65be9b61d2b1a870faad07c7fef7} 
+\index{main.c@{main.c}!app\_ctx\_t@{app\_ctx\_t}}
+\index{app\_ctx\_t@{app\_ctx\_t}!main.c@{main.c}}
+\doxysubsubsection{\texorpdfstring{app\_ctx\_t}{app\_ctx\_t}}
+{\footnotesize\ttfamily typedef struct \mbox{\hyperlink{structapp__ctx}{app\+\_\+ctx}} \mbox{\hyperlink{main_8c_ab55e65be9b61d2b1a870faad07c7fef7}{app\+\_\+ctx\+\_\+t}}}
+
+\Hypertarget{main_8c_a811873eb6001eb7af2857df2d66abb19}\label{main_8c_a811873eb6001eb7af2857df2d66abb19} 
+\index{main.c@{main.c}!app\_shared\_t@{app\_shared\_t}}
+\index{app\_shared\_t@{app\_shared\_t}!main.c@{main.c}}
+\doxysubsubsection{\texorpdfstring{app\_shared\_t}{app\_shared\_t}}
+{\footnotesize\ttfamily typedef struct \mbox{\hyperlink{structapp__shared}{app\+\_\+shared}} \mbox{\hyperlink{main_8c_a811873eb6001eb7af2857df2d66abb19}{app\+\_\+shared\+\_\+t}}}
+
+\Hypertarget{main_8c_a452ab4080871f27d881e51be71c96c49}\label{main_8c_a452ab4080871f27d881e51be71c96c49} 
+\index{main.c@{main.c}!rst\_log\_cache\_t@{rst\_log\_cache\_t}}
+\index{rst\_log\_cache\_t@{rst\_log\_cache\_t}!main.c@{main.c}}
+\doxysubsubsection{\texorpdfstring{rst\_log\_cache\_t}{rst\_log\_cache\_t}}
+{\footnotesize\ttfamily typedef struct \mbox{\hyperlink{structrst__log__cache}{rst\+\_\+log\+\_\+cache}} \mbox{\hyperlink{main_8c_a452ab4080871f27d881e51be71c96c49}{rst\+\_\+log\+\_\+cache\+\_\+t}}}
+
+
+
+\doxysubsection{Function Documentation}
+\Hypertarget{main_8c_a3c04138a5bfe5d72780bb7e82a18e627}\label{main_8c_a3c04138a5bfe5d72780bb7e82a18e627} 
+\index{main.c@{main.c}!main@{main}}
+\index{main@{main}!main.c@{main.c}}
+\doxysubsubsection{\texorpdfstring{main()}{main()}}
+{\footnotesize\ttfamily int main (\begin{DoxyParamCaption}\item[{int}]{argc,  }\item[{char \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}}]{argv }\end{DoxyParamCaption})}
+

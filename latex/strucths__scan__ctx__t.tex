@@ -1,0 +1,73 @@
+\doxysection{hs\+\_\+scan\+\_\+ctx\+\_\+t Struct Reference}
+\hypertarget{strucths__scan__ctx__t}{}\label{strucths__scan__ctx__t}\index{hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}}
+
+
+Collaboration diagram for hs\+\_\+scan\+\_\+ctx\+\_\+t\+:
+% FIG 0
+\doxysubsubsection*{Public Attributes}
+\begin{DoxyCompactItemize}
+\item 
+const \mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}} \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{strucths__scan__ctx__t_a3b3ceff5c3bf2dfce0059b965e4a6c07}{runtime}}
+\item 
+\mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}} \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{strucths__scan__ctx__t_a2df655c588c9a8b062d7952a96d3e46f}{matches}}
+\item 
+\mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}} \mbox{\hyperlink{strucths__scan__ctx__t_a76b7da7fc9ab4d3f87d217884064c49b}{ctx}}
+\item 
+int \mbox{\hyperlink{strucths__scan__ctx__t_aa1f2faaf7da89fdf6bea0711551fd88c}{matched\+\_\+any}}
+\item 
+int \mbox{\hyperlink{strucths__scan__ctx__t_a4442a9c7c4b2565c335c126788335466}{stop\+\_\+after\+\_\+first}}
+\item 
+const \mbox{\hyperlink{structIPS__Signature}{IPS\+\_\+\+Signature}} \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*} \mbox{\hyperlink{strucths__scan__ctx__t_a7a855d79918db880fa09f61c80dafe4f}{first\+\_\+rule}}
+\item 
+uint8\+\_\+t \texorpdfstring{$\ast$}{*} \mbox{\hyperlink{strucths__scan__ctx__t_ad62d2fafe8e21c8189c6e4b50ff826cd}{seen}}
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Member Data Documentation}
+\Hypertarget{strucths__scan__ctx__t_a76b7da7fc9ab4d3f87d217884064c49b}\label{strucths__scan__ctx__t_a76b7da7fc9ab4d3f87d217884064c49b} 
+\index{hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}!ctx@{ctx}}
+\index{ctx@{ctx}!hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}}
+\doxysubsubsection{\texorpdfstring{ctx}{ctx}}
+{\footnotesize\ttfamily \mbox{\hyperlink{regex_8h_a447e660c80da5734c7bbfc87bbb64e20}{ips\+\_\+context\+\_\+t}} hs\+\_\+scan\+\_\+ctx\+\_\+t\+::ctx}
+
+\Hypertarget{strucths__scan__ctx__t_a7a855d79918db880fa09f61c80dafe4f}\label{strucths__scan__ctx__t_a7a855d79918db880fa09f61c80dafe4f} 
+\index{hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}!first\_rule@{first\_rule}}
+\index{first\_rule@{first\_rule}!hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}}
+\doxysubsubsection{\texorpdfstring{first\_rule}{first\_rule}}
+{\footnotesize\ttfamily const \mbox{\hyperlink{structIPS__Signature}{IPS\+\_\+\+Signature}}\texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*} hs\+\_\+scan\+\_\+ctx\+\_\+t\+::first\+\_\+rule}
+
+\Hypertarget{strucths__scan__ctx__t_aa1f2faaf7da89fdf6bea0711551fd88c}\label{strucths__scan__ctx__t_aa1f2faaf7da89fdf6bea0711551fd88c} 
+\index{hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}!matched\_any@{matched\_any}}
+\index{matched\_any@{matched\_any}!hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}}
+\doxysubsubsection{\texorpdfstring{matched\_any}{matched\_any}}
+{\footnotesize\ttfamily int hs\+\_\+scan\+\_\+ctx\+\_\+t\+::matched\+\_\+any}
+
+\Hypertarget{strucths__scan__ctx__t_a2df655c588c9a8b062d7952a96d3e46f}\label{strucths__scan__ctx__t_a2df655c588c9a8b062d7952a96d3e46f} 
+\index{hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}!matches@{matches}}
+\index{matches@{matches}!hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}}
+\doxysubsubsection{\texorpdfstring{matches}{matches}}
+{\footnotesize\ttfamily \mbox{\hyperlink{structdetect__match__list__t}{detect\+\_\+match\+\_\+list\+\_\+t}}\texorpdfstring{$\ast$}{*} hs\+\_\+scan\+\_\+ctx\+\_\+t\+::matches}
+
+\Hypertarget{strucths__scan__ctx__t_a3b3ceff5c3bf2dfce0059b965e4a6c07}\label{strucths__scan__ctx__t_a3b3ceff5c3bf2dfce0059b965e4a6c07} 
+\index{hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}!runtime@{runtime}}
+\index{runtime@{runtime}!hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}}
+\doxysubsubsection{\texorpdfstring{runtime}{runtime}}
+{\footnotesize\ttfamily const \mbox{\hyperlink{engine_8h_a8da030ab4bf90a0fd0ed816d3ae2505d}{engine\+\_\+runtime\+\_\+t}}\texorpdfstring{$\ast$}{*} hs\+\_\+scan\+\_\+ctx\+\_\+t\+::runtime}
+
+\Hypertarget{strucths__scan__ctx__t_ad62d2fafe8e21c8189c6e4b50ff826cd}\label{strucths__scan__ctx__t_ad62d2fafe8e21c8189c6e4b50ff826cd} 
+\index{hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}!seen@{seen}}
+\index{seen@{seen}!hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}}
+\doxysubsubsection{\texorpdfstring{seen}{seen}}
+{\footnotesize\ttfamily uint8\+\_\+t\texorpdfstring{$\ast$}{*} hs\+\_\+scan\+\_\+ctx\+\_\+t\+::seen}
+
+\Hypertarget{strucths__scan__ctx__t_a4442a9c7c4b2565c335c126788335466}\label{strucths__scan__ctx__t_a4442a9c7c4b2565c335c126788335466} 
+\index{hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}!stop\_after\_first@{stop\_after\_first}}
+\index{stop\_after\_first@{stop\_after\_first}!hs\_scan\_ctx\_t@{hs\_scan\_ctx\_t}}
+\doxysubsubsection{\texorpdfstring{stop\_after\_first}{stop\_after\_first}}
+{\footnotesize\ttfamily int hs\+\_\+scan\+\_\+ctx\+\_\+t\+::stop\+\_\+after\+\_\+first}
+
+
+
+The documentation for this struct was generated from the following file\+:\begin{DoxyCompactItemize}
+\item 
+ips/src/\mbox{\hyperlink{engine_8c}{engine.\+c}}\end{DoxyCompactItemize}

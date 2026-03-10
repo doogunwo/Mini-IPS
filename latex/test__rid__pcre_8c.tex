@@ -1,0 +1,107 @@
+\doxysection{ips/tests/test\+\_\+rid\+\_\+pcre.c File Reference}
+\hypertarget{test__rid__pcre_8c}{}\label{test__rid__pcre_8c}\index{ips/tests/test\_rid\_pcre.c@{ips/tests/test\_rid\_pcre.c}}
+{\ttfamily \#include $<$ctype.\+h$>$}\newline
+{\ttfamily \#include $<$inttypes.\+h$>$}\newline
+{\ttfamily \#include $<$stdint.\+h$>$}\newline
+{\ttfamily \#include $<$stdio.\+h$>$}\newline
+{\ttfamily \#include $<$stdlib.\+h$>$}\newline
+{\ttfamily \#include $<$string.\+h$>$}\newline
+{\ttfamily \#include "{}detect.\+h"{}}\newline
+{\ttfamily \#include "{}engine.\+h"{}}\newline
+{\ttfamily \#include "{}regex.\+h"{}}\newline
+Include dependency graph for test\+\_\+rid\+\_\+pcre.\+c\+:
+% FIG 0
+\doxysubsubsection*{Classes}
+\begin{DoxyCompactItemize}
+\item 
+struct \mbox{\hyperlink{structtest__cfg__t}{test\+\_\+cfg\+\_\+t}}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Macros}
+\begin{DoxyCompactItemize}
+\item 
+\#define \mbox{\hyperlink{test__rid__pcre_8c_a8aa7a302e0160545c42054cfa6e3b743}{ERRBUF\+\_\+\+SIZE}}~256
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Enumerations}
+\begin{DoxyCompactItemize}
+\item 
+enum \mbox{\hyperlink{test__rid__pcre_8c_a7a1970015763650a7451ec5bfbf21488}{attack\+\_\+mode\+\_\+t}} \{ \mbox{\hyperlink{test__rid__pcre_8c_a7a1970015763650a7451ec5bfbf21488aceaec1947649e6a2084d4963cfdb22f9}{MODE\+\_\+\+URL}} = 0
+, \mbox{\hyperlink{test__rid__pcre_8c_a7a1970015763650a7451ec5bfbf21488a7366404d8b9c717e12befb4f996f1eeb}{MODE\+\_\+\+BODY}}
+, \mbox{\hyperlink{test__rid__pcre_8c_a7a1970015763650a7451ec5bfbf21488aa9784e0d21292a82c034f645d382dd6d}{MODE\+\_\+\+HEADER}}
+ \}
+\item 
+enum \mbox{\hyperlink{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149}{payload\+\_\+kind\+\_\+t}} \{ \mbox{\hyperlink{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149a15478268302d585e963c92fbef37b400}{PAYLOAD\+\_\+\+SQLI}} = 0
+, \mbox{\hyperlink{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149a2f0b3811f50c4ae73152dafe3fc7b235}{PAYLOAD\+\_\+\+XSS}}
+, \mbox{\hyperlink{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149a3466421a65c0769cb5476215acbfefb7}{PAYLOAD\+\_\+\+REDOS}}
+, \mbox{\hyperlink{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149a43f23f75c713acda76e64be2b5e86a81}{PAYLOAD\+\_\+\+RCE}}
+ \}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+int \mbox{\hyperlink{test__rid__pcre_8c_a3c04138a5bfe5d72780bb7e82a18e627}{main}} (int argc, char \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}argv)
+\end{DoxyCompactItemize}
+
+
+\doxysubsection{Macro Definition Documentation}
+\Hypertarget{test__rid__pcre_8c_a8aa7a302e0160545c42054cfa6e3b743}\label{test__rid__pcre_8c_a8aa7a302e0160545c42054cfa6e3b743} 
+\index{test\_rid\_pcre.c@{test\_rid\_pcre.c}!ERRBUF\_SIZE@{ERRBUF\_SIZE}}
+\index{ERRBUF\_SIZE@{ERRBUF\_SIZE}!test\_rid\_pcre.c@{test\_rid\_pcre.c}}
+\doxysubsubsection{\texorpdfstring{ERRBUF\_SIZE}{ERRBUF\_SIZE}}
+{\footnotesize\ttfamily \#define ERRBUF\+\_\+\+SIZE~256}
+
+
+
+\doxysubsection{Enumeration Type Documentation}
+\Hypertarget{test__rid__pcre_8c_a7a1970015763650a7451ec5bfbf21488}\label{test__rid__pcre_8c_a7a1970015763650a7451ec5bfbf21488} 
+\index{test\_rid\_pcre.c@{test\_rid\_pcre.c}!attack\_mode\_t@{attack\_mode\_t}}
+\index{attack\_mode\_t@{attack\_mode\_t}!test\_rid\_pcre.c@{test\_rid\_pcre.c}}
+\doxysubsubsection{\texorpdfstring{attack\_mode\_t}{attack\_mode\_t}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{test__rid__pcre_8c_a7a1970015763650a7451ec5bfbf21488}{attack\+\_\+mode\+\_\+t}}}
+
+\begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{MODE\_URL@{MODE\_URL}!test\_rid\_pcre.c@{test\_rid\_pcre.c}}\index{test\_rid\_pcre.c@{test\_rid\_pcre.c}!MODE\_URL@{MODE\_URL}}}\Hypertarget{test__rid__pcre_8c_a7a1970015763650a7451ec5bfbf21488aceaec1947649e6a2084d4963cfdb22f9}\label{test__rid__pcre_8c_a7a1970015763650a7451ec5bfbf21488aceaec1947649e6a2084d4963cfdb22f9} 
+MODE\+\_\+\+URL&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{MODE\_BODY@{MODE\_BODY}!test\_rid\_pcre.c@{test\_rid\_pcre.c}}\index{test\_rid\_pcre.c@{test\_rid\_pcre.c}!MODE\_BODY@{MODE\_BODY}}}\Hypertarget{test__rid__pcre_8c_a7a1970015763650a7451ec5bfbf21488a7366404d8b9c717e12befb4f996f1eeb}\label{test__rid__pcre_8c_a7a1970015763650a7451ec5bfbf21488a7366404d8b9c717e12befb4f996f1eeb} 
+MODE\+\_\+\+BODY&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{MODE\_HEADER@{MODE\_HEADER}!test\_rid\_pcre.c@{test\_rid\_pcre.c}}\index{test\_rid\_pcre.c@{test\_rid\_pcre.c}!MODE\_HEADER@{MODE\_HEADER}}}\Hypertarget{test__rid__pcre_8c_a7a1970015763650a7451ec5bfbf21488aa9784e0d21292a82c034f645d382dd6d}\label{test__rid__pcre_8c_a7a1970015763650a7451ec5bfbf21488aa9784e0d21292a82c034f645d382dd6d} 
+MODE\+\_\+\+HEADER&\\
+\hline
+
+\end{DoxyEnumFields}
+\Hypertarget{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149}\label{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149} 
+\index{test\_rid\_pcre.c@{test\_rid\_pcre.c}!payload\_kind\_t@{payload\_kind\_t}}
+\index{payload\_kind\_t@{payload\_kind\_t}!test\_rid\_pcre.c@{test\_rid\_pcre.c}}
+\doxysubsubsection{\texorpdfstring{payload\_kind\_t}{payload\_kind\_t}}
+{\footnotesize\ttfamily enum \mbox{\hyperlink{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149}{payload\+\_\+kind\+\_\+t}}}
+
+\begin{DoxyEnumFields}{Enumerator}
+\raisebox{\heightof{T}}[0pt][0pt]{\index{PAYLOAD\_SQLI@{PAYLOAD\_SQLI}!test\_rid\_pcre.c@{test\_rid\_pcre.c}}\index{test\_rid\_pcre.c@{test\_rid\_pcre.c}!PAYLOAD\_SQLI@{PAYLOAD\_SQLI}}}\Hypertarget{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149a15478268302d585e963c92fbef37b400}\label{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149a15478268302d585e963c92fbef37b400} 
+PAYLOAD\+\_\+\+SQLI&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{PAYLOAD\_XSS@{PAYLOAD\_XSS}!test\_rid\_pcre.c@{test\_rid\_pcre.c}}\index{test\_rid\_pcre.c@{test\_rid\_pcre.c}!PAYLOAD\_XSS@{PAYLOAD\_XSS}}}\Hypertarget{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149a2f0b3811f50c4ae73152dafe3fc7b235}\label{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149a2f0b3811f50c4ae73152dafe3fc7b235} 
+PAYLOAD\+\_\+\+XSS&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{PAYLOAD\_REDOS@{PAYLOAD\_REDOS}!test\_rid\_pcre.c@{test\_rid\_pcre.c}}\index{test\_rid\_pcre.c@{test\_rid\_pcre.c}!PAYLOAD\_REDOS@{PAYLOAD\_REDOS}}}\Hypertarget{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149a3466421a65c0769cb5476215acbfefb7}\label{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149a3466421a65c0769cb5476215acbfefb7} 
+PAYLOAD\+\_\+\+REDOS&\\
+\hline
+
+\raisebox{\heightof{T}}[0pt][0pt]{\index{PAYLOAD\_RCE@{PAYLOAD\_RCE}!test\_rid\_pcre.c@{test\_rid\_pcre.c}}\index{test\_rid\_pcre.c@{test\_rid\_pcre.c}!PAYLOAD\_RCE@{PAYLOAD\_RCE}}}\Hypertarget{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149a43f23f75c713acda76e64be2b5e86a81}\label{test__rid__pcre_8c_a0dcefc9d756757cb728bb3a9c83fe149a43f23f75c713acda76e64be2b5e86a81} 
+PAYLOAD\+\_\+\+RCE&\\
+\hline
+
+\end{DoxyEnumFields}
+
+
+\doxysubsection{Function Documentation}
+\Hypertarget{test__rid__pcre_8c_a3c04138a5bfe5d72780bb7e82a18e627}\label{test__rid__pcre_8c_a3c04138a5bfe5d72780bb7e82a18e627} 
+\index{test\_rid\_pcre.c@{test\_rid\_pcre.c}!main@{main}}
+\index{main@{main}!test\_rid\_pcre.c@{test\_rid\_pcre.c}}
+\doxysubsubsection{\texorpdfstring{main()}{main()}}
+{\footnotesize\ttfamily int main (\begin{DoxyParamCaption}\item[{int}]{argc,  }\item[{char \texorpdfstring{$\ast$}{*}\texorpdfstring{$\ast$}{*}}]{argv }\end{DoxyParamCaption})}
+

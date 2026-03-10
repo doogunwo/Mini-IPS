@@ -22,14 +22,23 @@ typedef struct {
     const IPS_Signature *rule;
     pcre *re;
     pcre_extra *extra;
-    hs_database_t *hs_db;
 } compiled_rule_t;
 
 typedef struct {
-    int matched;
-    unsigned long long from;
-    unsigned long long to;
-} hs_match_ctx_t;
+    hs_database_t *db;
+    unsigned int *rule_indexes;
+    unsigned int rule_count;
+} hs_group_t;
+
+typedef struct {
+    const engine_runtime_t *runtime;
+    detect_match_list_t *matches;
+    ips_context_t ctx;
+    int matched_any;
+    int stop_after_first;
+    const IPS_Signature **first_rule;
+    uint8_t *seen;
+} hs_scan_ctx_t;
 
 struct engine_runtime {
     compiled_rule_t *compiled_rules;
@@ -38,6 +47,7 @@ struct engine_runtime {
     int jit_enabled;
     pcre_jit_stack *jit_stack;
     hs_scratch_t *hs_scratch;
+    hs_group_t hs_groups[IPS_CTX_RESPONSE_BODY + 1];
 };
 
 static regex_backend_t g_selected_backend = REGEX_BACKEND_PCRE;
@@ -146,8 +156,9 @@ static void pcre_release(engine_runtime_t *runtime)
 static void hs_release(engine_runtime_t *runtime)
 {
     unsigned int i;
+    unsigned int ctx;
 
-    if (runtime == NULL || runtime->compiled_rules == NULL) {
+    if (runtime == NULL) {
         return;
     }
 
@@ -156,10 +167,22 @@ static void hs_release(engine_runtime_t *runtime)
         runtime->hs_scratch = NULL;
     }
 
+    for (ctx = 0; ctx <= (unsigned int)IPS_CTX_RESPONSE_BODY; ctx++) {
+        if (runtime->hs_groups[ctx].db != NULL) {
+            hs_free_database(runtime->hs_groups[ctx].db);
+            runtime->hs_groups[ctx].db = NULL;
+        }
+        free(runtime->hs_groups[ctx].rule_indexes);
+        runtime->hs_groups[ctx].rule_indexes = NULL;
+        runtime->hs_groups[ctx].rule_count = 0;
+    }
+
     for (i = 0; i < runtime->compiled_count; i++) {
-        if (runtime->compiled_rules[i].hs_db != NULL) {
-            hs_free_database(runtime->compiled_rules[i].hs_db);
-            runtime->compiled_rules[i].hs_db = NULL;
+        if (runtime->compiled_rules[i].re != NULL) {
+            runtime->compiled_rules[i].re = NULL;
+        }
+        if (runtime->compiled_rules[i].extra != NULL) {
+            runtime->compiled_rules[i].extra = NULL;
         }
     }
 }
@@ -171,19 +194,56 @@ static int hs_on_match(
     unsigned int flags,
     void *ctx)
 {
-    hs_match_ctx_t *match_ctx = (hs_match_ctx_t *)ctx;
+    hs_scan_ctx_t *scan_ctx = (hs_scan_ctx_t *)ctx;
+    const IPS_Signature *rule;
+    const compiled_rule_t *compiled_rule;
+    unsigned int rule_index;
 
-    (void)id;
     (void)flags;
+    (void)from;
 
-    if (match_ctx == NULL) {
+    if (scan_ctx == NULL || scan_ctx->runtime == NULL) {
         return 1;
     }
 
-    match_ctx->matched = 1;
-    match_ctx->from = from;
-    match_ctx->to = to;
-    return 1;
+    if (id >= scan_ctx->runtime->compiled_count) {
+        return 1;
+    }
+
+    rule_index = id;
+    if (scan_ctx->seen != NULL && scan_ctx->seen[rule_index]) {
+        return 0;
+    }
+
+    compiled_rule = &scan_ctx->runtime->compiled_rules[rule_index];
+    rule = compiled_rule->rule;
+    if (rule == NULL) {
+        return 0;
+    }
+
+    scan_ctx->matched_any = 1;
+    if (scan_ctx->seen != NULL) {
+        scan_ctx->seen[rule_index] = 1;
+    }
+
+    if (scan_ctx->first_rule != NULL && *scan_ctx->first_rule == NULL) {
+        *scan_ctx->first_rule = rule;
+    }
+
+    if (scan_ctx->matches != NULL) {
+        size_t match_len = (size_t)to;
+        if (match_len > 0 && detect_match_list_append_local(
+                scan_ctx->matches,
+                rule,
+                scan_ctx->ctx,
+                "",
+                0,
+                0) != 0) {
+            return 1;
+        }
+    }
+
+    return scan_ctx->stop_after_first ? 1 : 0;
 }
 
 static int compile_pcre_rule(
@@ -255,26 +315,82 @@ static int compile_pcre_rule(
     return 0;
 }
 
-static int compile_hs_rule(
-    compiled_rule_t *slot,
-    const IPS_Signature *rule,
-    hs_scratch_t **scratch,
+static int compile_hs_group(
+    engine_runtime_t *runtime,
+    hs_group_t *group,
+    unsigned int ctx,
     char *errbuf,
     size_t errbuf_size)
 {
+    const char **patterns = NULL;
+    unsigned int *flags = NULL;
+    unsigned int *ids = NULL;
     hs_compile_error_t *compile_err = NULL;
     hs_error_t rc;
+    unsigned int count = 0;
+    unsigned int i;
 
-    rc = hs_compile(rule->pattern,
-        0,
+    for (i = 0; i < runtime->compiled_count; i++) {
+        if (!rule_context_matches(runtime->compiled_rules[i].rule, (ips_context_t)ctx)) {
+            continue;
+        }
+        if (runtime->compiled_rules[i].rule == NULL || runtime->compiled_rules[i].rule->op != IPS_OP_RX) {
+            continue;
+        }
+        count++;
+    }
+
+    if (count == 0) {
+        return 0;
+    }
+
+    patterns = (const char **)calloc(count, sizeof(*patterns));
+    flags = (unsigned int *)calloc(count, sizeof(*flags));
+    ids = (unsigned int *)calloc(count, sizeof(*ids));
+    group->rule_indexes = (unsigned int *)calloc(count, sizeof(*group->rule_indexes));
+    if (patterns == NULL || flags == NULL || ids == NULL || group->rule_indexes == NULL) {
+        free(patterns);
+        free(flags);
+        free(ids);
+        free(group->rule_indexes);
+        group->rule_indexes = NULL;
+        set_err(errbuf, errbuf_size, "hs group alloc failed");
+        return -1;
+    }
+
+    count = 0;
+    for (i = 0; i < runtime->compiled_count; i++) {
+        if (!rule_context_matches(runtime->compiled_rules[i].rule, (ips_context_t)ctx)) {
+            continue;
+        }
+        if (runtime->compiled_rules[i].rule == NULL || runtime->compiled_rules[i].rule->op != IPS_OP_RX) {
+            continue;
+        }
+        patterns[count] = runtime->compiled_rules[i].rule->pattern;
+        flags[count] = 0;
+        ids[count] = i;
+        group->rule_indexes[count] = i;
+        count++;
+    }
+
+    group->rule_count = count;
+
+    rc = hs_compile_multi(patterns,
+        flags,
+        ids,
+        count,
         HS_MODE_BLOCK,
         NULL,
-        &slot->hs_db,
+        &group->db,
         &compile_err);
+    free(patterns);
+    free(flags);
+    free(ids);
+
     if (rc != HS_SUCCESS) {
         char msg[256];
-        snprintf(msg, sizeof(msg), "hs_compile failed: rid=%d err=%s",
-            rule->rule_id,
+        snprintf(msg, sizeof(msg), "hs_compile_multi failed: ctx=%u err=%s",
+            ctx,
             (compile_err != NULL && compile_err->message != NULL) ? compile_err->message : "unknown");
         set_err(errbuf, errbuf_size, msg);
         if (compile_err != NULL) {
@@ -287,7 +403,7 @@ static int compile_hs_rule(
         hs_free_compile_error(compile_err);
     }
 
-    rc = hs_alloc_scratch(slot->hs_db, scratch);
+    rc = hs_alloc_scratch(group->db, &runtime->hs_scratch);
     if (rc != HS_SUCCESS) {
         set_err(errbuf, errbuf_size, "hs_alloc_scratch failed");
         return -1;
@@ -327,13 +443,17 @@ engine_runtime_t *engine_runtime_create(
             continue;
         }
 
-        if (runtime->backend == REGEX_BACKEND_HS) {
-            if (compile_hs_rule(&runtime->compiled_rules[i], rules[i], &runtime->hs_scratch, errbuf, errbuf_size) != 0) {
+        if (runtime->backend != REGEX_BACKEND_HS) {
+            if (compile_pcre_rule(runtime, &runtime->compiled_rules[i], rules[i], jit_mode, errbuf, errbuf_size) != 0) {
                 engine_runtime_destroy(runtime);
                 return NULL;
             }
-        } else {
-            if (compile_pcre_rule(runtime, &runtime->compiled_rules[i], rules[i], jit_mode, errbuf, errbuf_size) != 0) {
+        }
+    }
+
+    if (runtime->backend == REGEX_BACKEND_HS) {
+        for (i = 0; i <= (unsigned int)IPS_CTX_RESPONSE_BODY; i++) {
+            if (compile_hs_group(runtime, &runtime->hs_groups[i], i, errbuf, errbuf_size) != 0) {
                 engine_runtime_destroy(runtime);
                 return NULL;
             }
@@ -474,41 +594,52 @@ static int engine_match_pcre(
 
 static int engine_match_hs(
     engine_runtime_t *runtime,
-    const compiled_rule_t *compiled_rule,
+    ips_context_t ctx,
     const uint8_t *data,
     size_t len,
     size_t *match_off,
     size_t *match_len,
+    const IPS_Signature **matched_rule,
     char *errbuf,
     size_t errbuf_size)
 {
-    hs_match_ctx_t ctx;
+    hs_scan_ctx_t scan_ctx;
+    hs_group_t *group;
     hs_error_t rc;
 
-    memset(&ctx, 0, sizeof(ctx));
-    rc = hs_scan(compiled_rule->hs_db,
+    if (ctx < IPS_CTX_ALL || ctx > IPS_CTX_RESPONSE_BODY) {
+        set_err(errbuf, errbuf_size, "invalid hs ctx");
+        return -1;
+    }
+
+    group = &runtime->hs_groups[ctx];
+    if (group->db == NULL) {
+        return 0;
+    }
+
+    memset(&scan_ctx, 0, sizeof(scan_ctx));
+    scan_ctx.runtime = runtime;
+    scan_ctx.ctx = ctx;
+    scan_ctx.stop_after_first = 1;
+    scan_ctx.first_rule = matched_rule;
+
+    rc = hs_scan(group->db,
         (const char *)data,
         (unsigned int)len,
         0,
         runtime->hs_scratch,
         hs_on_match,
-        &ctx);
+        &scan_ctx);
     if (rc != HS_SUCCESS && rc != HS_SCAN_TERMINATED) {
         set_err(errbuf, errbuf_size, "hs_scan error");
         return -1;
     }
-    if (!ctx.matched) {
+    if (!scan_ctx.matched_any) {
         return 0;
     }
 
     *match_off = 0;
-    *match_len = (size_t)ctx.to;
-    if (*match_off > len) {
-        *match_off = 0;
-    }
-    if (*match_off + *match_len > len) {
-        *match_len = 0;
-    }
+    *match_len = 0;
     return 1;
 }
 
@@ -519,11 +650,12 @@ static int engine_match_one(
     size_t len,
     size_t *match_off,
     size_t *match_len,
+    const IPS_Signature **matched_rule,
     char *errbuf,
     size_t errbuf_size)
 {
     if (runtime->backend == REGEX_BACKEND_HS) {
-        return engine_match_hs(runtime, compiled_rule, data, len, match_off, match_len, errbuf, errbuf_size);
+        return engine_match_hs(runtime, compiled_rule->rule != NULL ? compiled_rule->rule->context : IPS_CTX_ALL, data, len, match_off, match_len, matched_rule, errbuf, errbuf_size);
     }
     return engine_match_pcre(compiled_rule, data, len, match_off, match_len, errbuf, errbuf_size);
 }
@@ -550,6 +682,16 @@ int engine_runtime_match_first(
         return -1;
     }
 
+    if (runtime->backend == REGEX_BACKEND_HS) {
+        size_t match_off = 0;
+        size_t match_len = 0;
+        unsigned long long t0 = mono_us_now();
+        int rc = engine_match_hs(runtime, ctx, data, len, &match_off, &match_len, matched_rule, errbuf, errbuf_size);
+
+        maybe_log_rule_profile(NULL, ctx, len, mono_us_now() - t0, rc);
+        return rc;
+    }
+
     for (i = 0; i < runtime->compiled_count; i++) {
         size_t match_off = 0;
         size_t match_len = 0;
@@ -564,7 +706,7 @@ int engine_runtime_match_first(
 
         {
             unsigned long long t0 = mono_us_now();
-            rc = engine_match_one(runtime, &runtime->compiled_rules[i], data, len, &match_off, &match_len, errbuf, errbuf_size);
+            rc = engine_match_one(runtime, &runtime->compiled_rules[i], data, len, &match_off, &match_len, matched_rule, errbuf, errbuf_size);
             maybe_log_rule_profile(&runtime->compiled_rules[i], ctx, len, mono_us_now() - t0, rc);
         }
         if (rc < 0) {
@@ -630,6 +772,64 @@ int engine_runtime_collect_matches_timed(
         return -1;
     }
 
+    if (runtime->backend == REGEX_BACKEND_HS) {
+        hs_group_t *group;
+        hs_scan_ctx_t scan_ctx;
+        uint64_t elapsed_us = 0;
+        unsigned long long t0;
+        uint8_t *seen;
+        hs_error_t rc_hs;
+
+        if (ctx < IPS_CTX_ALL || ctx > IPS_CTX_RESPONSE_BODY) {
+            set_err(errbuf, errbuf_size, "invalid hs ctx");
+            return -1;
+        }
+        group = &runtime->hs_groups[ctx];
+        if (group->db == NULL) {
+            return 0;
+        }
+
+        seen = (uint8_t *)calloc(runtime->compiled_count, 1);
+        if (seen == NULL) {
+            set_err(errbuf, errbuf_size, "hs seen alloc failed");
+            return -1;
+        }
+
+        memset(&scan_ctx, 0, sizeof(scan_ctx));
+        scan_ctx.runtime = runtime;
+        scan_ctx.matches = matches;
+        scan_ctx.ctx = ctx;
+        scan_ctx.seen = seen;
+
+        t0 = mono_us_now();
+        rc_hs = hs_scan(group->db,
+            (const char *)data,
+            (unsigned int)len,
+            0,
+            runtime->hs_scratch,
+            hs_on_match,
+            &scan_ctx);
+        elapsed_us = (uint64_t)(mono_us_now() - t0);
+        free(seen);
+
+        if (elapsed_us_sum != NULL) {
+            *elapsed_us_sum += elapsed_us;
+        }
+        if (rc_hs != HS_SUCCESS && rc_hs != HS_SCAN_TERMINATED) {
+            set_err(errbuf, errbuf_size, "hs_scan error");
+            return -1;
+        }
+        if (!scan_ctx.matched_any) {
+            return 0;
+        }
+        for (i = 0; i < matches->count; i++) {
+            if (matches->items[i].elapsed_us == 0 && matches->items[i].context == ctx) {
+                matches->items[i].elapsed_us = elapsed_us;
+            }
+        }
+        return 1;
+    }
+
     for (i = 0; i < runtime->compiled_count; i++) {
         size_t match_off = 0;
         size_t match_len = 0;
@@ -645,7 +845,7 @@ int engine_runtime_collect_matches_timed(
 
         {
             unsigned long long t0 = mono_us_now();
-            rc = engine_match_one(runtime, &runtime->compiled_rules[i], data, len, &match_off, &match_len, errbuf, errbuf_size);
+            rc = engine_match_one(runtime, &runtime->compiled_rules[i], data, len, &match_off, &match_len, NULL, errbuf, errbuf_size);
             elapsed_us = (uint64_t)(mono_us_now() - t0);
             maybe_log_rule_profile(&runtime->compiled_rules[i], ctx, len, elapsed_us, rc);
             if (elapsed_us_sum != NULL) {

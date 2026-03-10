@@ -1,0 +1,36 @@
+\doxysection{ips/\+DB/web.py File Reference}
+\hypertarget{web_8py}{}\label{web_8py}\index{ips/DB/web.py@{ips/DB/web.py}}
+\doxysubsubsection*{Namespaces}
+\begin{DoxyCompactItemize}
+\item 
+namespace \mbox{\hyperlink{namespaceweb}{web}}
+\end{DoxyCompactItemize}
+\doxysubsubsection*{Functions}
+\begin{DoxyCompactItemize}
+\item 
+sqlite3.\+Connection \mbox{\hyperlink{namespaceweb_a425d932c00cd55ca03ddf702b0c8b3e8}{web.\+db\+\_\+connect}} (pathlib.\+Path db\+\_\+file)
+\item 
+dict\mbox{[}str, int\mbox{]} \mbox{\hyperlink{namespaceweb_a49a2f55509bf0740d4602c2d86097830}{web.\+fetch\+\_\+summary}} (sqlite3.\+Connection conn)
+\item 
+dict\mbox{[}str, object\mbox{]} \mbox{\hyperlink{namespaceweb_aba79742c051e0debd69129d42836542d}{web.\+fetch\+\_\+overview}} (sqlite3.\+Connection conn)
+\item 
+\mbox{\hyperlink{namespaceweb_afcada34842d97cd0a211244e14d515c9}{web.\+fetch\+\_\+events}} (sqlite3.\+Connection conn, Optional\mbox{[}str\mbox{]} event, Optional\mbox{[}str\mbox{]} q, int limit)
+\item 
+str \mbox{\hyperlink{namespaceweb_afa122d3cf43a6bb116911fc04ea55f11}{web.\+event\+\_\+tone}} (str event, str level)
+\item 
+tuple\mbox{[}str, str\mbox{]} \mbox{\hyperlink{namespaceweb_a8a2d59a465ad1dd2a317e23048cf7944}{web.\+format\+\_\+timestamp\+\_\+parts}} (Optional\mbox{[}str\mbox{]} ts)
+\item 
+list\mbox{[}str\mbox{]} \mbox{\hyperlink{namespaceweb_a683ccea4e6e15ae8d3454b075e1f143e}{web.\+split\+\_\+serialized}} (Optional\mbox{[}str\mbox{]} value)
+\item 
+tuple\mbox{[}str, str\mbox{]} \mbox{\hyperlink{namespaceweb_ac3945fb232458a3bc4e9c31465bb0354}{web.\+parse\+\_\+rule\+\_\+entry}} (str entry)
+\item 
+tuple\mbox{[}str, str\mbox{]} \mbox{\hyperlink{namespaceweb_a45d6d0132172f5bbd6360445f18cd45f}{web.\+parse\+\_\+text\+\_\+entry}} (str entry)
+\item 
+str \mbox{\hyperlink{namespaceweb_a5975432a280be643b623e7669d9d4388}{web.\+render\+\_\+detail\+\_\+html}} (sqlite3.\+Row row)
+\item 
+bytes \mbox{\hyperlink{namespaceweb_a4b6e0f65cf07a378a48211d629e08f9c}{web.\+render\+\_\+page}} (overview, summary, rows, Optional\mbox{[}str\mbox{]} selected\+\_\+event, Optional\mbox{[}str\mbox{]} query, int limit)
+\item 
+\mbox{\hyperlink{namespaceweb_a0fe495a30b75e5b6d7ff2657b6ecd17a}{web.\+make\+\_\+handler}} (pathlib.\+Path db\+\_\+file)
+\item 
+int \mbox{\hyperlink{namespaceweb_ad2946c56b079a42648bb5cf60110f544}{web.\+main}} ()
+\end{DoxyCompactItemize}
