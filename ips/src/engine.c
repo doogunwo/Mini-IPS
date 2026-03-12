@@ -1,27 +1,28 @@
 /**
  * @file engine.c
- * @brief PCRE/HS 정규식 백엔드 래퍼 구현
+ * @brief PCRE2/HS 정규식 백엔드 래퍼 구현
  */
 #define _DEFAULT_SOURCE
 #include "engine.h"
 
+#define PCRE2_CODE_UNIT_WIDTH 8
 #include <hs/hs.h>
 #include <limits.h>
-#include <pcre.h>
+#include <pcre2.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
 typedef enum {
-    REGEX_BACKEND_PCRE = 0,
+    REGEX_BACKEND_PCRE2 = 0,
     REGEX_BACKEND_HS
 } regex_backend_t;
 
 typedef struct {
     const IPS_Signature *rule;
-    pcre *re;
-    pcre_extra *extra;
+    pcre2_code *re;
+    pcre2_match_data *match_data;
 } compiled_rule_t;
 
 typedef struct {
@@ -34,6 +35,8 @@ typedef struct {
     const engine_runtime_t *runtime;
     detect_match_list_t *matches;
     ips_context_t ctx;
+    const uint8_t *data;
+    size_t data_len;
     int matched_any;
     int stop_after_first;
     const IPS_Signature **first_rule;
@@ -45,12 +48,13 @@ struct engine_runtime {
     unsigned int compiled_count;
     regex_backend_t backend;
     int jit_enabled;
-    pcre_jit_stack *jit_stack;
+    pcre2_jit_stack *jit_stack;
+    pcre2_match_context *match_ctx;
     hs_scratch_t *hs_scratch;
     hs_group_t hs_groups[IPS_CTX_RESPONSE_BODY + 1];
 };
 
-static regex_backend_t g_selected_backend = REGEX_BACKEND_PCRE;
+static regex_backend_t g_selected_backend = REGEX_BACKEND_PCRE2;
 
 static void set_err(char *errbuf, size_t errbuf_size, const char *msg)
 {
@@ -116,8 +120,8 @@ static int rule_context_matches(const IPS_Signature *rule, ips_context_t ctx)
 
 int engine_set_backend_name(const char *name, char *errbuf, size_t errbuf_size)
 {
-    if (name == NULL || strcmp(name, "pcre") == 0) {
-        g_selected_backend = REGEX_BACKEND_PCRE;
+    if (name == NULL || strcmp(name, "pcre2") == 0 || strcmp(name, "pcre") == 0) {
+        g_selected_backend = REGEX_BACKEND_PCRE2;
         return 0;
     }
     if (strcmp(name, "hs") == 0) {
@@ -128,7 +132,7 @@ int engine_set_backend_name(const char *name, char *errbuf, size_t errbuf_size)
     return -1;
 }
 
-static void pcre_release(engine_runtime_t *runtime)
+static void pcre2_release(engine_runtime_t *runtime)
 {
     unsigned int i;
 
@@ -137,17 +141,21 @@ static void pcre_release(engine_runtime_t *runtime)
     }
 
     if (runtime->jit_stack != NULL) {
-        pcre_jit_stack_free(runtime->jit_stack);
+        pcre2_jit_stack_free(runtime->jit_stack);
         runtime->jit_stack = NULL;
+    }
+    if (runtime->match_ctx != NULL) {
+        pcre2_match_context_free(runtime->match_ctx);
+        runtime->match_ctx = NULL;
     }
 
     for (i = 0; i < runtime->compiled_count; i++) {
-        if (runtime->compiled_rules[i].extra != NULL) {
-            pcre_free_study(runtime->compiled_rules[i].extra);
-            runtime->compiled_rules[i].extra = NULL;
+        if (runtime->compiled_rules[i].match_data != NULL) {
+            pcre2_match_data_free(runtime->compiled_rules[i].match_data);
+            runtime->compiled_rules[i].match_data = NULL;
         }
         if (runtime->compiled_rules[i].re != NULL) {
-            pcre_free(runtime->compiled_rules[i].re);
+            pcre2_code_free(runtime->compiled_rules[i].re);
             runtime->compiled_rules[i].re = NULL;
         }
     }
@@ -181,8 +189,8 @@ static void hs_release(engine_runtime_t *runtime)
         if (runtime->compiled_rules[i].re != NULL) {
             runtime->compiled_rules[i].re = NULL;
         }
-        if (runtime->compiled_rules[i].extra != NULL) {
-            runtime->compiled_rules[i].extra = NULL;
+        if (runtime->compiled_rules[i].match_data != NULL) {
+            runtime->compiled_rules[i].match_data = NULL;
         }
     }
 }
@@ -198,9 +206,10 @@ static int hs_on_match(
     const IPS_Signature *rule;
     const compiled_rule_t *compiled_rule;
     unsigned int rule_index;
+    size_t match_off;
+    size_t match_len;
 
     (void)flags;
-    (void)from;
 
     if (scan_ctx == NULL || scan_ctx->runtime == NULL) {
         return 1;
@@ -231,13 +240,21 @@ static int hs_on_match(
     }
 
     if (scan_ctx->matches != NULL) {
-        size_t match_len = (size_t)to;
-        if (match_len > 0 && detect_match_list_append_local(
+        match_off = (size_t)from;
+        match_len = (size_t)(to >= from ? (to - from) : 0);
+        if (match_off > scan_ctx->data_len) {
+            match_off = scan_ctx->data_len;
+            match_len = 0;
+        }
+        if (match_off + match_len > scan_ctx->data_len) {
+            match_len = scan_ctx->data_len - match_off;
+        }
+        if (detect_match_list_append_local(
                 scan_ctx->matches,
                 rule,
                 scan_ctx->ctx,
-                "",
-                0,
+                (const char *)scan_ctx->data + match_off,
+                match_len,
                 0) != 0) {
             return 1;
         }
@@ -246,7 +263,7 @@ static int hs_on_match(
     return scan_ctx->stop_after_first ? 1 : 0;
 }
 
-static int compile_pcre_rule(
+static int compile_pcre2_rule(
     engine_runtime_t *runtime,
     compiled_rule_t *slot,
     const IPS_Signature *rule,
@@ -254,19 +271,20 @@ static int compile_pcre_rule(
     char *errbuf,
     size_t errbuf_size)
 {
-    const char *err = NULL;
-    const char *study_err = NULL;
-    int erroffset = 0;
-    int jit_cfg = 0;
+    int errcode = 0;
+    PCRE2_SIZE erroffset = 0;
+    uint32_t jit_cfg = 0;
     int rc_cfg;
-    int jit_info = 0;
+    int jit_rc;
+    size_t jit_size = 0;
+    PCRE2_UCHAR errstr[256];
 
-    rc_cfg = pcre_config(PCRE_CONFIG_JIT, &jit_cfg);
+    rc_cfg = pcre2_config(PCRE2_CONFIG_JIT, &jit_cfg);
     if (jit_mode == DETECT_JIT_OFF) {
         runtime->jit_enabled = 0;
     } else if (jit_mode == DETECT_JIT_ON) {
         if (!(rc_cfg == 0 && jit_cfg == 1)) {
-            set_err(errbuf, errbuf_size, "requested -jit=on but PCRE JIT is unavailable");
+            set_err(errbuf, errbuf_size, "requested -jit=on but PCRE2 JIT is unavailable");
             return -1;
         }
         runtime->jit_enabled = 1;
@@ -274,12 +292,24 @@ static int compile_pcre_rule(
         runtime->jit_enabled = (rc_cfg == 0 && jit_cfg == 1) ? 1 : 0;
     }
 
-    slot->re = pcre_compile(rule->pattern, PCRE_CASELESS, &err, &erroffset, NULL);
+    slot->re = pcre2_compile((PCRE2_SPTR)rule->pattern,
+                             PCRE2_ZERO_TERMINATED,
+                             PCRE2_CASELESS,
+                             &errcode,
+                             &erroffset,
+                             NULL);
     if (slot->re == NULL) {
         char msg[256];
-        snprintf(msg, sizeof(msg), "pcre_compile failed: rid=%d offset=%d err=%s",
-            rule->rule_id, erroffset, err != NULL ? err : "unknown");
+        pcre2_get_error_message(errcode, errstr, sizeof(errstr));
+        snprintf(msg, sizeof(msg), "pcre2_compile failed: rid=%d offset=%zu err=%.160s",
+            rule->rule_id, (size_t)erroffset, (char *)errstr);
         set_err(errbuf, errbuf_size, msg);
+        return -1;
+    }
+
+    slot->match_data = pcre2_match_data_create_from_pattern(slot->re, NULL);
+    if (slot->match_data == NULL) {
+        set_err(errbuf, errbuf_size, "pcre2_match_data_create_from_pattern failed");
         return -1;
     }
 
@@ -287,12 +317,13 @@ static int compile_pcre_rule(
         return 0;
     }
 
-    slot->extra = pcre_study(slot->re, PCRE_STUDY_JIT_COMPILE, &study_err);
-    if (study_err != NULL) {
+    jit_rc = pcre2_jit_compile(slot->re, PCRE2_JIT_COMPLETE);
+    if (jit_rc != 0) {
         if (jit_mode == DETECT_JIT_ON) {
             char msg[256];
-            snprintf(msg, sizeof(msg), "pcre_study(JIT) failed: rid=%d err=%s",
-                rule->rule_id, study_err);
+            pcre2_get_error_message(jit_rc, errstr, sizeof(errstr));
+            snprintf(msg, sizeof(msg), "pcre2_jit_compile failed: rid=%d err=%.180s",
+                rule->rule_id, (char *)errstr);
             set_err(errbuf, errbuf_size, msg);
             return -1;
         }
@@ -300,12 +331,11 @@ static int compile_pcre_rule(
         return 0;
     }
 
-    if (slot->extra == NULL ||
-        pcre_fullinfo(slot->re, slot->extra, PCRE_INFO_JIT, &jit_info) != 0 ||
-        jit_info != 1) {
+    if (pcre2_pattern_info(slot->re, PCRE2_INFO_JITSIZE, &jit_size) != 0 ||
+        jit_size == 0) {
         if (jit_mode == DETECT_JIT_ON) {
             char msg[256];
-            snprintf(msg, sizeof(msg), "pcre JIT compile unavailable for rid=%d", rule->rule_id);
+            snprintf(msg, sizeof(msg), "pcre2 JIT compile unavailable for rid=%d", rule->rule_id);
             set_err(errbuf, errbuf_size, msg);
             return -1;
         }
@@ -444,7 +474,7 @@ engine_runtime_t *engine_runtime_create(
         }
 
         if (runtime->backend != REGEX_BACKEND_HS) {
-            if (compile_pcre_rule(runtime, &runtime->compiled_rules[i], rules[i], jit_mode, errbuf, errbuf_size) != 0) {
+            if (compile_pcre2_rule(runtime, &runtime->compiled_rules[i], rules[i], jit_mode, errbuf, errbuf_size) != 0) {
                 engine_runtime_destroy(runtime);
                 return NULL;
             }
@@ -460,21 +490,24 @@ engine_runtime_t *engine_runtime_create(
         }
     }
 
-    if (runtime->backend == REGEX_BACKEND_PCRE && runtime->jit_enabled) {
-        runtime->jit_stack = pcre_jit_stack_alloc(32 * 1024, 512 * 1024);
+    if (runtime->backend == REGEX_BACKEND_PCRE2 && runtime->jit_enabled) {
+        runtime->match_ctx = pcre2_match_context_create(NULL);
+        if (runtime->match_ctx == NULL) {
+            set_err(errbuf, errbuf_size, "pcre2_match_context_create failed");
+            engine_runtime_destroy(runtime);
+            return NULL;
+        }
+
+        runtime->jit_stack = pcre2_jit_stack_create(32 * 1024, 512 * 1024, NULL);
         if (runtime->jit_stack == NULL) {
             if (jit_mode == DETECT_JIT_ON) {
-                set_err(errbuf, errbuf_size, "pcre_jit_stack_alloc failed");
+                set_err(errbuf, errbuf_size, "pcre2_jit_stack_create failed");
                 engine_runtime_destroy(runtime);
                 return NULL;
             }
             runtime->jit_enabled = 0;
         } else {
-            for (i = 0; i < runtime->compiled_count; i++) {
-                if (runtime->compiled_rules[i].extra != NULL) {
-                    pcre_assign_jit_stack(runtime->compiled_rules[i].extra, NULL, runtime->jit_stack);
-                }
-            }
+            pcre2_jit_stack_assign(runtime->match_ctx, NULL, runtime->jit_stack);
         }
     }
 
@@ -490,7 +523,7 @@ void engine_runtime_destroy(engine_runtime_t *runtime)
     if (runtime->backend == REGEX_BACKEND_HS) {
         hs_release(runtime);
     } else {
-        pcre_release(runtime);
+        pcre2_release(runtime);
     }
 
     free(runtime->compiled_rules);
@@ -557,7 +590,8 @@ static void maybe_log_rule_profile(
         rule != NULL && rule->pattern != NULL ? rule->pattern : "");
 }
 
-static int engine_match_pcre(
+static int engine_match_pcre2(
+    engine_runtime_t *runtime,
     const compiled_rule_t *compiled_rule,
     const uint8_t *data,
     size_t len,
@@ -566,29 +600,29 @@ static int engine_match_pcre(
     char *errbuf,
     size_t errbuf_size)
 {
-    int ovector[30];
     int rc;
+    PCRE2_SIZE *ovector;
 
-    rc = pcre_exec(
+    rc = pcre2_match(
         compiled_rule->re,
-        compiled_rule->extra,
-        (const char *)data,
-        (int)len,
+        (PCRE2_SPTR)data,
+        len,
         0,
         0,
-        ovector,
-        (int)(sizeof(ovector) / sizeof(ovector[0])));
+        compiled_rule->match_data,
+        runtime != NULL ? runtime->match_ctx : NULL);
 
     if (rc >= 0) {
+        ovector = pcre2_get_ovector_pointer(compiled_rule->match_data);
         *match_off = (size_t)ovector[0];
         *match_len = (size_t)(ovector[1] - ovector[0]);
         return 1;
     }
-    if (rc == PCRE_ERROR_NOMATCH) {
+    if (rc == PCRE2_ERROR_NOMATCH) {
         return 0;
     }
 
-    set_err(errbuf, errbuf_size, "pcre_exec error");
+    set_err(errbuf, errbuf_size, "pcre2_match error");
     return -1;
 }
 
@@ -620,6 +654,8 @@ static int engine_match_hs(
     memset(&scan_ctx, 0, sizeof(scan_ctx));
     scan_ctx.runtime = runtime;
     scan_ctx.ctx = ctx;
+    scan_ctx.data = data;
+    scan_ctx.data_len = len;
     scan_ctx.stop_after_first = 1;
     scan_ctx.first_rule = matched_rule;
 
@@ -657,7 +693,7 @@ static int engine_match_one(
     if (runtime->backend == REGEX_BACKEND_HS) {
         return engine_match_hs(runtime, compiled_rule->rule != NULL ? compiled_rule->rule->context : IPS_CTX_ALL, data, len, match_off, match_len, matched_rule, errbuf, errbuf_size);
     }
-    return engine_match_pcre(compiled_rule, data, len, match_off, match_len, errbuf, errbuf_size);
+    return engine_match_pcre2(runtime, compiled_rule, data, len, match_off, match_len, errbuf, errbuf_size);
 }
 
 int engine_runtime_match_first(
@@ -743,6 +779,19 @@ int engine_runtime_collect_matches(
         errbuf_size);
 }
 
+/**
+ * @brief 엔진 함수
+ * pcre/hs 백엔드를 실제로 돌려서 매치 목록과 탐지 시간을 만들어내는 엔진 핵심 함수이다.
+ * @param runtime 런타임
+ * @param data HTTP 데이터, 입력데이터
+ * @param len 길이
+ * @param ctx  컨텍스트에 대해서
+ * @param matches 매칭된 룰을 MATCHES에 담고
+ * @param elapsed_us_sum  걸린 시간을 누적하여
+ * @param errbuf 에러가 나면 errbuf에 메시지를 채우는 함수이다.
+ * @param errbuf_size 에러 버퍼 크기
+ * @return int 
+ */
 int engine_runtime_collect_matches_timed(
     engine_runtime_t *runtime,
     const uint8_t *data,
@@ -799,6 +848,8 @@ int engine_runtime_collect_matches_timed(
         scan_ctx.runtime = runtime;
         scan_ctx.matches = matches;
         scan_ctx.ctx = ctx;
+        scan_ctx.data = data;
+        scan_ctx.data_len = len;
         scan_ctx.seen = seen;
 
         t0 = mono_us_now();
@@ -878,7 +929,7 @@ int engine_runtime_collect_matches_timed(
 const char *engine_runtime_backend_name(const engine_runtime_t *runtime)
 {
     if (runtime == NULL) return "-";
-    return runtime->backend == REGEX_BACKEND_HS ? "hs" : "pcre";
+    return runtime->backend == REGEX_BACKEND_HS ? "hs" : "pcre2";
 }
 
 int engine_runtime_jit_enabled(const engine_runtime_t *runtime)

@@ -10,12 +10,6 @@
 #include <string.h>
 
 #define RULES_FILE_ENV "IPS_RULES_FILE"
-#define RULES_FILE_DEFAULT_RELATIVE "rules/generated/rules.jsonl"
-#define RULES_FILE_DEFAULT_RUNTIME "/app/rules/generated/rules.jsonl"
-#define RULES_FILE_COMMON_RELATIVE "rules/generated/rules_pcre_hs_common.jsonl"
-#define RULES_FILE_COMMON_RUNTIME "/app/rules/generated/rules_pcre_hs_common.jsonl"
-#define RULES_FILE_FULL_RELATIVE "rules/generated/rules_full.jsonl"
-#define RULES_FILE_FULL_RUNTIME "/app/rules/generated/rules_full.jsonl"
 
 const IPS_Signature *g_ips_signatures = NULL;
 int g_signature_count = 0;
@@ -536,19 +530,6 @@ int regex_load_signatures(const char *jsonl_path)
 
     env_path = getenv(RULES_FILE_ENV);
     if (env_path && env_path[0] != '\0' && try_load_file(env_path) == 0)
-        return 0;
-
-    if (try_load_file(RULES_FILE_DEFAULT_RELATIVE) == 0)
-        return 0;
-    if (try_load_file(RULES_FILE_DEFAULT_RUNTIME) == 0)
-        return 0;
-    if (try_load_file(RULES_FILE_COMMON_RELATIVE) == 0)
-        return 0;
-    if (try_load_file(RULES_FILE_COMMON_RUNTIME) == 0)
-        return 0;
-    if (try_load_file(RULES_FILE_FULL_RELATIVE) == 0)
-        return 0;
-    if (try_load_file(RULES_FILE_FULL_RUNTIME) == 0)
         return 0;
 
     return -1;

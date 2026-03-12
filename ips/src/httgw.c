@@ -16,84 +16,93 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#ifndef REASM_SESSION_TIMEOUT_MS
-#define REASM_SESSION_TIMEOUT_MS (60ULL * 1000ULL)
-#endif
-
-#ifndef REASM_MAX_SESSIONS
-#define REASM_MAX_SESSIONS 4096
-#endif
-
-#ifndef REASM_MAX_SEGMENTS_PER_DIR
-#define REASM_MAX_SEGMENTS_PER_DIR 1024
-#endif
-
-#ifndef REASM_MAX_BYTES_PER_DIR
-#define REASM_MAX_BYTES_PER_DIR (12U * 1024U * 1024U)
-#endif
-
-#ifndef HTTGW_SERVER_NEXT_BIAS
-#define HTTGW_SERVER_NEXT_BIAS 64U
-#endif
-
 typedef void (*reasm_on_data_cb)(
     const flow_key_t *flow, tcp_dir_t dir,
     const uint8_t *data, uint32_t len, uint32_t seq_start,
-    void *user
-);
+    void *user);
 
 /* ---------- seq 비교(랩어라운드 고려) ---------- */
 static inline int32_t seq_diff(uint32_t a, uint32_t b) { return (int32_t)(a - b); }
-#define SEQ_LT(a,b)  (seq_diff((a),(b)) < 0)
-#define SEQ_LEQ(a,b) (seq_diff((a),(b)) <= 0)
-#define SEQ_GT(a,b)  (seq_diff((a),(b)) > 0)
-#define SEQ_GEQ(a,b) (seq_diff((a),(b)) >= 0)
+#define SEQ_LT(a, b) (seq_diff((a), (b)) < 0)
+#define SEQ_LEQ(a, b) (seq_diff((a), (b)) <= 0)
+#define SEQ_GT(a, b) (seq_diff((a), (b)) > 0)
+#define SEQ_GEQ(a, b) (seq_diff((a), (b)) >= 0)
 
-typedef struct reasm_seg_node {
-    uint32_t seq;
-    uint32_t len;
-    uint8_t *data;
-    struct reasm_seg_node *next;
+/**
+ * @brief HTTP 재조립, Out-of-order 대비용 연결리스트 구조체
+ * 순서 맞추기 위한 임시 세그먼트 보관용 연결리스트
+ */
+typedef struct reasm_seg_node
+{
+    uint32_t seq; // TCP 넘버
+    uint32_t len; // 보관중인 길이
+    uint8_t *data; // 실제 패킷 페이로드가 저장된 메모리 포인터
+    struct reasm_seg_node *next; // 더 큰 다음 조각을 가르키는 포인터
 } reasm_seg_node_t;
 
-typedef struct {
-    uint8_t has_next;
-    uint32_t next_seq;
-    uint8_t fin_seen;
-    uint8_t rst_seen;
+/**
+ * @brief 방향(dir)을 맞축디 위한 방향 상태 관리
+ * 세션 구조체(reasm_session_t)에서 reasm_dir_t를 2개로 가짐 dir[2]
+ * 요청/응답 양방향 추적은 유지하지만, 현재 상위 계층에는 요청만 전달한다.
+ */
+typedef struct reasm_dir
+{
+    uint8_t has_next; // 다음 패킷이 있음? 0/1
+    uint32_t next_seq; // 이번에 와야할 패킷 번호
+    uint8_t fin_seen; // 통신이 종료중인지?(FIN 봄?)
+    uint8_t rst_seen; // RST 패킷 봄?
 
-    reasm_seg_node_t *head;
-    uint32_t seg_count;
-    uint32_t bytes_queued;
+    reasm_seg_node_t *head; //첫번째를 가르키는 포인터, 이 포인터 뒤에 next_seq보다 큰걸 붙여놓음
+    uint32_t seg_count;// 포인터 뒤에 붙어있는 세그먼트 개수
+    uint32_t bytes_queued; // 포인터 뒤에 붙어있는 세그먼트의 총 용량
 } reasm_dir_t;
 
-typedef struct reasm_session {
-    flow_key_t key;
+/**
+ * @brief TCP 연결 1개에 대한 재조립 상태 묶음
+ * 재조립 엔진(reasm_) 전체의 전역 컨텍스트
+ */
+typedef struct reasm_session
+{
+    flow_key_t key; 
     uint64_t last_seen_ms;
 
     reasm_dir_t dir[2];
     struct reasm_session *next;
-} reasm_session_t;
+} reasm_session_t; // TCP연결 1개에 대한 상태
 
-typedef struct reasm_ctx {
-    reasm_session_t **buckets;
-    uint32_t nbuckets;
-    uint32_t nsessions;
+/**
+ * @brief 재조립 세션 저장, 해시 테이블, 콜백함수 묶은 구조체
+ * 
+ */
+typedef struct reasm_ctx
+{
+    reasm_session_t **buckets; // 해시테이블
+    uint32_t nbuckets; // 버킷 개수
+    uint32_t nsessions; // 등록된 세션 개수
 
-    reasm_mode_t mode;
-    reasm_on_data_cb on_data;
-    void *user;
-} reasm_ctx_t;
+    reasm_mode_t mode; // 재조립 동작 모드 (strict/last-start)
+    reasm_on_data_cb on_data; //붙일 콜백함수
+    void *user; // 사용자 컨텍스트 포인터
+} reasm_ctx_t; //세션 전체를 관리함
+
 
 static uint32_t reasm_flow_hash(const flow_key_t *k)
 {
-    uint32_t h = 2166136261u;
-#define H1(x) do { h ^= (uint32_t)(x); h *= 16777619u; } while (0)
-    H1(k->src_ip);
-    H1(k->dst_ip);
-    H1(((uint32_t)k->src_port << 16) | k->dst_port);
-    H1(k->proto);
-#undef H1
+    uint32_t h = 2166136261u;         // FNV offset basis (초기값)
+    const uint32_t prime = 16777619u; // FNV prime (곱하는 값)
+
+    h ^= (uint32_t)k->src_ip;
+    h *= prime;
+
+    h ^= (uint32_t)k->dst_ip;
+    h *= prime;
+
+    h ^= ((uint32_t)k->src_port << 16) | k->dst_port;
+    h *= prime;
+
+    h ^= (uint32_t)k->proto;
+    h *= prime;
+
     return h;
 }
 
@@ -133,15 +142,24 @@ static void reasm_session_free(reasm_session_t *s)
     free(s);
 }
 
+/**
+ * @brief reasm_ctx_t 생성하고 초기화하는 함수
+ * 
+ * @param nbuckets 버킷 개수
+ * @param cb 붙일 콜백함수
+ * @param user 사용자 컨텍스트 포인터
+ * @return reasm_ctx_t* 생성한 컨텍스트
+ */
 static reasm_ctx_t *reasm_create(uint32_t nbuckets, reasm_on_data_cb cb, void *user)
-{
+{   // 0으로 초기화
     reasm_ctx_t *c = (reasm_ctx_t *)calloc(1, sizeof(*c));
     if (!c)
         return NULL;
-
+    // 0 -> 기본 버킷 8192
     if (nbuckets == 0)
         nbuckets = 8192;
 
+    // 각 버킷은 생성 및 NULL
     c->buckets = (reasm_session_t **)calloc(nbuckets, sizeof(reasm_session_t *));
     if (!c->buckets)
     {
@@ -149,6 +167,7 @@ static reasm_ctx_t *reasm_create(uint32_t nbuckets, reasm_on_data_cb cb, void *u
         return NULL;
     }
 
+    // 필드 초기화
     c->nbuckets = nbuckets;
     c->mode = REASM_MODE_LATE_START;
     c->on_data = cb;
@@ -156,6 +175,13 @@ static reasm_ctx_t *reasm_create(uint32_t nbuckets, reasm_on_data_cb cb, void *u
     return c;
 }
 
+/**
+ * @brief 컨텍스트 동작 모드 설정
+ * 널 체크 후 모드 값 설정하는 함수
+ * @param c 재조립 컨텍스트 
+ * @param mode 재조립 모드
+ * @return 없음
+ */
 static void reasm_set_mode(reasm_ctx_t *c, reasm_mode_t mode)
 {
     if (!c)
@@ -163,38 +189,50 @@ static void reasm_set_mode(reasm_ctx_t *c, reasm_mode_t mode)
     c->mode = mode;
 }
 
+/**
+ * @brief reasm_ctx_t 해제 소멸자 
+ * 
+ * @param c 없애버릴 컨텍스트
+ * @return 없음
+ */
 static void reasm_destroy(reasm_ctx_t *c)
 {
     if (!c)
         return;
-
+    // 모든 해시 버킷 순회 
     for (uint32_t i = 0; i < c->nbuckets; i++)
     {
         reasm_session_t *p = c->buckets[i];
-        while (p)
+        while (p) // 연결리스트 해제
         {
             reasm_session_t *n = p->next;
             reasm_session_free(p);
             p = n;
         }
     }
-    free(c->buckets);
-    free(c);
+    free(c->buckets); //해시테이블 없애고
+    free(c); // 컨텍스트 없애기
 }
 
+/**
+ * @brief 올드 세션 제거 함수
+ * 세션을 해시테이블에서 제거하는 함수
+ * @param c 해시테이블 봐야해서, 컨텍스트 전달
+ * @param now_ms 지금 시간
+ */
 static void reasm_gc(reasm_ctx_t *c, uint64_t now_ms)
 {
     if (!c)
         return;
-
+    // 버킷 순회
     for (uint32_t i = 0; i < c->nbuckets; i++)
     {
-        reasm_session_t **pp = &c->buckets[i];
-        while (*pp)
+        reasm_session_t **pp = &c->buckets[i]; // 연결리스트 순회
+        while (*pp) // **pp로 인해 삭제 후 노드가 다음을 가르킨다.
         {
             reasm_session_t *s = *pp;
-            if (now_ms - s->last_seen_ms > REASM_SESSION_TIMEOUT_MS)
-            {
+            if (now_ms - s->last_seen_ms > REASM_SESSION_TIMEOUT_MS) //타임아웃 점검
+            {   // 만료 세션 삭제
                 *pp = s->next;
                 c->nsessions--;
                 reasm_session_free(s);
@@ -205,34 +243,51 @@ static void reasm_gc(reasm_ctx_t *c, uint64_t now_ms)
     }
 }
 
+/**
+ * @brief flow_key에 해당하는 재조립 세션 찾기
+ * 
+ * @param c 컨텍스트
+ * @param k 키
+ * @param ts_ms 지금 시간
+ * @return reasm_session_t*, NULL
+ */
 static reasm_session_t *reasm_lookup(reasm_ctx_t *c, const flow_key_t *k, uint64_t ts_ms)
 {
-    uint32_t idx = reasm_flow_hash(k) % c->nbuckets;
+    uint32_t idx = reasm_flow_hash(k) % c->nbuckets; // k 해시 -> 버킷 찾기
     for (reasm_session_t *p = c->buckets[idx]; p; p = p->next)
-    {
+    { // 해시 충돌로 여러 세션이 있을 수 있으니 끝까지 검사
         if (reasm_flow_eq(&p->key, k))
-        {
-            p->last_seen_ms = ts_ms;
-            return p;
+        { // 같은지?
+            p->last_seen_ms = ts_ms; //시간 갱신
+            return p; //반환
         }
     }
-    return NULL;
+    return NULL; // 없으면 널
 }
 
+/**
+ * @brief 컨텍스트 찾거나 만드는 함수
+ *  세션을 찾고 없으면 만듬
+ * @param c 컨텍스트
+ * @param k 키
+ * @param ts_ms 시간
+ * @return reasm_session_t* 
+ */
 static reasm_session_t *reasm_get_or_create(reasm_ctx_t *c, const flow_key_t *k, uint64_t ts_ms)
-{
+{   // 이미 있는 흐름이면 반환함
     reasm_session_t *s = reasm_lookup(c, k, ts_ms);
     if (s)
         return s;
-
+    // 세션 너무 많으면 안만듬
     if (c->nsessions >= REASM_MAX_SESSIONS)
         return NULL;
 
+    //해시로 새로운 세션을 어느 버킷에 넣을지 결정
     uint32_t idx = reasm_flow_hash(k) % c->nbuckets;
-    s = (reasm_session_t *)calloc(1, sizeof(*s));
+    s = (reasm_session_t *)calloc(1, sizeof(*s)); // 메모리 할당
     if (!s)
         return NULL;
-
+    //필드채우기
     s->key = *k;
     s->last_seen_ms = ts_ms;
     s->next = c->buckets[idx];
@@ -241,20 +296,29 @@ static reasm_session_t *reasm_get_or_create(reasm_ctx_t *c, const flow_key_t *k,
     return s;
 }
 
+/**
+ * @brief 페이로드 트리밍 함수
+ * 이미받은 데이터는 버리고 아직 안 받은 부분만 남기도록 seq, 페이로드, len 직접 수정함
+ * 테스트 코드 필요함
+ * @param d 방향
+ * @param seq 다음에 받아야할 번호,
+ * @param payload  현재 들어온 페이로드 시작 주소
+ * @param len 길이
+ */
 static void reasm_trim_to_next(reasm_dir_t *d, uint32_t *seq, const uint8_t **payload, uint32_t *len)
-{
+{   // 기존 정보 없으면 아무것도 안함
     if (*len == 0 || !d->has_next)
         return;
-
+    // 현재 데이터는 어디쯤?
     uint32_t start = *seq;
     uint32_t end = start + *len;
-
+    // 이미 처리된거면 다 버리고
     if (SEQ_LEQ(end, d->next_seq))
     {
         *len = 0;
         return;
     }
-
+    // 앞부부남ㄴ 처리된 경우 그 부분만 잘라냄
     if (SEQ_LT(start, d->next_seq))
     {
         uint32_t delta = (uint32_t)(d->next_seq - start);
@@ -264,24 +328,33 @@ static void reasm_trim_to_next(reasm_dir_t *d, uint32_t *seq, const uint8_t **pa
     }
 }
 
+/**
+ * @brief out-of order tcp조각 재조립 대기열에 넣는 함수
+ * 
+ * @param d 방향의 재조립 상태
+ * @param seq 연결 리스트
+ * @param payload 대기 바이트 수
+ * @param len 세그먼트 수
+ * @return int 0:정상, -1: 개수 제한 초과, -2: 바이트큐 제한초과, -3: 메모리 할당 실패
+ */
 static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq, const uint8_t *payload, uint32_t len)
 {
     reasm_seg_node_t **pp;
     reasm_seg_node_t *prev = NULL;
     uint32_t new_start = seq;
-    uint32_t new_end = seq + len;
-
-    if (len == 0)
+    uint32_t new_end = seq + len; //세그먼트 범위 
+    // 입력 제한 점검
+    if (len == 0) // 할일없음
         return 0;
-    if (d->seg_count >= REASM_MAX_SEGMENTS_PER_DIR)
+    if (d->seg_count >= REASM_MAX_SEGMENTS_PER_DIR) // 세그먼트 수 제한 넘음
         return -1;
-    if (d->bytes_queued + len > REASM_MAX_BYTES_PER_DIR)
+    if (d->bytes_queued + len > REASM_MAX_BYTES_PER_DIR) // 누적 바이트 제한 넘음
         return -2;
-
+    // 어디에 넣을까? 삽입 위치 
     pp = &d->head;
     while (*pp && SEQ_LT((*pp)->seq, seq))
         pp = &(*pp)->next;
-
+    // 이전 노드는 어디인가?
     if (pp != &d->head)
     {
         reasm_seg_node_t *p = d->head;
@@ -289,7 +362,7 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq, const uint8_t *pay
             p = p->next;
         prev = p;
     }
-
+    // 이전 세그먼트와 겹침 처리
     if (prev)
     {
         uint32_t prev_end = prev->seq + prev->len;
@@ -304,16 +377,17 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq, const uint8_t *pay
             new_end = new_start + len;
         }
     }
-
+    // 뒤쪽 세그먼트들과 겹침 처리
     while (*pp)
     {
         reasm_seg_node_t *cur = *pp;
         uint32_t cur_start = cur->seq;
         uint32_t cur_end = cur->seq + cur->len;
-
+        //안겹치면 종료
         if (SEQ_LEQ(new_end, cur_start))
             break;
-
+        /*--------------------------------------------------------
+        // 뒤는 잘라야 하는 경우
         if (SEQ_LT(new_start, cur_start))
         {
             uint32_t keep = (uint32_t)(cur_start - new_start);
@@ -321,6 +395,29 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq, const uint8_t *pay
             new_end = new_start + len;
             break;
         }
+        --------------------------------------------------------*/
+        // 뒤는 잘라야 하는 경우
+        if(SEQ_LT(new_start, cur_start))
+        {
+            // 1. 새 조각이 기존 조각 을 완전히 덮는 경우
+            if(SEQ_GEQ(new_end, cur_end))
+            {   // 기존 조각은 완전히 포함되어 쓸모가 없어졌으므로 리스트에서 제거하기
+                *pp = cur->next;
+                d->seg_count--;
+                d->bytes_queued -= d->bytes_queued - cur->len;
+                free(cur->data);
+                free(cur);
+                continue;
+            }
+            else // 2. 새 조각이 기존 조각의 앞부분만 겹치고 끝나는 경우
+            {
+                uint32_t keep = (uint32_t)(cur_start - new_start);
+                len = keep;
+                new_end = new_start + len;
+                break; // 뒷 부분은 기존 조각이 갖고있어어서 여기서 자르기
+            }
+        }
+        // 새 조각이 현재 노드 안에 들어간 경우
         if (SEQ_LT(new_start, cur_end))
         {
             if (SEQ_GEQ(cur_end, new_end))
@@ -335,14 +432,14 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq, const uint8_t *pay
         }
         pp = &(*pp)->next;
     }
-
+    // 남은 데이터가 없음
     if (len == 0)
         return 0;
     if (d->seg_count >= REASM_MAX_SEGMENTS_PER_DIR)
         return -1;
     if (d->bytes_queued + len > REASM_MAX_BYTES_PER_DIR)
         return -2;
-
+    // 새로운 노드 생성
     reasm_seg_node_t *n = (reasm_seg_node_t *)calloc(1, sizeof(*n));
     if (!n)
         return -3;
@@ -356,22 +453,24 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq, const uint8_t *pay
     memcpy(n->data, payload, len);
     n->seq = new_start;
     n->len = len;
-
+    // 정렬된 위치에 삽입
     pp = &d->head;
     while (*pp && SEQ_LT((*pp)->seq, n->seq))
         pp = &(*pp)->next;
     n->next = *pp;
     *pp = n;
+    // 통계 갱신
     d->seg_count++;
     d->bytes_queued += len;
-
+    // 바로 뒤 연속되면? 병합가능함
     while (n->next)
     {
+        // 정확히 위치가 이어지면 merge
         reasm_seg_node_t *nx = n->next;
         uint32_t n_end = n->seq + n->len;
         if (n_end != nx->seq)
             break;
-
+        // 데이터 버퍼를 늘리고 뒤 세그먼트를 붙임
         uint32_t merged_len = n->len + nx->len;
         uint8_t *buf = (uint8_t *)realloc(n->data, merged_len);
         if (!buf)
@@ -379,7 +478,7 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq, const uint8_t *pay
         n->data = buf;
         memcpy(n->data + n->len, nx->data, nx->len);
         n->len = merged_len;
-
+        // 병합된 다음 노드 제거
         n->next = nx->next;
         d->seg_count--;
         reasm_seg_free(nx);
@@ -388,20 +487,25 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq, const uint8_t *pay
     return 0;
 }
 
+/**
+ * @brief HTTP 맞는지? 판별 함수
+ * 들어온 payload 시작 부분이 HTTP 메시지 시작처럼 보이는지
+ * @param payload 검사할 데이터 주소
+ * @param len 검사할 데이터 길이
+ * @return int 1: http시작인듯, 0: 아닌듯
+ */
 static int reasm_looks_like_http_start(const uint8_t *payload, uint32_t len)
-{
+{   // 페이로드 맨앞에 HTTP 처럼 보이는 문자열이 있는지
     static const char *const methods[] = {
         "GET ", "POST ", "PUT ", "HEAD ", "DELETE ",
-        "OPTIONS ", "PATCH ", "TRACE ", "CONNECT ",
-        "HTTP/"
-    };
+        "OPTIONS ", "PATCH ", "TRACE ", "CONNECT "};
     size_t i;
-
+    // 데이터가 없으면 HTTP 시작 아님
     if (!payload || len == 0)
         return 0;
-
+    // 배열에 있는 문자열 검사함
     for (i = 0; i < sizeof(methods) / sizeof(methods[0]); i++)
-    {
+    {   // 길이, prefix 비교함
         size_t n = strlen(methods[i]);
         if (len >= n && memcmp(payload, methods[i], n) == 0)
             return 1;
@@ -409,21 +513,31 @@ static int reasm_looks_like_http_start(const uint8_t *payload, uint32_t len)
     return 0;
 }
 
+/**
+ * @brief 순서 맞추는 함수
+ * 재조립 대기열에 쌓여 있던 out-of-order 세그먼트 중에서, 
+ * 이제 순서가 맞는 것들을 앞에서부터 꺼내 전달하는 함수
+ * @param c 재조립 컨텍스트
+ * @param s 현재 세션
+ * @param dir 방향
+ */
 static void reasm_flush(reasm_ctx_t *c, reasm_session_t *s, tcp_dir_t dir)
-{
+{   //어느 방향인지
     reasm_dir_t *d = &s->dir[dir];
-    if (!d->has_next)
+    // next seq 정해져있는지? 없으면 탈출
+    if (!d->has_next) 
         return;
-
+    // 헤드 노드가 정확히 next_seq인가? 그러면 순서가 맞음
     while (d->head && d->head->seq == d->next_seq)
-    {
+    {   // 헤드 꺼내고
         reasm_seg_node_t *h = d->head;
-        if (c->on_data)
+        if (c->on_data) // 콜백 전달
         {
             c->on_data(&s->key, dir, h->data, h->len, h->seq, c->user);
         }
-
+        // 다음에 와야할 시퀀스 갱신하기
         d->next_seq += h->len;
+        // 큐 상태 갱신, 대기바이트 감소, 세그먼트 수 감소, 리스트 헤드 다음노드로
         d->bytes_queued -= h->len;
         d->seg_count--;
         d->head = h->next;
@@ -431,6 +545,19 @@ static void reasm_flush(reasm_ctx_t *c, reasm_session_t *s, tcp_dir_t dir)
     }
 }
 
+/**
+ * @brief  TCP 패킷 1개를 재조립 엔진에 넣는 메인 진입점
+ * 
+ * @param c 재조립 컨텍스트, 세션테이블 모드 콜백을 가진다.
+ * @param flow tcp 플로우 키
+ * @param dir 방향
+ * @param seq TCP 시작 시퀀스 번호
+ * @param tcp_flags TCP 플래그
+ * @param payload 시작 주소
+ * @param len 길이
+ * @param ts_ms 현재 패킷의 도착 시간
+ * @return int 0: 정상, -1: 잘못, -2: 세션 생성못함
+ */
 static int reasm_ingest(
     reasm_ctx_t *c,
     const flow_key_t *flow,
@@ -441,22 +568,23 @@ static int reasm_ingest(
     uint32_t len,
     uint64_t ts_ms)
 {
+    // 입력 검증
     if (!c || !flow)
         return -1;
     if (dir != DIR_AB && dir != DIR_BA)
         return -1;
-
+    // 기존 세션 조회
     reasm_session_t *s = reasm_lookup(c, flow, ts_ms);
-    if (tcp_flags & TCP_RST)
+    if (tcp_flags & TCP_RST) // RST이면 세션 제거함
     {
-        if (!s)
-            return 0;
+        if (!s) 
+            return 0;// 세션이 없네
         uint32_t idx = reasm_flow_hash(flow) % c->nbuckets;
-        reasm_session_t **pp = &c->buckets[idx];
+        reasm_session_t **pp = &c->buckets[idx]; 
         while (*pp)
         {
             if (*pp == s)
-            {
+            {   // 세션이 있으면 해시 버킷에서 링크 풀고 프리
                 *pp = s->next;
                 c->nsessions--;
                 reasm_session_free(s);
@@ -466,40 +594,42 @@ static int reasm_ingest(
         }
         return 0;
     }
-
+    // 세션이 없으면 생성 여부 판단
     if (!s)
     {
-        if (len == 0 && c->mode == REASM_MODE_LATE_START)
+        if (len == 0 && c->mode == REASM_MODE_LATE_START) // 페이로드없으면 세션안만듬
             return 0;
-        if (c->mode == REASM_MODE_STRICT_SYN && !(tcp_flags & TCP_SYN))
+        if (c->mode == REASM_MODE_STRICT_SYN && !(tcp_flags & TCP_SYN)) // SYN 없는 첫패킷이면 세션안만듬
             return 0;
+        // 조건 통과하면 세션 생성함
         s = reasm_get_or_create(c, flow, ts_ms);
         if (!s)
             return -2;
     }
-
+    // 방향과 FIN 기록 함, 현재 방향 재조립상태 가져오기
     reasm_dir_t *d = &s->dir[dir];
     if (tcp_flags & TCP_FIN)
         d->fin_seen = 1;
-
+    // next_seq가 없으면 시작점 설정
     if (!d->has_next)
-    {
+    {   // SYN은 시퀀스 번호 1소비하니까, 다음은 seq+1기대함
         if (c->mode == REASM_MODE_STRICT_SYN)
         {
             d->has_next = 1;
             d->next_seq = seq + 1;
         }
         else
-        {
+        {   // 페이로드없으면 시작못함
             if (len == 0)
                 return 0;
+            // http 시작 맞으면 여기서부터 재조립시작
             if (!reasm_looks_like_http_start(payload, len))
                 return reasm_insert_segment(d, seq, payload, len);
             d->has_next = 1;
             d->next_seq = seq;
         }
     }
-
+    // 이미 받은 앞부분 trimming
     uint32_t adj_seq = seq;
     const uint8_t *adj_pl = payload;
     uint32_t adj_len = len;
@@ -507,8 +637,9 @@ static int reasm_ingest(
     reasm_trim_to_next(d, &adj_seq, &adj_pl, &adj_len);
     if (adj_len == 0)
         return 0;
-
+    // 세그먼트 삽입
     int rc = reasm_insert_segment(d, adj_seq, adj_pl, adj_len);
+    // 실패하면 세션 제거
     if (rc != 0)
     {
         uint32_t idx = reasm_flow_hash(flow) % c->nbuckets;
@@ -527,6 +658,8 @@ static int reasm_ingest(
         return rc;
     }
 
+    // 이어질 수 있는 데이터 flush, 연속된 세그먼트있으면 콜백으로 넘기고 큐에서 제거
+    // 여기서 실제 상위 계층(HTTP 파서 등)으로 데이터가 전달
     reasm_flush(c, s, dir);
 
     if (s->dir[0].fin_seen && s->dir[1].fin_seen &&
@@ -535,7 +668,7 @@ static int reasm_ingest(
         uint32_t idx = reasm_flow_hash(flow) % c->nbuckets;
         reasm_session_t **pp = &c->buckets[idx];
         while (*pp)
-        {
+        {   // 해시테이블 언링크, 프리
             if (*pp == s)
             {
                 *pp = s->next;
@@ -918,6 +1051,14 @@ static uint32_t tcp_next_seq(uint32_t seq, uint32_t payload_len, uint8_t flags)
     return next;
 }
 
+/**
+ * @brief HTTP 메시지 파싱 및 콜백 호출함수
+ *
+ * on_stream_data에서 flow/dir 전달받도록 수정하여 해당 방향 스트림에서 메시지 파싱하도록 변경
+ * @param gw http 게이트웨이 컨텍스트
+ * @param flow HTTP 메시지가 속한 플로우 정보
+ * @param dir HTTP 메시지가 속한 방향 (DIR_AB 또는 DIR_BA)
+ */
 static void drain_http(httgw_t *gw, const flow_key_t *flow, tcp_dir_t dir)
 {
     httgw_session_t *sess = sess_find(gw, flow);
@@ -932,6 +1073,12 @@ static void drain_http(httgw_t *gw, const flow_key_t *flow, tcp_dir_t dir)
 
     while (http_stream_poll_message(s, &msg) == HTTP_STREAM_OK)
     {
+        fprintf(stderr,
+                "[HTTP] polled is_request=%d uri=%s body_len=%zu\n",
+                msg.is_request,
+                msg.uri,
+                msg.body_len);
+            
         gw->stats.http_msgs++;
         if (msg.is_request)
         {
@@ -942,14 +1089,6 @@ static void drain_http(httgw_t *gw, const flow_key_t *flow, tcp_dir_t dir)
                 size_t q_len = 0;
                 (void)httgw_extract_query(&msg, &q, &q_len);
                 gw->cbs.on_request(flow, dir, &msg, q, q_len, gw->user);
-            }
-        }
-        else
-        {
-            gw->stats.resps++;
-            if (gw->cbs.on_response)
-            {
-                gw->cbs.on_response(flow, dir, &msg, gw->user);
             }
         }
         http_message_free(&msg);
@@ -1098,6 +1237,15 @@ int httgw_set_mode(httgw_t *gw, httgw_mode_t mode)
     return 0;
 }
 
+/**
+ * @brief 패킷을 입력으로 받아 세션 테이블 업데이트 및 TCP 스트림 재조립 수행
+ *
+ * @param gw httgw 인스턴스
+ * @param pkt 입력패킷 이더넷 프레임 시작 주소
+ * @param caplen 길이
+ * @param ts_ms 타임스탬프 ms 단위
+ * @return int 1: 패킷이 정상적으로 처리됨, 0: 패킷이 무시됨, 음수: 오류 발생
+ */
 int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen, uint64_t ts_ms)
 {
     flow_key_t flow;
@@ -1489,16 +1637,19 @@ static uint16_t tcp_checksum(uint32_t src_be, uint32_t dst_be, const uint8_t *tc
 
     p = tcp;
     len = tcp_len;
-    while (len > 1) {
+    while (len > 1)
+    {
         sum += (uint16_t)((p[0] << 8) | p[1]);
         p += 2;
         len -= 2;
     }
-    if (len) {
+    if (len)
+    {
         sum += (uint16_t)(p[0] << 8);
     }
 
-    while (sum >> 16) {
+    while (sum >> 16)
+    {
         sum = (sum & 0xFFFFu) + (sum >> 16);
     }
     return (uint16_t)(~sum);
@@ -1510,7 +1661,7 @@ int tx_send_l3(void *ctx, const uint8_t *buf, size_t len)
     tx_ctx_t *tx = (tx_ctx_t *)ctx;
     struct sockaddr_in dst;
     const IPHDR *ip;
-    ssize_t n; //signed size type, 부호있는 크기타입 음수 가능
+    ssize_t n; // signed size type, 부호있는 크기타입 음수 가능
     // 유효성 검사 -> 송신 컨텍스트/버퍼/최소 IP 헤더 길이 확인
     if (!tx || tx->fd < 0 || !buf || len < IP_HDR_SIZE)
         return -1;
@@ -1525,7 +1676,7 @@ int tx_send_l3(void *ctx, const uint8_t *buf, size_t len)
     // Raw 소켓으로 미리 구성된 IP/TCP 패킷을 그대로 전송
     n = sendto(tx->fd, buf, len, 0, (struct sockaddr *)&dst, sizeof(dst));
     // sendto는 소켓으로 데이터를 보내는 시스템 호출
-    if (n < 0)// sendto 실패
+    if (n < 0) // sendto 실패
         return -1;
     return (size_t)n == len ? 0 : -1;
 }
@@ -1577,13 +1728,13 @@ int httgw_set_tx(httgw_t *gw, tx_ctx_t *tx)
 int tx_send_rst(void *tx_ctx, const flow_key_t *flow, tcp_dir_t dir, uint32_t seq, uint32_t ack)
 {
     tx_ctx_t *tx = (tx_ctx_t *)tx_ctx;
-    uint32_t sip, dip; //RSt 패킷의 source IP, RST 패킷의 destination IP
-    uint16_t sport, dport;// Source PORT, Destination IP
+    uint32_t sip, dip;     // RSt 패킷의 source IP, RST 패킷의 destination IP
+    uint16_t sport, dport; // Source PORT, Destination IP
 
     if (!tx || !tx->send_l3 || !flow)
         return -1;
 
-    if (dir == DIR_AB)// 
+    if (dir == DIR_AB) //
     {
         sip = flow->src_ip;
         sport = flow->src_port;
@@ -1624,7 +1775,7 @@ int tx_send_rst(void *tx_ctx, const flow_key_t *flow, tcp_dir_t dir, uint32_t se
     TCP_SET_ACK(tcp, ack != 0);
     TCP_WIN(tcp) = htons(0);
     TCP_CHECK(tcp) = 0;
-    //TCP_CHECK(tcp) = tcp_checksum(IP_SADDR(ip), IP_DADDR(ip), (const uint8_t *)tcp, sizeof(*tcp));
+    // TCP_CHECK(tcp) = tcp_checksum(IP_SADDR(ip), IP_DADDR(ip), (const uint8_t *)tcp, sizeof(*tcp));
     TCP_CHECK(tcp) = htons(tcp_checksum(IP_SADDR(ip), IP_DADDR(ip), (const uint8_t *)tcp, sizeof(*tcp)));
 
     return tx->send_l3(tx->ctx, buf, sizeof(buf));
@@ -1634,8 +1785,7 @@ int httgw_request_rst_with_snapshot(
     httgw_t *gw,
     const flow_key_t *flow,
     tcp_dir_t dir,
-    const httgw_sess_snapshot_t *snap
-)
+    const httgw_sess_snapshot_t *snap)
 {
     httgw_session_t *sess;
     uint32_t seq_base = 0;
@@ -1682,7 +1832,7 @@ int httgw_request_rst_with_snapshot(
     {
         if (!sess->seen_ab || !sess->seen_ba)
             return -3;
-        if (dir == DIR_AB)//Client -> Server
+        if (dir == DIR_AB) // Client -> Server
         {
             if (sess->next_seq_ab == 0 || sess->next_seq_ba == 0)
                 return -3;
@@ -1690,7 +1840,7 @@ int httgw_request_rst_with_snapshot(
             ack = sess->next_seq_ba + HTTGW_SERVER_NEXT_BIAS;
             win = ((uint32_t)sess->win_ba) << (sess->win_scale_ba > 14 ? 14 : sess->win_scale_ba);
         }
-        else// Server -> Client
+        else // Server -> Client
         {
             if (sess->next_seq_ab == 0 || sess->next_seq_ba == 0)
                 return -3;
@@ -1701,14 +1851,14 @@ int httgw_request_rst_with_snapshot(
     }
     if (win == 0)
         return -3;
-    //RST 버스트 날리기, 5번 반복, HTTGW_RST_BUSRT_COUNT = 5 
+    // RST 버스트 날리기, 5번 반복, HTTGW_RST_BUSRT_COUNT = 5
     for (uint32_t i = 0; i < HTTGW_RST_BURST_COUNT; i++)
     {
         uint32_t seq_off;
-        //버스트 1회이거나 윈도우가 1바이트면 분산못하므로 Base만 날리기?
+        // 버스트 1회이거나 윈도우가 1바이트면 분산못하므로 Base만 날리기?
         if (HTTGW_RST_BURST_COUNT == 1 || win == 1) // 둘다 seq_off=0으로 보내는 예외처리
             seq_off = 0;
-        else//seq_off는 seq_base에 더할 오프셋이다.
+        else // seq_off는 seq_base에 더할 오프셋이다.
             seq_off = (uint32_t)(((uint64_t)(win - 1) * i) / (HTTGW_RST_BURST_COUNT - 1));
         uint32_t seq_try = seq_base + seq_off;
         if (snap)
@@ -1762,8 +1912,6 @@ int sess_get_or_create(httgw_t *gw, const flow_key_t flow, uint64_t ts_ms)
     if (!gw)
         return -1;
     return sess_get_or_create_internal(gw, &flow, ts_ms) ? 1 : 0;
-
-    
 }
 
 int sess_lookup(const httgw_t *gw, const flow_key_t flow)

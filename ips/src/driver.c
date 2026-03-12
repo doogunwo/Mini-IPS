@@ -11,7 +11,8 @@
 #include <stdlib.h>
 #include <netinet/in.h>
 
-typedef struct worker_arg {
+typedef struct worker_arg
+{
     driver_runtime_t *rt;
     uint32_t index;
 } worker_arg_t;
@@ -177,11 +178,11 @@ int capture_activate(capture_ctx_t *cc, pcap_ctx_t *pc)
     if (!cc || !cc->handle)
         return EINVAL;
     int ret = pcap_activate(cc->handle);
-    if (ret < 0) {
+    if (ret < 0)
+    {
         fprintf(stderr, "pcap_activate failed ret=%d, err=%s\n", ret, pcap_geterr(cc->handle));
         return EIO;
-
-    }   
+    }
 
     if (pc && pc->nonblocking)
     {
@@ -203,30 +204,54 @@ void capture_close(capture_ctx_t *cc)
     }
 }
 
+/**
+ * @brief 패킷 캡처 함수
+ *
+ * @param cc 캡처 컨텍스트
+ * @return int
+ */
 int capture_poll_once(capture_ctx_t *cc)
 {
-    // 1) 인자 검증
+    /* 인자 검증 */
     if (!cc || !cc->handle || !cc->queues || cc->queues->qcount == 0)
+    {
         return EINVAL;
+    }
+
     struct pcap_pkthdr *hdr;
     const u_char *pkt;
 
+    /* libpcap에서 실제로 패킷을 읽는 지점 */
     int ret = pcap_next_ex(cc->handle, &hdr, &pkt);
     if (ret == 1)
     {
         uint64_t ts_ns = ((uint64_t)hdr->ts.tv_sec * 1000000000ULL) +
                          ((uint64_t)hdr->ts.tv_usec * 1000ULL);
-
         uint32_t idx = pick_worker_idx(cc, pkt, hdr->caplen, cc->queues->qcount);
         int rc = packet_ring_enq(&cc->queues->q[idx], pkt, hdr->caplen, ts_ns);
+
+        fprintf(stderr,
+                "[PCAP] ret=%d caplen=%u len=%u worker=%u enq_rc=%d\n",
+                ret,
+                hdr ? hdr->caplen : 0,
+                hdr ? hdr->len : 0,
+                idx,
+                rc);
         if (rc != 0)
             return rc;
         return 1;
     }
+
     if (ret == 0)
+    {
         return 0;
+    }
+
     if (ret == -2)
+    {
         return -2;
+    }
+
     return EIO;
 }
 
@@ -452,11 +477,14 @@ bool mac_in_list(const driver_mac_t *mac, const driver_mac_t *list, uint32_t cnt
     return false;
 }
 
-/*
-    역할: 특정 포트 번호가 리스트에 포함되어 있는지 검사
-    동작: 리스트를 선형 탐색, 일치하면 true
-    사용 위치: PORT DROP 정책, PORT BYPASS 정책
-*/
+/**
+ * @brief 주어진 포트가 포트 리스트에 포함되어 있는지 검사
+ *
+ * @param port 검사할 포트 번호
+ * @param list 포트 번호 리스트 (배열 시작 주소)
+ * @param cnt 리스트 내 유효한 포트 번호 개수
+ * @return true / flase
+ */
 bool port_in_list(uint16_t port, const uint16_t *list, uint32_t cnt)
 {
     if (!list || cnt == 0)
@@ -469,6 +497,14 @@ bool port_in_list(uint16_t port, const uint16_t *list, uint32_t cnt)
     return false;
 }
 
+/**
+ * @brief 해당 패킷이 소속 평가 함수
+ * 패킷 메타데이터와 필터 정책을 입력받아
+ * 해당 패킷이 DROP/BYPASS/CONSUMED/PASS 중 어디에 해당하는지 평가하는 함수
+ * @param m 패킷 메타데이터
+ * @param p 필터 정책
+ * @return plugin_handler_result_t
+ */
 plugin_handler_result_t driver_filter_eval(const driver_pkt_meta_t *m, const driver_filter_policy_t *p)
 {
     // 입력 유효성 검사
@@ -484,18 +520,18 @@ plugin_handler_result_t driver_filter_eval(const driver_pkt_meta_t *m, const dri
     // MAC_DROP 검사
     // src_mac 또는 dst_mac이 mac_drop 리스트에 포함되는지 검사
     // 매칭 시 use_consumed == true -> CONSUMED  else DROP
-    if(p->mac_drop_cnt > 0 && 
+    if (p->mac_drop_cnt > 0 &&
         (mac_in_list(&m->src_mac, p->mac_drop, p->mac_drop_cnt) ||
-        mac_in_list(&m->dst_mac, p->mac_drop, p->mac_drop_cnt)))
+         mac_in_list(&m->dst_mac, p->mac_drop, p->mac_drop_cnt)))
     {
         // DROP/CONSUMED 선택
         return p->use_consumed ? PLUGIN_HANDLER_CONSUMED : PLUGIN_HANDLER_DROP;
     }
 
     // PORT 검사
-    if(p->port_drop_cnt > 0 &&
+    if (p->port_drop_cnt > 0 &&
         (port_in_list(m->src_port, p->port_drop, p->port_drop_cnt) ||
-        port_in_list(m->dst_port, p->port_drop, p->port_drop_cnt)))
+         port_in_list(m->dst_port, p->port_drop, p->port_drop_cnt)))
     {
         /* DROP/CONSUMED 선택*/
         return p->use_consumed ? PLUGIN_HANDLER_CONSUMED : PLUGIN_HANDLER_DROP;

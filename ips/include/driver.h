@@ -43,7 +43,7 @@
 #define DEFAULT_SLOT_COUNT 4096
 #define MIN_QUEUE_COUNT 1
 #define MAX_QUEUE_COUNT 64
-#define PACKET_MAX_BYTES 2048
+#define PACKET_MAX_BYTES 65535
 
 typedef struct packet_slot
 {

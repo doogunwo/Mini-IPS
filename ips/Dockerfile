@@ -22,6 +22,7 @@ RUN apt-get update && \
         libpcre3 \
         libhyperscan5 \
         python3 \
+        tcpdump \
         tzdata \
         iptables \
         iproute2 \

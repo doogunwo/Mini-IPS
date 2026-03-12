@@ -27,6 +27,17 @@ struct detect_engine
 
 static void set_err(detect_engine_t *e, const char *msg);
 
+/**
+ * @brief 탐지 엔진의 핵심 탐지 함수
+ * 입력 데이터에 대해 탐지 엔진을 실행하여 매치되는 룰과 매치된 텍스트를 matches 리스트에 추가한다.
+ * @param e 탐지 엔진 객체
+ * @param data 검사할 바이트 데이터
+ * @param len 데이터 길이
+ * @param ctx 어떤 HTTP 영역을 볼지? 헤더, URL, ARGS, ARGS_NAMES, 바디 등등
+ * @param matches 매치 결과 저장할 리스트
+ * @param elapsed_us_sum 탐지 수행 시간 누적값을 저장할 포인터
+ * @return int 
+ */
 static int collect_matches_ctx_timed(
     detect_engine_t *e,
     const uint8_t *data,
@@ -64,6 +75,7 @@ static int collect_matches_ctx_timed(
             break;
         default:
             set_err(e, "invalid context");
+            
             return -1;
     }
 
@@ -87,14 +99,6 @@ static void set_err(detect_engine_t *e, const char *msg)
     snprintf(e->last_err, sizeof(e->last_err), "%s", msg);
 }
 
-const char *detect_engine_last_error(const detect_engine_t *e)
-{
-    if (!e)
-        return "null engine";
-    if (e->last_err[0] == '\0')
-        return "ok";
-    return e->last_err;
-}
 
 void detect_match_list_init(detect_match_list_t *matches)
 {
@@ -272,6 +276,17 @@ int detect_engine_collect_matches_ctx(
     return collect_matches_ctx_timed(e, data, len, ctx, matches, NULL);
 }
 
+/**
+ * @brief 탐지 엔진 매치 함수
+ * 특정된 컨텍스트에서 매칭된 룰들을 전부 수집하고, 그 탐지 시간까지 돌려주는 함수
+ * @param e 
+ * @param data 
+ * @param len 
+ * @param ctx 
+ * @param matches 
+ * @param elapsed_us_sum 
+ * @return int 
+ */
 int detect_engine_collect_matches_ctx_timed(
     detect_engine_t *e,
     const uint8_t *data,
@@ -303,4 +318,13 @@ int detect_engine_jit_enabled(const detect_engine_t *e)
 {
     if (!e) return 0;
     return engine_runtime_jit_enabled(e->runtime);
+}
+
+const char *detect_engine_last_error(const detect_engine_t *e)
+{
+    if (!e)
+        return "null engine";
+    if (e->last_err[0] == '\0')
+        return "ok";
+    return e->last_err;
 }

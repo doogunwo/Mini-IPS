@@ -13,6 +13,26 @@
 
 #include "http_stream.h"
 
+#ifndef REASM_SESSION_TIMEOUT_MS
+#define REASM_SESSION_TIMEOUT_MS (60ULL * 1000ULL)
+#endif
+
+#ifndef REASM_MAX_SESSIONS
+#define REASM_MAX_SESSIONS 4096
+#endif
+
+#ifndef REASM_MAX_SEGMENTS_PER_DIR
+#define REASM_MAX_SEGMENTS_PER_DIR 1024
+#endif
+
+#ifndef REASM_MAX_BYTES_PER_DIR
+#define REASM_MAX_BYTES_PER_DIR (12U * 1024U * 1024U)
+#endif
+
+#ifndef HTTGW_SERVER_NEXT_BIAS
+#define HTTGW_SERVER_NEXT_BIAS 64U
+#endif
+
 /* TCP flags */
 enum {
     TCP_FIN = 0x01,
@@ -47,7 +67,6 @@ typedef enum {
 typedef struct {
     size_t http_msgs;
     size_t reqs;
-    size_t resps;
     size_t reasm_errs;
     size_t parse_errs;
 } httgw_stats_t;
@@ -76,15 +95,6 @@ typedef struct ip_node {
     struct ip_node *next;
 } ip_node_t;
 
-/** 파싱된 서버 응답을 전달하는 콜백이다. */
-typedef void (*httgw_on_response_cb)(
-    const flow_key_t *flow,
-    tcp_dir_t dir,
-
-    const http_message_t *msg,
-    void *user
-);
-
 /** 파서 및 재조립 단계에서 사용하는 오류 콜백이다. */
 typedef void (*httgw_on_error_cb)(
     const char *stage,
@@ -95,7 +105,6 @@ typedef void (*httgw_on_error_cb)(
 /** 게이트웨이 생성 시 등록하는 콜백 묶음이다. */
 typedef struct {
     httgw_on_request_cb on_request;
-    httgw_on_response_cb on_response;
     httgw_on_error_cb on_error;
 } httgw_callbacks_t;
 

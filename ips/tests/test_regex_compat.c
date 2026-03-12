@@ -1,6 +1,7 @@
 #include <ctype.h>
+#define PCRE2_CODE_UNIT_WIDTH 8
 #include <hs/hs.h>
-#include <pcre.h>
+#include <pcre2.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -161,18 +162,23 @@ static char *json_extract_string(const char *line, const char *key)
 
 static bool pcre_pattern_ok(const char *pattern)
 {
-    const char *err = NULL;
-    int erroff = 0;
-    pcre *re;
+    int errcode = 0;
+    PCRE2_SIZE erroff = 0;
+    pcre2_code *re;
 
-    re = pcre_compile(pattern, 0, &err, &erroff, NULL);
+    re = pcre2_compile((PCRE2_SPTR)pattern,
+                       PCRE2_ZERO_TERMINATED,
+                       0,
+                       &errcode,
+                       &erroff,
+                       NULL);
     if (re == NULL) {
-        (void)err;
+        (void)errcode;
         (void)erroff;
         return false;
     }
 
-    pcre_free(re);
+    pcre2_code_free(re);
     return true;
 }
 
@@ -276,8 +282,8 @@ static int filter_file(const char *input_path, const char *common_path, const ch
 
 int main(int argc, char **argv)
 {
-    const char *input_path = "rules/generated/rules_full.jsonl";
-    const char *common_path = "rules/generated/rules_pcre_hs_common.jsonl";
+    const char *input_path = "rules/generated/rules.jsonl";
+    const char *common_path = "rules/generated/rules_common.jsonl";
     const char *hs_fail_path = "rules/generated/rules_hs_incompatible.jsonl";
 
     if (argc > 1) {

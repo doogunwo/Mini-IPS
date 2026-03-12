@@ -17,23 +17,23 @@ HS_LIBS = $(shell \
 )
 PCRE_CFLAGS = $(shell \
 	if command -v pkg-config >/dev/null 2>&1; then \
-		pkg-config --cflags libpcre 2>/dev/null; \
-	elif command -v pcre-config >/dev/null 2>&1; then \
-		pcre-config --cflags 2>/dev/null; \
+		pkg-config --cflags libpcre2-8 2>/dev/null; \
+	elif command -v pcre2-config >/dev/null 2>&1; then \
+		pcre2-config --cflags 2>/dev/null; \
 	elif command -v brew >/dev/null 2>&1; then \
-		echo -I$$(brew --prefix pcre 2>/dev/null)/include; \
+		echo -I$$(brew --prefix pcre2 2>/dev/null)/include; \
 	fi \
 )
 PCRE_LIBS = $(shell \
 	if command -v pkg-config >/dev/null 2>&1; then \
-		pkg-config --libs libpcre 2>/dev/null; \
-	elif command -v pcre-config >/dev/null 2>&1; then \
-		pcre-config --libs 2>/dev/null; \
+		pkg-config --libs libpcre2-8 2>/dev/null; \
+	elif command -v pcre2-config >/dev/null 2>&1; then \
+		pcre2-config --libs8 2>/dev/null; \
 	elif command -v brew >/dev/null 2>&1; then \
-		echo -L$$(brew --prefix pcre 2>/dev/null)/lib -lpcre; \
+		echo -L$$(brew --prefix pcre2 2>/dev/null)/lib -lpcre2-8; \
 	fi \
 )
-PCRE_CHECK_BIN := /tmp/ips_pcre_check
+PCRE_CHECK_BIN := /tmp/ips_pcre2_check
 AUTO_INSTALL_DEPS ?= 0
 
 SRC_DIR := src
@@ -44,9 +44,13 @@ LOG_DIR := logs
 
 MAIN_BIN := $(BUILD_DIR)/main
 REGEX_COMPAT_BIN := $(BUILD_DIR)/test_regex_compat
-RID_PCRE_BIN := $(BUILD_DIR)/test_rid_pcre
+DETECT_ENGINE_BIN := $(BUILD_DIR)/test_detect_engine
+HTTP_LIVE_LIKE_REASM_BIN := $(BUILD_DIR)/test_http_live_like_reasm
+BOT_URL_DETECT_BIN := $(BUILD_DIR)/test_bot_url_detect
 
 APP_SRCS := $(SRC_DIR)/main.c \
+	$(SRC_DIR)/logging.c \
+	$(SRC_DIR)/runtime.c \
 	$(SRC_DIR)/driver.c \
 	$(SRC_DIR)/httgw.c \
 	$(SRC_DIR)/http_stream.c \
@@ -61,7 +65,7 @@ UNIT_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .log,$(UNIT_NAMES)))
 UNIT_VG_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .valgrind.log,$(UNIT_NAMES)))
 MAIN_VG_LOG := $(LOG_DIR)/main.valgrind.log
 
-.PHONY: all clean run units main check_pcre valgrind-units valgrind-main regex-compat test-rid-pcre
+.PHONY: all clean run units main check_pcre valgrind-units valgrind-main regex-compat test-detect-engine test-http-live-like-reasm test-bot-url-detect
 
 all: units $(MAIN_BIN)
 
@@ -69,9 +73,6 @@ main: $(MAIN_BIN)
 
 regex-compat: $(REGEX_COMPAT_BIN)
 	./$(REGEX_COMPAT_BIN)
-
-test-rid-pcre: $(RID_PCRE_BIN)
-	./$(RID_PCRE_BIN)
 
 $(BUILD_DIR) $(LOG_DIR):
 	mkdir -p $@
@@ -82,11 +83,40 @@ $(MAIN_BIN): check_pcre $(APP_SRCS) | $(BUILD_DIR)
 $(REGEX_COMPAT_BIN): $(TEST_DIR)/test_regex_compat.c | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) $< -o $@ $(LDFLAGS) $(PCRE_LIBS) $(HS_LIBS) $(LDLIBS)
 
-$(RID_PCRE_BIN): check_pcre $(TEST_DIR)/test_rid_pcre.c \
-	$(SRC_DIR)/detect.c $(SRC_DIR)/engine.c $(SRC_DIR)/regex.c | $(BUILD_DIR)
+$(DETECT_ENGINE_BIN): check_pcre $(TEST_DIR)/test_detect_engine.c \
+	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
+	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/httgw.c \
+	$(SRC_DIR)/http_stream.c | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
-		$(TEST_DIR)/test_rid_pcre.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c $(SRC_DIR)/regex.c \
-		-o $@ $(LDFLAGS) $(PCRE_LIBS) $(HS_LIBS) $(LDLIBS)
+		$(TEST_DIR)/test_detect_engine.c $(SRC_DIR)/runtime.c \
+		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
+		$(SRC_DIR)/regex.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
+		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
+
+$(HTTP_LIVE_LIKE_REASM_BIN): $(TEST_DIR)/test_http_live_like_reasm.c \
+	$(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) \
+		$(TEST_DIR)/test_http_live_like_reasm.c $(SRC_DIR)/httgw.c \
+		$(SRC_DIR)/http_stream.c -o $@ $(LDFLAGS) -lpcap $(LDLIBS)
+
+$(BOT_URL_DETECT_BIN): check_pcre $(TEST_DIR)/test_bot_url_detect.c \
+	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
+	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/httgw.c \
+	$(SRC_DIR)/http_stream.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
+		$(TEST_DIR)/test_bot_url_detect.c $(SRC_DIR)/runtime.c \
+		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
+		$(SRC_DIR)/regex.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
+		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
+
+test-detect-engine: $(DETECT_ENGINE_BIN)
+	./$(DETECT_ENGINE_BIN)
+
+test-http-live-like-reasm: $(HTTP_LIVE_LIKE_REASM_BIN)
+	./$(HTTP_LIVE_LIKE_REASM_BIN)
+
+test-bot-url-detect: $(BOT_URL_DETECT_BIN)
+	./$(BOT_URL_DETECT_BIN)
 
 run: all
 	./$(MAIN_BIN)
@@ -114,17 +144,17 @@ $(BUILD_DIR)/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_str
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c -o $@ $(LDFLAGS) -lpcap $(LDLIBS)
 
 check_pcre:
-	@printf '#include <pcre.h>\nint main(void){return 0;}\n' | \
+	@printf '#define PCRE2_CODE_UNIT_WIDTH 8\n#include <pcre2.h>\nint main(void){return 0;}\n' | \
 		$(CC) -x c - $(CPPFLAGS) $(PCRE_CFLAGS) -o $(PCRE_CHECK_BIN) $(LDFLAGS) $(PCRE_LIBS) >/dev/null 2>&1 || \
 		( \
-			echo "pcre.h not found."; \
+			echo "pcre2.h not found."; \
 			if [ "$(AUTO_INSTALL_DEPS)" = "1" ]; then \
 				if command -v brew >/dev/null 2>&1; then \
 					echo "Auto-installing with brew..."; \
-					brew install pcre; \
+					brew install pcre2; \
 				elif command -v apt-get >/dev/null 2>&1; then \
 					echo "Auto-installing with apt-get..."; \
-					sudo apt-get update && sudo apt-get install -y libpcre3-dev; \
+					sudo apt-get update && sudo apt-get install -y libpcre2-dev; \
 				else \
 					echo "No supported package manager found. Install manually."; \
 					exit 1; \
@@ -133,9 +163,9 @@ check_pcre:
 				echo "AUTO_INSTALL_DEPS=0, install manually."; \
 				exit 1; \
 			fi; \
-			printf '#include <pcre.h>\nint main(void){return 0;}\n' | \
+			printf '#define PCRE2_CODE_UNIT_WIDTH 8\n#include <pcre2.h>\nint main(void){return 0;}\n' | \
 				$(CC) -x c - $(CPPFLAGS) $(PCRE_CFLAGS) -o $(PCRE_CHECK_BIN) $(LDFLAGS) $(PCRE_LIBS) >/dev/null 2>&1 || \
-				( echo "pcre.h still not found after install attempt."; exit 1; ); \
+				( echo "pcre2.h still not found after install attempt."; exit 1; ); \
 		)
 	@rm -f $(PCRE_CHECK_BIN)
 
