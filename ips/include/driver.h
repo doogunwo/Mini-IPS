@@ -62,10 +62,11 @@ typedef struct packet_ring
     uint32_t tail;
     uint32_t count;
 
-    /*-----아직 드랍 구현x / 상태*/
+    /* enqueue/dequeue 상태 */
     uint64_t enq_ok;
     uint64_t deq_ok;
-    uint64_t drop_full;
+    uint64_t drop_full; /* queue full로 enqueue 실패한 횟수 */
+    uint64_t wait_full; /* blocking queue에서 full로 대기한 횟수 */
 
     /* 쓰레드 안전*/
     pthread_mutex_t mu;
@@ -94,7 +95,6 @@ static inline int is_power_of_two_u32(uint32_t x)
 }
 
 /*------------------------ ring init/dest--------------*/
-
 static inline int packet_ring_init(packet_ring_t *r, uint32_t slot_count, int use_blocking)
 {
     if (!r)
@@ -143,12 +143,13 @@ static inline int packet_ring_enq(packet_ring_t *r,
 
     while (r->count == r->slot_count)
     {
-        r->drop_full++;
         if (!r->use_blocking)
         {
+            r->drop_full++;
             pthread_mutex_unlock(&r->mu);
             return EAGAIN; // full
         }
+        r->wait_full++;
         pthread_cond_wait(&r->not_full, &r->mu);
     }
     packet_slot_t *s = &r->slots[r->tail & r->mask];
@@ -211,8 +212,6 @@ static inline int packet_ring_deq(packet_ring_t *r,
     pthread_mutex_unlock(&r->mu);
     return 0;
 }
-
-/*------------------------ queue-set (8~64 rings) --------------*/
 
 static inline int packet_queue_set_init(packet_queue_set_t *set,
                                         uint32_t packet_queue_count,
@@ -287,11 +286,8 @@ void capture_close(capture_ctx_t *capture_ctx);
 // 패킷 1개 수집 후 ring enqueue
 int capture_poll_once(capture_ctx_t *capture_ctx);
 
-// 루프 기반 수집
-int capture_loop(capture_ctx_t *capture_ctx);
-
 /*------------------------ Per-Thread --------------*/
-typedef struct {
+typedef struct driver_runtime {
     capture_ctx_t cc;
 
     pthread_t capture_tid;
@@ -299,8 +295,14 @@ typedef struct {
     void *worker_args;
     int worker_count;
 
-    atomic_bool stop;
+    int capture_started;
+    int workers_started;
 
+    atomic_bool stop;
+    atomic_bool failed;
+    atomic_int last_error;
+
+    pthread_mutex_t handler_mu;
     driver_packet_cb on_packet;
     void *on_packet_user;
     void **worker_users;
@@ -313,109 +315,7 @@ int driver_init(driver_runtime_t *rt, int worker_count);
 int driver_start(driver_runtime_t *rt);
 int driver_stop(driver_runtime_t *rt);
 void driver_destroy(driver_runtime_t *rt);
+int driver_has_failed(driver_runtime_t *rt);
+int driver_last_error(driver_runtime_t *rt);
 void driver_set_packet_handler(driver_runtime_t *rt, driver_packet_cb cb, void *user);
 void driver_set_packet_handler_multi(driver_runtime_t *rt, driver_packet_cb cb, void **users, size_t user_count);
-
-
-/*------------------------ Packet filter --------------*/
-// 패킷 방향 확인(in/out) 확인
-// 정책과 매칭(mac/ip/port)
-// 결과를 BYPASS/PASS/DROP 중 하나로 결정
-
-// 필터 패킷 결과
-typedef enum plugin_handler_result {
-    PLUGIN_HANDLER_PASS     = 0,
-    PLUGIN_HANDLER_BYPASS   = 1,
-    PLUGIN_HANDLER_DROP     = 2,
-    PLUGIN_HANDLER_CONSUMED = 3
-} plugin_handler_result_t;
-
-// Direction
-typedef enum driver_direction {
-    DRIVER_DIR_UNKNOWN  = 0,
-    DRIVER_DIR_INBOUND  = 1, /* outside -> inside */
-    DRIVER_DIR_OUTBOUND = 2  /* inside -> outside */
-} driver_direction_t;
-
-// 프로토콜 enum
-typedef enum driver_l3_proto {
-    DRIVER_L3_UNKNOWN = 0,
-    DRIVER_L3_IPV4 = 4,
-    DRIVER_L3_IPV6 = 6
-} driver_l3_proto_t;
-
-typedef enum driver_l4_proto {
-    DRIVER_L4_UNKNOWN = 0,
-    DRIVER_L4_TCP = 6,
-    DRIVER_L4_UDP = 17
-} driver_l4_proto_t;
-
-// 주소타입
-typedef struct driver_mac {
-    uint8_t b[6];
-} driver_mac_t;
-
-// IPv4 in network byte order
-typedef struct driver_ipv4 {
-    uint32_t addr_be;
-} driver_ipv4_t;
-// IPv4 CIDR net/mask 
-typedef struct driver_ipv4_cidr {
-    uint32_t net_be;
-    uint32_t mask_be;
-} driver_ipv4_cidr_t;
-
-// packet meta passed into filter
-typedef struct driver_pkt_meta {
-    uint64_t ts_ns;
-
-    driver_mac_t src_mac;
-    driver_mac_t dst_mac;
-
-    driver_l3_proto_t l3;
-    driver_l4_proto_t l4;
-
-    driver_ipv4_t src_v4;
-    driver_ipv4_t dst_v4;
-
-    uint16_t src_port;
-    uint16_t dst_port;
-
-    driver_direction_t dir;
-
-    bool is_tunnel;
-    bool is_tls;
-    bool is_http;
-} driver_pkt_meta_t;
-
-/* ---------------Config ---------------*/
-#define DRIVER_FILTER_MAX_MACS 256
-#define DRIVER_FILTER_MAX_CIDRS 64
-#define DRIVER_FILTER_MAX_PORTS 256
-
-typedef struct driver_filter_policy {
-    bool bypass_tunnel; // L2/L3 터널링 등 BYPASS 조건 흉내, is_tunnel=true -> bypass
-
-    driver_mac_t mac_bypass[DRIVER_FILTER_MAX_MACS];
-    uint32_t mac_bypass_cnt;
-
-    /*DROP/CONSUMED 흉내 조건: MIRRORING 등에서 특정 MAC drop */
-    driver_mac_t mac_drop[DRIVER_FILTER_MAX_MACS];
-    uint32_t     mac_drop_cnt;
-    
-    /* port bypass/drop */
-    uint16_t port_bypass[DRIVER_FILTER_MAX_PORTS];
-    uint32_t port_bypass_cnt;
-
-    uint16_t port_drop[DRIVER_FILTER_MAX_PORTS];
-    uint32_t port_drop_cnt;
-
-    bool use_consumed;
-} driver_filter_policy_t;
-//init
-void driver_filter_policy_init(driver_filter_policy_t *p);
-// main filter
-plugin_handler_result_t driver_filter_eval(
-    const driver_pkt_meta_t *m,
-    const driver_filter_policy_t *p
-);

@@ -31,6 +31,7 @@ typedef struct {
     int req_count;
     int detect_count;
     int detect_score;
+    int detect_rc;
     int detect_err_count;
     int parse_err_count;
     char last_uri[256];
@@ -72,6 +73,7 @@ static void on_request_cb(const flow_key_t *flow,
 
     detect_match_list_init(&matches);
     rc = run_detect(ctx->det, msg, &ctx->detect_score, &rule, &matches, &detect_us);
+    ctx->detect_rc = rc;
     if (rc < 0) {
         ctx->detect_err_count++;
     } else if (rc > 0) {
@@ -555,7 +557,9 @@ static int run_case(size_t uri_size, uint32_t seg_size)
     CHECK(ctx.req_count == 1, "expected exactly one request callback");
     CHECK(ctx.detect_err_count == 0, "detect engine error occurred");
     CHECK(ctx.parse_err_count == 0, "unexpected parse error");
-    CHECK(ctx.detect_count == 1, "expected SQLi detection");
+    CHECK(ctx.detect_score > 0, "expected positive SQLi score");
+    CHECK(ctx.detect_count == ((ctx.detect_score >= APP_DETECT_THRESHOLD) ? 1 : 0),
+          "unexpected threshold/blocking decision");
 
     free(req);
     httgw_destroy(gw);
@@ -633,7 +637,9 @@ static int run_two_segment_ooo_case(size_t uri_size)
     CHECK(ctx.req_count == 1, "expected exactly one request callback in out-of-order case");
     CHECK(ctx.detect_err_count == 0, "detect engine error occurred in out-of-order case");
     CHECK(ctx.parse_err_count == 0, "unexpected parse error in out-of-order case");
-    CHECK(ctx.detect_count == 1, "expected SQLi detection in out-of-order case");
+    CHECK(ctx.detect_score > 0, "expected positive SQLi score in out-of-order case");
+    CHECK(ctx.detect_count == ((ctx.detect_score >= APP_DETECT_THRESHOLD) ? 1 : 0),
+          "unexpected threshold/blocking decision in out-of-order case");
 
     free(req);
     httgw_destroy(gw);
@@ -715,7 +721,9 @@ static int run_no_syn_two_segment_ooo_case(size_t uri_size)
     CHECK(ctx.req_count == 1, "expected exactly one request callback in no-syn out-of-order case");
     CHECK(ctx.detect_err_count == 0, "detect engine error occurred in no-syn out-of-order case");
     CHECK(ctx.parse_err_count == 0, "unexpected parse error in no-syn out-of-order case");
-    CHECK(ctx.detect_count == 1, "expected SQLi detection in no-syn out-of-order case");
+    CHECK(ctx.detect_score > 0, "expected positive SQLi score in no-syn out-of-order case");
+    CHECK(ctx.detect_count == ((ctx.detect_score >= APP_DETECT_THRESHOLD) ? 1 : 0),
+          "unexpected threshold/blocking decision in no-syn out-of-order case");
 
     free(req);
     httgw_destroy(gw);

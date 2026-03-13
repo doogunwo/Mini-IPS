@@ -49,6 +49,7 @@ HTTP_LIVE_LIKE_REASM_BIN := $(BUILD_DIR)/test_http_live_like_reasm
 BOT_URL_DETECT_BIN := $(BUILD_DIR)/test_bot_url_detect
 
 APP_SRCS := $(SRC_DIR)/main.c \
+	$(SRC_DIR)/html.c \
 	$(SRC_DIR)/logging.c \
 	$(SRC_DIR)/runtime.c \
 	$(SRC_DIR)/driver.c \
@@ -85,11 +86,12 @@ $(REGEX_COMPAT_BIN): $(TEST_DIR)/test_regex_compat.c | $(BUILD_DIR)
 
 $(DETECT_ENGINE_BIN): check_pcre $(TEST_DIR)/test_detect_engine.c \
 	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
-	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/httgw.c \
+	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/httgw.c \
 	$(SRC_DIR)/http_stream.c | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
 		$(TEST_DIR)/test_detect_engine.c $(SRC_DIR)/runtime.c \
 		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
+		$(SRC_DIR)/html.c \
 		$(SRC_DIR)/regex.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
 		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
 
@@ -101,11 +103,12 @@ $(HTTP_LIVE_LIKE_REASM_BIN): $(TEST_DIR)/test_http_live_like_reasm.c \
 
 $(BOT_URL_DETECT_BIN): check_pcre $(TEST_DIR)/test_bot_url_detect.c \
 	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
-	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/httgw.c \
+	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/httgw.c \
 	$(SRC_DIR)/http_stream.c | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
 		$(TEST_DIR)/test_bot_url_detect.c $(SRC_DIR)/runtime.c \
 		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
+		$(SRC_DIR)/html.c \
 		$(SRC_DIR)/regex.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
 		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
 

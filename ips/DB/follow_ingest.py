@@ -30,13 +30,14 @@ def insert_line(conn: sqlite3.Connection, line: str) -> int:
     conn.execute(
         """
         INSERT OR IGNORE INTO ips_events (
-            ts, level, event, action_name, attack, where_name,
+            event_id, ts, level, event, action_name, attack, where_name,
             src_ip, src_port, dst_ip, dst_port, score, threshold,
             match_count, matched, matched_texts, detect_us, detect_ms,
             detail, raw_line
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
+            fields.get("event_id"),
             fields.get("ts"),
             fields.get("level"),
             fields.get("event"),

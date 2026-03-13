@@ -28,6 +28,7 @@
 #include <stdatomic.h>
 
 #include "net_compat.h"
+#include "html.h"
 #include "logging.h"
 #include "detect.h"
 #include "engine.h"
@@ -35,6 +36,7 @@
 #include "httgw.h"
 
 static volatile sig_atomic_t g_stop = 0; /**< stop signal flag */
+static const char *g_block_page_template_path = "DB/index.html";
 
 static void on_sigint(int signo);
 static void on_request(const flow_key_t *flow,
@@ -76,6 +78,7 @@ int main(int argc, char **argv)
     httgw_callbacks_t cbs;
     pcap_ctx_t pcfg;
     int rc;
+    int exit_code = 0;
     int argi = 0;
     int i;
 
@@ -162,6 +165,7 @@ int main(int argc, char **argv)
     atomic_init(&shared.reqs, 0);
     atomic_init(&shared.reasm_errs, 0);
     atomic_init(&shared.parse_errs, 0);
+    atomic_init(&shared.event_seq, 0);
     shared.pass_log_enabled = env_flag_enabled("IPS_LOG_PASS", 0);
     shared.debug_log_enabled = env_flag_enabled("IPS_LOG_DEBUG", 0);
 
@@ -389,6 +393,17 @@ int main(int argc, char **argv)
 
     while (!g_stop)
     {
+        if (driver_has_failed(&rt))
+        {
+            rc = driver_last_error(&rt);
+            fprintf(stderr, "capture thread failed rc=%d\n", rc);
+            app_log_write(&shared,
+                          "ERROR",
+                          "event=capture_thread_failed rc=%d",
+                          rc);
+            exit_code = 1;
+            break;
+        }
         usleep(200U * 1000U);
     }
 
@@ -399,7 +414,7 @@ int main(int argc, char **argv)
     free(workers);
     app_log_write(&shared, "INFO", "event=capture_stop");
     app_log_close(&shared);
-    return 0;
+    return exit_code;
 }
 
 /*
@@ -437,6 +452,9 @@ static void on_request(const flow_key_t *flow,
     strbuf_t matched_rules = {0};
     strbuf_t matched_texts = {0};
     char ip[32];
+    char event_id[48];
+    char event_ts[40];
+    char *block_page_html = NULL;
 
     if (!app || !app->shared || !app->det)
     {
@@ -454,6 +472,33 @@ static void on_request(const flow_key_t *flow,
     {
         char from[256];
 
+        if (app_make_event_id(app->shared, event_id, sizeof(event_id)) != 0)
+        {
+            snprintf(event_id, sizeof(event_id), "evt-unavailable");
+        }
+        if (app_make_timestamp(event_ts, sizeof(event_ts)) != 0)
+        {
+            snprintf(event_ts, sizeof(event_ts), "1970-01-01T00:00:00.000");
+        }
+
+        block_page_html = app_render_block_page(g_block_page_template_path,
+                                                event_id,
+                                                event_ts,
+                                                ip);
+        free(app->last_block_page_html);
+        app->last_block_page_html = block_page_html;
+        snprintf(app->last_event_id, sizeof(app->last_event_id), "%s", event_id);
+        snprintf(app->last_event_ts, sizeof(app->last_event_ts), "%s", event_ts);
+        snprintf(app->last_client_ip, sizeof(app->last_client_ip), "%s", ip);
+        if (block_page_html == NULL)
+        {
+            app_log_write(app->shared,
+                          "ERROR",
+                          "event=block_page_render_failed event_id=%s template=%s",
+                          event_id,
+                          g_block_page_template_path);
+        }
+
         snprintf(from,
                  sizeof(from),
                  "%.31s %.200s",
@@ -461,6 +506,8 @@ static void on_request(const flow_key_t *flow,
                  msg->uri[0] ? msg->uri : "/");
         append_match_strings(&matches, &matched_rules, &matched_texts);
         app_log_attack(app->shared,
+                       event_id,
+                       event_ts,
                        rule ? rule->policy_name : "unknown",
                        "REQUEST",
                        from,
@@ -476,7 +523,7 @@ static void on_request(const flow_key_t *flow,
                        detect_ms);
         atomic_fetch_add(&app->shared->http_msgs, 1);
         atomic_fetch_add(&app->shared->reqs, 1);
-        request_rst_both(app, flow);
+        request_block_action_v2(app, flow, event_id);
     }
     else if (0 == rc)
     {
@@ -676,6 +723,9 @@ static void destroy_workers(app_ctx_t *workers, int count)
             httgw_destroy(w->gw);
             w->gw = NULL;
         }
+
+        free(w->last_block_page_html);
+        w->last_block_page_html = NULL;
 
         tx_ctx_destroy(&w->rst_tx);
     }

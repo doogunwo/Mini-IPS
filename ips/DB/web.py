@@ -71,6 +71,7 @@ def fetch_events(conn: sqlite3.Connection, event: Optional[str], q: Optional[str
     if q:
         clauses.append(
             "("
+            "COALESCE(event_id, '') LIKE ? OR "
             "COALESCE(attack, '') LIKE ? OR "
             "COALESCE(src_ip, '') LIKE ? OR "
             "COALESCE(dst_ip, '') LIKE ? OR "
@@ -81,7 +82,7 @@ def fetch_events(conn: sqlite3.Connection, event: Optional[str], q: Optional[str
             ")"
         )
         like = f"%{q}%"
-        params.extend([like, like, like, like, like, like, like])
+        params.extend([like, like, like, like, like, like, like, like])
 
     where_sql = ""
     if clauses:
@@ -90,7 +91,7 @@ def fetch_events(conn: sqlite3.Connection, event: Optional[str], q: Optional[str
     params.append(limit)
     return conn.execute(
         f"""
-        SELECT id, ts, level, event, action_name, attack, where_name, src_ip, src_port,
+        SELECT id, event_id, ts, level, event, action_name, attack, where_name, src_ip, src_port,
                dst_ip, dst_port, score, threshold, match_count, matched, matched_texts,
                detect_us,
                detect_ms, detail, raw_line
@@ -106,7 +107,7 @@ def fetch_events(conn: sqlite3.Connection, event: Optional[str], q: Optional[str
 def event_tone(event: str, level: str) -> str:
     if event == "detect":
         return "threat"
-    if event == "rst_request":
+    if event == "rst_request" or event == "block_inject":
         return "block"
     if level == "ERROR" or "error" in (event or ""):
         return "error"
@@ -131,13 +132,13 @@ def split_serialized(value: Optional[str]) -> list[str]:
     return [item.strip() for item in value.split("; ") if item.strip()]
 
 
-def parse_rule_entry(entry: str) -> tuple[str, str]:
+def parse_rule_entry(entry: str) -> tuple[str, str, str]:
     parts = entry.split("|", 2)
     if len(parts) == 3:
-        return parts[0], parts[2]
+        return parts[0], parts[1], parts[2]
     if len(parts) == 2:
-        return parts[0], parts[1]
-    return "-", entry
+        return parts[0], "-", parts[1]
+    return "-", "-", entry
 
 
 def parse_text_entry(entry: str) -> tuple[str, str]:
@@ -158,12 +159,15 @@ def render_detail_html(row: sqlite3.Row) -> str:
         lines = []
         max_len = max(len(rules), len(texts))
         for idx in range(max_len):
-            rule_ctx, regex = parse_rule_entry(rules[idx]) if idx < len(rules) else ("-", "-")
+            rule_ctx, policy, regex = (
+                parse_rule_entry(rules[idx]) if idx < len(rules) else ("-", "-", "-")
+            )
             text_ctx, matched_text = parse_text_entry(texts[idx]) if idx < len(texts) else (rule_ctx, "-")
             context = text_ctx if text_ctx != "-" else rule_ctx
             lines.append(
                 "<div class='detail-line'>"
                 f"<div><span class='detail-label'>{html.escape(context)}</span></div>"
+                f"<div><span class='detail-key'>attack</span>=<code>{html.escape(policy)}</code></div>"
                 f"<div><span class='detail-key'>regex</span>=<code>{html.escape(regex)}</code></div>"
                 f"<div><span class='detail-key'>match</span>=<code>{html.escape(matched_text)}</code></div>"
                 "</div>"
@@ -182,12 +186,11 @@ def render_page(overview, summary, rows, selected_event: Optional[str], query: O
     for row in rows:
         tone = event_tone(row["event"] or "", row["level"] or "")
         date_part, time_part = format_timestamp_parts(row["ts"])
-        is_rst = (row["event"] or "") == "rst_request"
-        attack = "" if is_rst else (row["attack"] or "-")
         where_name = row["where_name"] or "-"
         source = f"{row['src_ip'] or '-'}:{row['src_port'] or '-'}"
         dest = f"{row['dst_ip'] or '-'}:{row['dst_port'] or '-'}"
         score_line = f"score={row['score'] or '-'} threshold={row['threshold'] or '-'} matches={row['match_count'] or '-'}"
+        display_id = row["event_id"] or str(row["id"])
         detect_us = row["detect_us"]
         detect_ms = row["detect_ms"]
         if detect_us is not None:
@@ -199,11 +202,10 @@ def render_page(overview, summary, rows, selected_event: Optional[str], query: O
         detail_html = render_detail_html(row)
         table_rows.append(
             f"<tr class='tone-{tone}'>"
-            f"<td class='mono'>{html.escape(str(row['id']))}</td>"
+            f"<td class='mono'>{html.escape(str(display_id))}</td>"
             f"<td><div class='ts-date'>{html.escape(date_part)}</div><div class='ts-time mono'>{html.escape(time_part)}</div><div class='sub'>{html.escape(where_name)}</div></td>"
             f"<td><span class='pill level-{html.escape((row['level'] or 'INFO').lower())}'>{html.escape(row['level'] or '')}</span></td>"
-            f"<td><span class='pill event-{html.escape(tone)}'>{html.escape(row['event'] or '')}</span></td>"
-            f"<td><strong>{html.escape(attack or '-')}</strong><div class='sub'>{html.escape(score_line)}</div></td>"
+            f"<td><span class='pill event-{html.escape(tone)}'>{html.escape(row['event'] or '')}</span><div class='sub'>{html.escape(score_line)}</div></td>"
             f"<td class='mono'>{html.escape(source)}</td>"
             f"<td class='mono'>{html.escape(dest)}</td>"
             f"<td class='mono'>{html.escape(detect_display)}</td>"
@@ -302,11 +304,10 @@ def render_page(overview, summary, rows, selected_event: Optional[str], query: O
         <table>
           <thead>
             <tr>
-              <th>ID</th>
+              <th>Event ID</th>
               <th>Timestamp</th>
               <th>Level</th>
               <th>Event</th>
-              <th>Attack</th>
               <th>Source</th>
               <th>Dest</th>
               <th>Detect ms</th>
@@ -314,7 +315,7 @@ def render_page(overview, summary, rows, selected_event: Optional[str], query: O
             </tr>
           </thead>
           <tbody>
-            {''.join(table_rows) or "<tr><td colspan='9'>no rows</td></tr>"}
+            {''.join(table_rows) or "<tr><td colspan='8'>no rows</td></tr>"}
           </tbody>
         </table>
       </div>

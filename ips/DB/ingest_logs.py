@@ -9,6 +9,7 @@ from typing import Dict, Optional
 INTERESTING_EVENTS = {
     "detect",
     "rst_request",
+    "block_inject",
     "stream_error",
     "detect_error",
 }
@@ -29,6 +30,7 @@ def init_db(conn: sqlite3.Connection) -> None:
         """
         CREATE TABLE IF NOT EXISTS ips_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT,
             ts TEXT,
             level TEXT,
             event TEXT,
@@ -53,6 +55,8 @@ def init_db(conn: sqlite3.Connection) -> None:
         """
     )
     existing = {row[1] for row in conn.execute("PRAGMA table_info(ips_events)").fetchall()}
+    if "event_id" not in existing:
+        conn.execute("ALTER TABLE ips_events ADD COLUMN event_id TEXT")
     if "score" not in existing:
         conn.execute("ALTER TABLE ips_events ADD COLUMN score INTEGER")
     if "threshold" not in existing:
@@ -105,13 +109,14 @@ def ingest_file(log_file: pathlib.Path, db_file: pathlib.Path) -> int:
                 conn.execute(
                     """
                     INSERT OR IGNORE INTO ips_events (
-                        ts, level, event, action_name, attack, where_name,
+                        event_id, ts, level, event, action_name, attack, where_name,
                         src_ip, src_port, dst_ip, dst_port, score, threshold,
                         match_count, matched, matched_texts, detect_us, detect_ms,
                         detail, raw_line
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
+                        fields.get("event_id"),
                         fields.get("ts"),
                         fields.get("level"),
                         fields.get("event"),

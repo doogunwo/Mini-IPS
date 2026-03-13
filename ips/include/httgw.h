@@ -205,6 +205,13 @@ int httgw_request_rst_with_snapshot(
     tcp_dir_t dir,
     const httgw_sess_snapshot_t *snap
 );
+int httgw_inject_block_response_with_snapshot(
+    httgw_t *gw,
+    const flow_key_t *flow,
+    const httgw_sess_snapshot_t *snap,
+    const uint8_t *payload,
+    size_t payload_len
+);
 
 
 /** 필요 시 세션 엔트리를 생성하는 테스트용 헬퍼이다. */

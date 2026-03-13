@@ -7,6 +7,7 @@ IPS 런타임은 네트워크 패킷을 캡처하여 HTTP 메시지를 재조립
 */
 #define _DEFAULT_SOURCE
 
+#include "html.h"
 #include "logging.h"
 
 #include <ctype.h>
@@ -63,6 +64,8 @@ static int collect_query_pairs(detect_engine_t *det,
                                detect_match_list_t *matches,
                                uint64_t *detect_elapsed_us,
                                int *score);
+static const IPS_Signature *select_representative_rule(
+    const detect_match_list_t *matches);
 
 static uint16_t be16(const uint8_t *p)
 {
@@ -117,13 +120,13 @@ static void normalize_flow(uint32_t sip, uint16_t sport,
 
 /**
  * @brief TCP 패킷 파싱, flow 키, 방향 추출하는 함수
- * 
+ *
  * @param data 패킷 데이터
  * @param len 길이
  * @param flow 플로우 세션
  * @param dir 플로우 방향
  * @param flags TCP 플래그
- * @return int 
+ * @return int
  */
 int parse_flow_dir_and_flags(const uint8_t *data,
                              uint32_t len,
@@ -387,11 +390,10 @@ void log_tcp_packet_line(const app_ctx_t *app,
     }
 
     fprintf(stderr,
-            have_snap ?
-                "[TCP] IP %s.%u > %s.%u, rel_seq %u:%u, "
-                "rel_ack %u, win %u, %s, length %u\n" :
-                "[TCP] IP %s.%u > %s.%u, seq %u:%u, "
-                "ack %u, win %u, %s, length %u\n",
+            have_snap ? "[TCP] IP %s.%u > %s.%u, rel_seq %u:%u, "
+                        "rel_ack %u, win %u, %s, length %u\n"
+                      : "[TCP] IP %s.%u > %s.%u, seq %u:%u, "
+                        "ack %u, win %u, %s, length %u\n",
             src_ip, sport, dst_ip, dport,
             have_snap ? rel_seq : seq,
             have_snap ? rel_end : seq + payload_len,
@@ -399,60 +401,44 @@ void log_tcp_packet_line(const app_ctx_t *app,
             win, opts, payload_len);
 }
 
-void request_rst_both(app_ctx_t *app, const flow_key_t *flow)
+void request_rst_both(app_ctx_t *app, const flow_key_t *flow, const char *event_id)
 {
     httgw_sess_snapshot_t snap;
-    uint32_t win_ab;
-    uint32_t win_ba;
     int rc_ab;
     int rc_ba;
 
     if (!app || !flow)
-        return;
-    if (httgw_get_session_snapshot(app->gw, flow, &snap) != 0)
-        return;
-    if (!snap.seen_ab || !snap.seen_ba)
     {
-        if (app->shared->debug_log_enabled)
-            fprintf(stderr, "[TCP] skip waiting_bidir seen_ab=%u seen_ba=%u\n",
-                    snap.seen_ab, snap.seen_ba);
-        app_log_write(app->shared,
-                      "INFO",
-                      "event=rst_skip reason=waiting_bidir seen_ab=%u seen_ba=%u",
-                      snap.seen_ab,
-                      snap.seen_ba);
         return;
     }
 
-    win_ab = (snap.win_scale_ab > 14) ?
-             snap.win_ab << 14 :
-             snap.win_ab << snap.win_scale_ab;
-    win_ba = (snap.win_scale_ba > 14) ?
-             snap.win_ba << 14 :
-             snap.win_ba << snap.win_scale_ba;
-    if (app->shared->debug_log_enabled)
+    if (httgw_get_session_snapshot(app->gw, flow, &snap) != 0)
     {
-        fprintf(stderr,
-                "[TCP] Client->Server rel_ack=%u rel_seq=%u WIN=%u\n",
-                snap.next_seq_ba - snap.base_seq_ba,
-                snap.next_seq_ab - snap.base_seq_ab,
-                win_ba);
-        fprintf(stderr,
-                "[TCP] Server->Client rel_ack=%u rel_seq=%u WIN=%u\n",
-                snap.next_seq_ab - snap.base_seq_ab,
-                snap.next_seq_ba - snap.base_seq_ba,
-                win_ab);
+        return;
+
+
+    }
+    if (!snap.seen_ab || !snap.seen_ba)
+    {
+        app_log_write(app->shared,
+                      "INFO",
+                      "event=rst_skip event_id=%s reason=waiting_bidir seen_ab=%u seen_ba=%u",
+                      (event_id && event_id[0] != '\0') ? event_id : "-",
+                      snap.seen_ab,
+                      snap.seen_ba);
+        return;
     }
 
     rst_log_cache_put(app, flow, &snap, 0);
 
     rc_ab = httgw_request_rst_with_snapshot(app->gw, flow, DIR_AB, &snap);
     rc_ba = httgw_request_rst_with_snapshot(app->gw, flow, DIR_BA, &snap);
-    
+
     app_log_write(app->shared,
                   (rc_ab == 0 && rc_ba == 0) ? "WARN" : "BLOCK",
-                  "event=rst_request src_ip=%u.%u.%u.%u src_port=%u "
+                  "event=rst_request event_id=%s src_ip=%u.%u.%u.%u src_port=%u "
                   "dst_ip=%u.%u.%u.%u dst_port=%u rc_ab=%d rc_ba=%d",
+                  (event_id && event_id[0] != '\0') ? event_id : "-",
                   (flow->src_ip >> 24) & 0xFF,
                   (flow->src_ip >> 16) & 0xFF,
                   (flow->src_ip >> 8) & 0xFF,
@@ -465,6 +451,77 @@ void request_rst_both(app_ctx_t *app, const flow_key_t *flow)
                   flow->dst_port,
                   rc_ab,
                   rc_ba);
+}
+
+void request_block_action_v2(app_ctx_t *app, const flow_key_t *flow, const char *event_id)
+{
+    httgw_sess_snapshot_t snap;
+    char *response = NULL;
+    size_t response_len = 0;
+    int rc_ab;
+    int rc_ba;
+
+    if (!app || !flow)
+        return;
+    if (httgw_get_session_snapshot(app->gw, flow, &snap) != 0)
+        return;
+    if (!snap.seen_ab || !snap.seen_ba)
+    {
+        app_log_write(app->shared,
+                      "INFO",
+                      "event=block_inject_skip event_id=%s reason=waiting_bidir seen_ab=%u seen_ba=%u",
+                      (event_id && event_id[0] != '\0') ? event_id : "-",
+                      snap.seen_ab,
+                      snap.seen_ba);
+        return;
+    }
+
+    if (!app->last_block_page_html)
+    {
+        request_rst_both(app, flow, event_id);
+        return;
+    }
+
+    response = app_build_block_http_response(app->last_block_page_html, &response_len);
+    if (!response)
+    {
+        app_log_write(app->shared,
+                      "ERROR",
+                      "event=block_inject_build_failed event_id=%s",
+                      (event_id && event_id[0] != '\0') ? event_id : "-");
+        request_rst_both(app, flow, event_id);
+        return;
+    }
+
+    rst_log_cache_put(app, flow, &snap, 0);
+
+    rc_ab = httgw_request_rst_with_snapshot(app->gw, flow, DIR_AB, &snap);
+    rc_ba = httgw_inject_block_response_with_snapshot(app->gw,
+                                                      flow,
+                                                      &snap,
+                                                      (const uint8_t *)response,
+                                                      response_len);
+
+    app_log_write(app->shared,
+                  (rc_ab == 0 && rc_ba == 0) ? "WARN" : "BLOCK",
+                  "event=block_inject event_id=%s src_ip=%u.%u.%u.%u src_port=%u "
+                  "dst_ip=%u.%u.%u.%u dst_port=%u bytes=%zu rc_ab=%d rc_ba=%d",
+                  (event_id && event_id[0] != '\0') ? event_id : "-",
+                  (flow->src_ip >> 24) & 0xFF,
+                  (flow->src_ip >> 16) & 0xFF,
+                  (flow->src_ip >> 8) & 0xFF,
+                  flow->src_ip & 0xFF,
+                  flow->src_port,
+                  (flow->dst_ip >> 24) & 0xFF,
+                  (flow->dst_ip >> 16) & 0xFF,
+                  (flow->dst_ip >> 8) & 0xFF,
+                  flow->dst_ip & 0xFF,
+                  flow->dst_port,
+                  response_len,
+                  rc_ab,
+                  rc_ba);
+
+    free(response);
 }
 
 static int hex_val(int c)
@@ -571,8 +628,7 @@ static int add_new_match_score(detect_match_list_t *matches, size_t prev_count, 
     if (!matches || !score)
         return 0;
     for (i = prev_count; i < matches->count; i++)
-        *score += matches->items[i].rule ?
-                  matches->items[i].rule->is_high_priority : 0;
+        *score += matches->items[i].rule ? matches->items[i].rule->is_high_priority : 0;
     return 0;
 }
 
@@ -676,16 +732,83 @@ static int collect_query_pairs(detect_engine_t *det,
     return 0;
 }
 
+static const IPS_Signature *select_representative_rule(
+    const detect_match_list_t *matches)
+{
+    typedef struct
+    {
+        POLICY policy_id;
+        int best_prio;
+        int total_prio;
+        size_t count;
+        const IPS_Signature *best_rule;
+    } policy_bucket_t;
+
+    policy_bucket_t buckets[POLICY_MAX];
+    size_t i;
+    int best_idx = -1;
+
+    if (!matches || matches->count == 0)
+        return NULL;
+
+    memset(buckets, 0, sizeof(buckets));
+    for (i = 0; i < matches->count; i++)
+    {
+        const IPS_Signature *rule = matches->items[i].rule;
+        int idx;
+
+        if (!rule)
+            continue;
+
+        idx = (rule->policy_id >= POLICY_START && rule->policy_id < POLICY_MAX)
+                  ? (int)rule->policy_id
+                  : POLICY_START;
+
+        buckets[idx].policy_id = (POLICY)idx;
+        buckets[idx].total_prio += rule->is_high_priority;
+        buckets[idx].count++;
+
+        if (!buckets[idx].best_rule ||
+            rule->is_high_priority > buckets[idx].best_prio)
+        {
+            buckets[idx].best_prio = rule->is_high_priority;
+            buckets[idx].best_rule = rule;
+        }
+    }
+
+    for (i = 0; i < POLICY_MAX; i++)
+    {
+        if (!buckets[i].best_rule)
+            continue;
+
+        if (best_idx < 0 ||
+            buckets[i].best_prio > buckets[best_idx].best_prio ||
+            (buckets[i].best_prio == buckets[best_idx].best_prio &&
+             buckets[i].total_prio > buckets[best_idx].total_prio) ||
+            (buckets[i].best_prio == buckets[best_idx].best_prio &&
+             buckets[i].total_prio == buckets[best_idx].total_prio &&
+             buckets[i].count > buckets[best_idx].count))
+        {
+            best_idx = (int)i;
+        }
+    }
+
+    if (best_idx >= 0)
+        return buckets[best_idx].best_rule;
+
+    return matches->items[0].rule;
+}
+
 /**
  * @brief 탐지 엔진 실행 함수
- * 
+ *
  * @param det 탐지 엔진
  * @param msg HTTP 메시지
  * @param out_score 탐지 점수 출력
  * @param matched_rule 탐지된 룰 출력
  * @param matches 탐지된 매치 리스트 출력
  * @param detect_elapsed_us 탐지에 걸린 시간 출력 (마이크로초)
- * @return int 
+ * @return int
  */
 int run_detect(detect_engine_t *det,
                const http_message_t *msg,
@@ -706,7 +829,7 @@ int run_detect(detect_engine_t *det,
     if (matches)
         detect_match_list_init(matches);
     /* URL 전체 검사*/
-    rc = collect_matches_for_slice(det,/* det = PCRE/HS */
+    rc = collect_matches_for_slice(det, /* det = PCRE/HS */
                                    (const uint8_t *)msg->uri,
                                    strlen(msg->uri),
                                    IPS_CTX_REQUEST_URI,
@@ -734,12 +857,12 @@ int run_detect(detect_engine_t *det,
             if (rc < 0)
                 return rc;
         }
-    }   
+    }
     /* body를 query string처럼 쪼개서 검사해도 되는 형식인지 확인하는 조건문*/
     if (msg->body && msg->body_len > 0 &&
         msg->content_type[0] != '\0' &&
         strstr(msg->content_type, "application/x-www-form-urlencoded") != NULL)
-    {/* 조건이 다 맞으면 user, mode, payload ->ARGS_NAMES, admin, normal %27+union.. -> ARGS*/
+    { /* 조건이 다 맞으면 user, mode, payload ->ARGS_NAMES, admin, normal %27+union.. -> ARGS*/
         rc = collect_query_pairs(det,
                                  (const char *)msg->body,
                                  msg->body_len,
@@ -760,8 +883,8 @@ int run_detect(detect_engine_t *det,
                                    0,
                                    &score);
     if (rc < 0)
-        return rc;                                           
-    
+        return rc;
+
     /* BODY 전체 검사 */
     rc = collect_matches_for_slice(det,
                                    msg->body,
@@ -773,14 +896,11 @@ int run_detect(detect_engine_t *det,
                                    &score);
     if (rc < 0)
         return rc;
-    /* mathces 리스트에 제일 먼저 들어간 룰을 넘기느 것
-    *  HS/PCRE 에서 첫 룰이 다를 수 있음
-    */
+    /* 첫 매치 하나만 쓰면 범용 SQLi 룰이 대표 정책을 덮는 경우가 많다.
+     * 대표 정책은 matches 전체에서 가장 강한(policy별 우선순위/누적점수) 룰로 고른다.
+     */
     if (matched_rule)
-        *matched_rule = (matches &&
-                         matches->count > 0 &&
-                         matches->items[0].rule) ?
-                        matches->items[0].rule : NULL;
+        *matched_rule = select_representative_rule(matches);
     if (out_score)
         *out_score = score;
     return score >= APP_DETECT_THRESHOLD ? 1 : 0;

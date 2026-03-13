@@ -126,6 +126,43 @@ char *log_escape_dup(const char *s)
     return sb.buf;
 }
 
+int app_make_timestamp(char *out, size_t out_sz)
+{
+    if (!out || out_sz == 0)
+    {
+        return -1;
+    }
+
+    make_log_timestamp(out, out_sz);
+    return 0;
+}
+
+int app_make_event_id(app_shared_t *shared, char *out, size_t out_sz)
+{
+    struct timespec ts;
+    uint64_t seq;
+    uint64_t epoch_ms;
+
+    if (!shared || !out || out_sz == 0)
+    {
+        return -1;
+    }
+
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0)
+    {
+        return -1;
+    }
+
+    seq = atomic_fetch_add(&shared->event_seq, 1) + 1;
+    epoch_ms = ((uint64_t)ts.tv_sec * 1000ULL) + ((uint64_t)ts.tv_nsec / 1000000ULL);
+    snprintf(out,
+             out_sz,
+             "evt-%013llu-%06llu",
+             (unsigned long long)epoch_ms,
+             (unsigned long long)(seq % 1000000ULL));
+    return 0;
+}
+
 /**
 * @brief match string 생성 함수
 detect match list를 로그 기록용 문자열 두 개로 직렬화한다.
@@ -310,6 +347,8 @@ void app_log_write(app_shared_t *shared,
 * @return 없음
 */
 void app_log_attack(app_shared_t *shared,
+                    const char *event_id,
+                    const char *event_ts,
                     const char *attack,
                     const char *where,
                     const char *from,
@@ -348,16 +387,24 @@ void app_log_attack(app_shared_t *shared,
         return;
     }
 
-    make_log_timestamp(ts, sizeof(ts));
+    if (event_ts && event_ts[0] != '\0')
+    {
+        snprintf(ts, sizeof(ts), "%s", event_ts);
+    }
+    else
+    {
+        make_log_timestamp(ts, sizeof(ts));
+    }
     pthread_mutex_lock(&shared->log_mu);
     fprintf(shared->log_fp,
-            "ts=%s level=WARN event=detect "
+            "ts=%s level=WARN event=detect event_id=%s "
             "attack=%s where=%s from=\"%s\" "
             "matched=\"%s\" score=%d threshold=%d "
             "match_count=%zu matched_rules=\"%s\" "
             "matched_texts=\"%s\" src_ip=%s "
             "src_port=%u detect_us=%llu detect_ms=%ld\n",
             ts,
+            (event_id && event_id[0] != '\0') ? event_id : "-",
             attack ? attack : "unknown",
             where ? where : "unknown",
             from_esc,
@@ -618,6 +665,7 @@ static const char *ctx_name(ips_context_t ctx)
             return "ALL";
     }
 }
+
 
 /**
 * @brief parent dir 생성 함수

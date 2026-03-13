@@ -27,6 +27,7 @@ static inline int32_t seq_diff(uint32_t a, uint32_t b) { return (int32_t)(a - b)
 #define SEQ_LEQ(a, b) (seq_diff((a), (b)) <= 0)
 #define SEQ_GT(a, b) (seq_diff((a), (b)) > 0)
 #define SEQ_GEQ(a, b) (seq_diff((a), (b)) >= 0)
+#define HTTGW_INJECT_SEGMENT_BYTES 1200U
 
 /**
  * @brief HTTP 재조립, Out-of-order 대비용 연결리스트 구조체
@@ -1725,16 +1726,34 @@ int httgw_set_tx(httgw_t *gw, tx_ctx_t *tx)
     return 0;
 }
 
-int tx_send_rst(void *tx_ctx, const flow_key_t *flow, tcp_dir_t dir, uint32_t seq, uint32_t ack)
+static int tx_send_tcp_segment(void *tx_ctx,
+                               const flow_key_t *flow,
+                               tcp_dir_t dir,
+                               uint32_t seq,
+                               uint32_t ack,
+                               uint8_t flags,
+                               uint16_t window,
+                               const uint8_t *payload,
+                               size_t payload_len)
 {
     tx_ctx_t *tx = (tx_ctx_t *)tx_ctx;
-    uint32_t sip, dip;     // RSt 패킷의 source IP, RST 패킷의 destination IP
-    uint16_t sport, dport; // Source PORT, Destination IP
+    uint32_t sip, dip;
+    uint16_t sport, dport;
+    size_t total_len;
+    uint8_t *buf;
+    IPHDR *ip;
+    TCPHDR *tcp;
+    int rc;
 
     if (!tx || !tx->send_l3 || !flow)
         return -1;
+    if (payload_len > 0 && !payload)
+        return -1;
+    total_len = IP_HDR_SIZE + TCP_HDR_SIZE + payload_len;
+    if (total_len > 0xFFFFu)
+        return -1;
 
-    if (dir == DIR_AB) //
+    if (dir == DIR_AB)
     {
         sip = flow->src_ip;
         sport = flow->src_port;
@@ -1750,17 +1769,19 @@ int tx_send_rst(void *tx_ctx, const flow_key_t *flow, tcp_dir_t dir, uint32_t se
         dip = flow->src_ip;
         dport = flow->src_port;
     }
-    uint8_t buf[IP_HDR_SIZE + TCP_HDR_SIZE];
-    memset(buf, 0, sizeof(buf));
 
-    IPHDR *ip = (IPHDR *)buf;
-    TCPHDR *tcp = (TCPHDR *)(buf + sizeof(*ip));
+    buf = (uint8_t *)calloc(1, total_len);
+    if (!buf)
+        return -1;
+
+    ip = (IPHDR *)buf;
+    tcp = (TCPHDR *)(buf + sizeof(*ip));
 
     IP_VER(ip) = 4;
     IP_IHL(ip) = 5;
     IP_TTL_FIELD(ip) = 64;
     IP_PROTO(ip) = IPPROTO_TCP;
-    IP_TOTLEN(ip) = htons((uint16_t)sizeof(buf));
+    IP_TOTLEN(ip) = htons((uint16_t)total_len);
     IP_SADDR(ip) = htonl(sip);
     IP_DADDR(ip) = htonl(dip);
     IP_CHECK(ip) = 0;
@@ -1771,14 +1792,30 @@ int tx_send_rst(void *tx_ctx, const flow_key_t *flow, tcp_dir_t dir, uint32_t se
     TCP_SEQ(tcp) = htonl(seq);
     TCP_ACK(tcp) = htonl(ack);
     TCP_DOFF(tcp) = 5;
-    TCP_SET_RST(tcp);
-    TCP_SET_ACK(tcp, ack != 0);
-    TCP_WIN(tcp) = htons(0);
+    TCP_SET_FLAGS(tcp, flags);
+    TCP_WIN(tcp) = htons(window);
     TCP_CHECK(tcp) = 0;
-    // TCP_CHECK(tcp) = tcp_checksum(IP_SADDR(ip), IP_DADDR(ip), (const uint8_t *)tcp, sizeof(*tcp));
-    TCP_CHECK(tcp) = htons(tcp_checksum(IP_SADDR(ip), IP_DADDR(ip), (const uint8_t *)tcp, sizeof(*tcp)));
+    if (payload_len > 0)
+    {
+        memcpy((uint8_t *)tcp + TCP_HDR_SIZE, payload, payload_len);
+    }
+    TCP_CHECK(tcp) = htons(tcp_checksum(IP_SADDR(ip),
+                                        IP_DADDR(ip),
+                                        (const uint8_t *)tcp,
+                                        TCP_HDR_SIZE + payload_len));
 
-    return tx->send_l3(tx->ctx, buf, sizeof(buf));
+    rc = tx->send_l3(tx->ctx, buf, total_len);
+    free(buf);
+    return rc;
+}
+
+int tx_send_rst(void *tx_ctx, const flow_key_t *flow, tcp_dir_t dir, uint32_t seq, uint32_t ack)
+{
+    uint8_t flags = TCP_RST;
+
+    if (ack != 0)
+        flags |= TCP_ACK;
+    return tx_send_tcp_segment(tx_ctx, flow, dir, seq, ack, flags, 0, NULL, 0);
 }
 
 int httgw_request_rst_with_snapshot(
@@ -1899,6 +1936,72 @@ int httgw_request_rst_with_snapshot(
             sess->rst_sent_ba = 1;
         return 0;
     }
+    return last_err;
+}
+
+int httgw_inject_block_response_with_snapshot(
+    httgw_t *gw,
+    const flow_key_t *flow,
+    const httgw_sess_snapshot_t *snap,
+    const uint8_t *payload,
+    size_t payload_len)
+{
+    httgw_session_t *sess;
+    uint32_t seq_base;
+    uint32_t ack;
+    size_t sent = 0;
+    int last_err = -1;
+
+    if (!gw || !flow || !snap || !payload || payload_len == 0)
+        return -1;
+    if (!gw->tx_ctx)
+        return -4;
+
+    sess = sess_find(gw, flow);
+    if (!sess)
+        return -2;
+    if (!snap->seen_ab || !snap->seen_ba)
+        return -3;
+    if (snap->next_seq_ab == 0 || snap->next_seq_ba == 0)
+        return -3;
+
+    seq_base = snap->next_seq_ba;
+    ack = snap->next_seq_ab;
+
+    while (sent < payload_len)
+    {
+        size_t chunk = payload_len - sent;
+        uint8_t flags = TCP_ACK;
+        int rc;
+
+        if (chunk > HTTGW_INJECT_SEGMENT_BYTES)
+            chunk = HTTGW_INJECT_SEGMENT_BYTES;
+        if (sent + chunk == payload_len)
+            flags |= TCP_PSH;
+
+        rc = tx_send_tcp_segment(gw->tx_ctx,
+                                 flow,
+                                 DIR_BA,
+                                 seq_base + (uint32_t)sent,
+                                 ack,
+                                 flags,
+                                 snap->win_ba,
+                                 payload + sent,
+                                 chunk);
+        if (rc != 0)
+            return rc;
+        sent += chunk;
+    }
+
+    last_err = tx_send_tcp_segment(gw->tx_ctx,
+                                   flow,
+                                   DIR_BA,
+                                   seq_base + (uint32_t)payload_len,
+                                   ack,
+                                   (uint8_t)(TCP_FIN | TCP_ACK),
+                                   snap->win_ba,
+                                   NULL,
+                                   0);
     return last_err;
 }
 

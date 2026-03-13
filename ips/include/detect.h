@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 #include "regex.h"
+#define APP_DETECT_THRESHOLD 39
 
 typedef enum {
     DETECT_JIT_AUTO = -1,
