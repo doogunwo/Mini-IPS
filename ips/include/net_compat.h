@@ -23,7 +23,12 @@
 #define TCP_ACK(tcp) ((tcp)->th_ack)
 #define TCP_DOFF(tcp) ((tcp)->th_off)
 #define TCP_SET_RST(tcp) ((tcp)->th_flags |= TH_RST)
-#define TCP_SET_ACK(tcp, on) do { if (on) { (tcp)->th_flags |= TH_ACK; } } while (0)
+#define TCP_SET_ACK(tcp, on)           \
+    do {                               \
+        if (on) {                      \
+            (tcp)->th_flags |= TH_ACK; \
+        }                              \
+    } while (0)
 #define TCP_SET_FLAGS(tcp, flags) ((tcp)->th_flags |= (flags))
 #define TCP_HAS_FLAG(tcp, flag) (((tcp)->th_flags & (flag)) != 0)
 #define TCP_WIN(tcp) ((tcp)->th_win)
@@ -48,22 +53,27 @@
 #define TCP_DOFF(tcp) ((tcp)->doff)
 #define TCP_SET_RST(tcp) ((tcp)->rst = 1)
 #define TCP_SET_ACK(tcp, on) ((tcp)->ack = ((on) ? 1 : 0))
-#define TCP_SET_FLAGS(tcp, flags) do { \
-    if ((flags) & TCP_FIN) (tcp)->fin = 1; \
-    if ((flags) & TCP_SYN) (tcp)->syn = 1; \
-    if ((flags) & TCP_RST) (tcp)->rst = 1; \
-    if ((flags) & TCP_PSH) (tcp)->psh = 1; \
-    if ((flags) & TCP_ACK) (tcp)->ack = 1; \
-    if ((flags) & TCP_URG) (tcp)->urg = 1; \
-} while (0)
-#define TCP_HAS_FLAG(tcp, flag) ( \
-    (((flag) & TCP_FIN) && (tcp)->fin) || \
-    (((flag) & TCP_SYN) && (tcp)->syn) || \
-    (((flag) & TCP_RST) && (tcp)->rst) || \
-    (((flag) & TCP_PSH) && (tcp)->psh) || \
-    (((flag) & TCP_ACK) && (tcp)->ack) || \
-    (((flag) & TCP_URG) && (tcp)->urg) \
-)
+#define TCP_SET_FLAGS(tcp, flags) \
+    do {                          \
+        if ((flags) & TCP_FIN)    \
+            (tcp)->fin = 1;       \
+        if ((flags) & TCP_SYN)    \
+            (tcp)->syn = 1;       \
+        if ((flags) & TCP_RST)    \
+            (tcp)->rst = 1;       \
+        if ((flags) & TCP_PSH)    \
+            (tcp)->psh = 1;       \
+        if ((flags) & TCP_ACK)    \
+            (tcp)->ack = 1;       \
+        if ((flags) & TCP_URG)    \
+            (tcp)->urg = 1;       \
+    } while (0)
+#define TCP_HAS_FLAG(tcp, flag)            \
+    ((((flag) & TCP_FIN) && (tcp)->fin) || \
+     (((flag) & TCP_SYN) && (tcp)->syn) || \
+     (((flag) & TCP_RST) && (tcp)->rst) || \
+     (((flag) & TCP_PSH) && (tcp)->psh) || \
+     (((flag) & TCP_ACK) && (tcp)->ack) || (((flag) & TCP_URG) && (tcp)->urg))
 #define TCP_WIN(tcp) ((tcp)->window)
 #define TCP_CHECK(tcp) ((tcp)->check)
 #endif

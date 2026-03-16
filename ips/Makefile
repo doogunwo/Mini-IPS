@@ -1,10 +1,12 @@
 CC := gcc
 CFLAGS := -O2 -Wall -Wextra -std=c11
-CPPFLAGS := -Iinclude
+CPPFLAGS := -D_DEFAULT_SOURCE -Iinclude
 LDFLAGS :=
 LDLIBS :=
+.DEFAULT_GOAL := main
 VALGRIND ?= valgrind
 VALGRIND_FLAGS ?= --leak-check=full --show-leak-kinds=all --track-origins=yes
+CLANG_FORMAT ?= clang-format
 HS_CFLAGS = $(shell \
 	if command -v pkg-config >/dev/null 2>&1; then \
 		pkg-config --cflags libhs 2>/dev/null || pkg-config --cflags hyperscan 2>/dev/null; \
@@ -39,22 +41,27 @@ AUTO_INSTALL_DEPS ?= 0
 SRC_DIR := src
 INC_DIR := include
 TEST_DIR := tests
+BENCH_DIR := benchmark
 BUILD_DIR := build
+BENCH_BUILD_DIR := $(BUILD_DIR)/benchmark
 LOG_DIR := logs
 
 MAIN_BIN := $(BUILD_DIR)/main
 REGEX_COMPAT_BIN := $(BUILD_DIR)/test_regex_compat
-DETECT_ENGINE_BIN := $(BUILD_DIR)/test_detect_engine
-HTTP_LIVE_LIKE_REASM_BIN := $(BUILD_DIR)/test_http_live_like_reasm
-BOT_URL_DETECT_BIN := $(BUILD_DIR)/test_bot_url_detect
+DETECT_ENGINE_BIN := $(BENCH_BUILD_DIR)/test_engine_detect
+DETECT_PIPELINE_BIN := $(BENCH_BUILD_DIR)/test_detect_pipeline
+REASM_PIPELINE_BIN := $(BENCH_BUILD_DIR)/test_reasm_pipeline
+HTTP_LIVE_LIKE_REASM_BIN := $(BUILD_DIR)/test_httgw_live_reasm
+BOT_URL_DETECT_BIN := $(BUILD_DIR)/test_runtime_bot_url_detect
 
 APP_SRCS := $(SRC_DIR)/main.c \
-	$(SRC_DIR)/html.c \
-	$(SRC_DIR)/logging.c \
-	$(SRC_DIR)/runtime.c \
-	$(SRC_DIR)/driver.c \
-	$(SRC_DIR)/httgw.c \
-	$(SRC_DIR)/http_stream.c \
+		$(SRC_DIR)/html.c \
+		$(SRC_DIR)/logging.c \
+		$(SRC_DIR)/runtime.c \
+		$(SRC_DIR)/packet_ring.c \
+		$(SRC_DIR)/driver.c \
+		$(SRC_DIR)/httgw.c \
+		$(SRC_DIR)/http_stream.c \
 	$(SRC_DIR)/engine.c \
 	$(SRC_DIR)/detect.c \
 	$(SRC_DIR)/regex.c
@@ -64,18 +71,30 @@ UNIT_NAMES := $(notdir $(basename $(UNIT_SRCS)))
 UNIT_BINS := $(addprefix $(BUILD_DIR)/,$(UNIT_NAMES))
 UNIT_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .log,$(UNIT_NAMES)))
 UNIT_VG_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .valgrind.log,$(UNIT_NAMES)))
+BENCH_SRCS := $(wildcard $(BENCH_DIR)/test_*.c)
+BENCH_NAMES := $(notdir $(basename $(BENCH_SRCS)))
+PACKET_RING_BENCH_SRCS := $(wildcard $(BENCH_DIR)/test_packet_ring_*.c)
+PACKET_RING_BENCH_NAMES := $(notdir $(basename $(PACKET_RING_BENCH_SRCS)))
+PACKET_RING_BENCH_BINS := $(addprefix $(BENCH_BUILD_DIR)/,$(PACKET_RING_BENCH_NAMES))
+BENCH_BINS := $(PACKET_RING_BENCH_BINS) $(DETECT_ENGINE_BIN) $(DETECT_PIPELINE_BIN) $(REASM_PIPELINE_BIN)
+BENCH_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .log,$(BENCH_NAMES)))
 MAIN_VG_LOG := $(LOG_DIR)/main.valgrind.log
+FORMAT_SRCS := $(shell find $(SRC_DIR) $(INC_DIR) $(TEST_DIR) $(BENCH_DIR) -type f \( -name '*.c' -o -name '*.h' \))
 
-.PHONY: all clean run units main check_pcre valgrind-units valgrind-main regex-compat test-detect-engine test-http-live-like-reasm test-bot-url-detect
+.PHONY: all clean run tests units benchmark benchmarks run-benchmarks main check_pcre valgrind-units valgrind-main regex-compat test-detect-engine test-http-live-like-reasm test-bot-url-detect format format-check
 
-all: units $(MAIN_BIN)
+all: main tests benchmark
 
 main: $(MAIN_BIN)
+
+tests: $(UNIT_BINS)
+
+benchmark: $(BENCH_BINS)
 
 regex-compat: $(REGEX_COMPAT_BIN)
 	./$(REGEX_COMPAT_BIN)
 
-$(BUILD_DIR) $(LOG_DIR):
+$(BUILD_DIR) $(BENCH_BUILD_DIR) $(LOG_DIR):
 	mkdir -p $@
 
 $(MAIN_BIN): check_pcre $(APP_SRCS) | $(BUILD_DIR)
@@ -84,29 +103,46 @@ $(MAIN_BIN): check_pcre $(APP_SRCS) | $(BUILD_DIR)
 $(REGEX_COMPAT_BIN): $(TEST_DIR)/test_regex_compat.c | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) $< -o $@ $(LDFLAGS) $(PCRE_LIBS) $(HS_LIBS) $(LDLIBS)
 
-$(DETECT_ENGINE_BIN): check_pcre $(TEST_DIR)/test_detect_engine.c \
+$(DETECT_ENGINE_BIN): check_pcre $(BENCH_DIR)/test_engine_detect.c \
 	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
 	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/httgw.c \
-	$(SRC_DIR)/http_stream.c | $(BUILD_DIR)
+	$(SRC_DIR)/http_stream.c | $(BENCH_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
-		$(TEST_DIR)/test_detect_engine.c $(SRC_DIR)/runtime.c \
+		$(BENCH_DIR)/test_engine_detect.c $(SRC_DIR)/runtime.c \
 		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
 		$(SRC_DIR)/html.c \
 		$(SRC_DIR)/regex.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
 		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
 
-$(HTTP_LIVE_LIKE_REASM_BIN): $(TEST_DIR)/test_http_live_like_reasm.c \
-	$(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c | $(BUILD_DIR)
+$(DETECT_PIPELINE_BIN): check_pcre $(BENCH_DIR)/test_detect_pipeline.c \
+	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
+	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/httgw.c \
+	$(SRC_DIR)/http_stream.c | $(BENCH_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
+		$(BENCH_DIR)/test_detect_pipeline.c $(SRC_DIR)/runtime.c \
+		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
+		$(SRC_DIR)/html.c \
+		$(SRC_DIR)/regex.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
+		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
+
+$(REASM_PIPELINE_BIN): $(BENCH_DIR)/test_reasm_pipeline.c \
+	$(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c | $(BENCH_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) \
-		$(TEST_DIR)/test_http_live_like_reasm.c $(SRC_DIR)/httgw.c \
+		$(BENCH_DIR)/test_reasm_pipeline.c $(SRC_DIR)/httgw.c \
 		$(SRC_DIR)/http_stream.c -o $@ $(LDFLAGS) -lpcap $(LDLIBS)
 
-$(BOT_URL_DETECT_BIN): check_pcre $(TEST_DIR)/test_bot_url_detect.c \
+$(HTTP_LIVE_LIKE_REASM_BIN): $(TEST_DIR)/test_httgw_live_reasm.c \
+	$(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) \
+		$(TEST_DIR)/test_httgw_live_reasm.c $(SRC_DIR)/httgw.c \
+		$(SRC_DIR)/http_stream.c -o $@ $(LDFLAGS) -lpcap $(LDLIBS)
+
+$(BOT_URL_DETECT_BIN): check_pcre $(TEST_DIR)/test_runtime_bot_url_detect.c \
 	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
 	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/httgw.c \
 	$(SRC_DIR)/http_stream.c | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
-		$(TEST_DIR)/test_bot_url_detect.c $(SRC_DIR)/runtime.c \
+		$(TEST_DIR)/test_runtime_bot_url_detect.c $(SRC_DIR)/runtime.c \
 		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
 		$(SRC_DIR)/html.c \
 		$(SRC_DIR)/regex.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
@@ -121,16 +157,34 @@ test-http-live-like-reasm: $(HTTP_LIVE_LIKE_REASM_BIN)
 test-bot-url-detect: $(BOT_URL_DETECT_BIN)
 	./$(BOT_URL_DETECT_BIN)
 
+format:
+	@command -v $(CLANG_FORMAT) >/dev/null 2>&1 || (echo "clang-format not found: install clang-format and rerun 'make format'"; exit 1)
+	$(CLANG_FORMAT) -i $(FORMAT_SRCS)
+
+format-check:
+	@command -v $(CLANG_FORMAT) >/dev/null 2>&1 || (echo "clang-format not found: install clang-format and rerun 'make format-check'"; exit 1)
+	@$(CLANG_FORMAT) --dry-run --Werror $(FORMAT_SRCS)
+
 run: all
 	./$(MAIN_BIN)
 
-units: $(UNIT_BINS) | $(LOG_DIR)
+units: tests | $(LOG_DIR)
 	@set -e; \
 	for t in $(UNIT_BINS); do \
 		echo "[units] running $$t"; \
 		./$$t > $(LOG_DIR)/$$(basename $$t).log 2>&1; \
 	done
 	@echo "units: all tests passed"
+
+benchmarks: benchmark
+
+run-benchmarks: benchmark | $(LOG_DIR)
+	@set -e; \
+	for t in $(BENCH_BINS); do \
+		echo "[bench] running $$t"; \
+		./$$t > $(LOG_DIR)/$$(basename $$t).log 2>&1; \
+	done
+	@echo "benchmarks: all benchmark binaries completed"
 
 valgrind-units: $(UNIT_BINS) | $(LOG_DIR)
 	@set -e; \
@@ -143,8 +197,11 @@ valgrind-units: $(UNIT_BINS) | $(LOG_DIR)
 valgrind-main: $(MAIN_BIN) | $(LOG_DIR)
 	$(VALGRIND) $(VALGRIND_FLAGS) --log-file=$(MAIN_VG_LOG) ./$(MAIN_BIN) $(RUN_ARGS)
 
-$(BUILD_DIR)/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c $(INC_DIR)/httgw.h $(INC_DIR)/http_stream.h | $(BUILD_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c -o $@ $(LDFLAGS) -lpcap $(LDLIBS)
+$(BUILD_DIR)/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c $(SRC_DIR)/packet_ring.c $(INC_DIR)/httgw.h $(INC_DIR)/http_stream.h $(INC_DIR)/packet_ring.h | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c $(SRC_DIR)/packet_ring.c -o $@ $(LDFLAGS) -lpcap $(LDLIBS)
+
+$(PACKET_RING_BENCH_BINS): $(BENCH_BUILD_DIR)/%: $(BENCH_DIR)/%.c $(SRC_DIR)/packet_ring.c $(INC_DIR)/packet_ring.h | $(BENCH_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(SRC_DIR)/packet_ring.c -o $@ $(LDFLAGS) -pthread $(LDLIBS)
 
 check_pcre:
 	@printf '#define PCRE2_CODE_UNIT_WIDTH 8\n#include <pcre2.h>\nint main(void){return 0;}\n' | \

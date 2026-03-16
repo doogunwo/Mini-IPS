@@ -1,16 +1,9 @@
 
 /**
-@file logging.c
-@brief 작성된 주석이 포함된 구조화 로그 헬퍼 구현
-*/
+ * @file logging.c
+ * @brief 작성된 주석이 포함된 구조화 로그 헬퍼 구현
+ */
 
-#define _DEFAULT_SOURCE
-
-/*
-********************************************************************************
-* #include
-********************************************************************************
-*/
 #include "logging.h"
 
 #include <ctype.h>
@@ -21,61 +14,45 @@
 #include <sys/stat.h>
 #include <time.h>
 
-/*
-********************************************************************************
-* Local function prototypes
-********************************************************************************
-*/
-static void make_log_timestamp(char *out, size_t out_sz);
-static int strbuf_reserve(strbuf_t *sb, size_t need);
-static int strbuf_append_char(strbuf_t *sb, char c);
-static int strbuf_append_str(strbuf_t *sb, const char *s);
-static int strbuf_append_escaped(strbuf_t *sb, const char *s);
+static void        make_log_timestamp(char *out, size_t out_sz);
+static int         strbuf_reserve(strbuf_t *sb, size_t need);
+static int         strbuf_append_char(strbuf_t *sb, char c);
+static int         strbuf_append_str(strbuf_t *sb, const char *s);
+static int         strbuf_append_escaped(strbuf_t *sb, const char *s);
 static const char *ctx_name(ips_context_t ctx);
-static int ensure_parent_dir(const char *path);
+static int         ensure_parent_dir(const char *path);
 
 /**
-* @brief env flag 확인 함수
-환경 변수 값을 읽어 boolean flag처럼 해석한다.
-설정이 없거나 해석할 수 없으면 default_value를 반환한다.
-* @param name 환경 변수 이름
-* @param default_value 기본 값
-* @return 해석된 플래그 값
-*/
-int env_flag_enabled(const char *name, int default_value)
-{
+ * @brief env flag 확인 함수
+ * 환경 변수 값을 읽어 boolean flag처럼 해석한다.
+ * 설정이 없거나 해석할 수 없으면 default_value를 반환한다.
+ * @param name 환경 변수 이름
+ * @param default_value 기본 값
+ * @return 해석된 플래그 값
+ */
+int env_flag_enabled(const char *name, int default_value) {
     const char *val;
 
-    if (!name)
-    {
+    if (!name) {
         return default_value;
     }
 
     val = getenv(name);
-    if (!val || !*val)
-    {
+    if (!val || !*val) {
         return default_value;
     }
 
-    if (strcmp(val, "1") == 0 ||
-        strcmp(val, "true") == 0 ||
-        strcmp(val, "TRUE") == 0 ||
-        strcmp(val, "yes") == 0 ||
-        strcmp(val, "YES") == 0 ||
-        strcmp(val, "on") == 0 ||
-        strcmp(val, "ON") == 0)
-    {
+    if (strcmp(val, "1") == 0 || strcmp(val, "true") == 0 ||
+        strcmp(val, "TRUE") == 0 || strcmp(val, "yes") == 0 ||
+        strcmp(val, "YES") == 0 || strcmp(val, "on") == 0 ||
+        strcmp(val, "ON") == 0) {
         return 1;
     }
 
-    if (strcmp(val, "0") == 0 ||
-        strcmp(val, "false") == 0 ||
-        strcmp(val, "FALSE") == 0 ||
-        strcmp(val, "no") == 0 ||
-        strcmp(val, "NO") == 0 ||
-        strcmp(val, "off") == 0 ||
-        strcmp(val, "OFF") == 0)
-    {
+    if (strcmp(val, "0") == 0 || strcmp(val, "false") == 0 ||
+        strcmp(val, "FALSE") == 0 || strcmp(val, "no") == 0 ||
+        strcmp(val, "NO") == 0 || strcmp(val, "off") == 0 ||
+        strcmp(val, "OFF") == 0) {
         return 0;
     }
 
@@ -88,10 +65,8 @@ int env_flag_enabled(const char *name, int default_value)
 * @param sb 문자열 버퍼
 * @return 없음
 */
-void strbuf_free(strbuf_t *sb)
-{
-    if (!sb)
-    {
+void strbuf_free(strbuf_t *sb) {
+    if (!sb) {
         return;
     }
 
@@ -108,28 +83,23 @@ key=value 로그 형식을 깨는 문자만 escape한다.
 * @param s 원본 문자열
 * @return escape 된 새 문자열
 */
-char *log_escape_dup(const char *s)
-{
+char *log_escape_dup(const char *s) {
     strbuf_t sb = {0};
 
-    if (strbuf_append_escaped(&sb, s) != 0)
-    {
+    if (strbuf_append_escaped(&sb, s) != 0) {
         strbuf_free(&sb);
         return NULL;
     }
 
-    if (NULL == sb.buf)
-    {
+    if (NULL == sb.buf) {
         return strdup("");
     }
 
     return sb.buf;
 }
 
-int app_make_timestamp(char *out, size_t out_sz)
-{
-    if (!out || out_sz == 0)
-    {
+int app_make_timestamp(char *out, size_t out_sz) {
+    if (!out || out_sz == 0) {
         return -1;
     }
 
@@ -137,28 +107,23 @@ int app_make_timestamp(char *out, size_t out_sz)
     return 0;
 }
 
-int app_make_event_id(app_shared_t *shared, char *out, size_t out_sz)
-{
+int app_make_event_id(app_shared_t *shared, char *out, size_t out_sz) {
     struct timespec ts;
-    uint64_t seq;
-    uint64_t epoch_ms;
+    uint64_t        seq;
+    uint64_t        epoch_ms;
 
-    if (!shared || !out || out_sz == 0)
-    {
+    if (!shared || !out || out_sz == 0) {
         return -1;
     }
 
-    if (clock_gettime(CLOCK_REALTIME, &ts) != 0)
-    {
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
         return -1;
     }
 
     seq = atomic_fetch_add(&shared->event_seq, 1) + 1;
-    epoch_ms = ((uint64_t)ts.tv_sec * 1000ULL) + ((uint64_t)ts.tv_nsec / 1000000ULL);
-    snprintf(out,
-             out_sz,
-             "evt-%013llu-%06llu",
-             (unsigned long long)epoch_ms,
+    epoch_ms =
+        ((uint64_t)ts.tv_sec * 1000ULL) + ((uint64_t)ts.tv_nsec / 1000000ULL);
+    snprintf(out, out_sz, "evt-%013llu-%06llu", (unsigned long long)epoch_ms,
              (unsigned long long)(seq % 1000000ULL));
     return 0;
 }
@@ -172,51 +137,40 @@ rule 정보와 matched text 정보를 각각 semicolon 구분 문자열로 만�
 * @param texts matched text 문자열 버퍼
 @return 성공 여부
 */
-int append_match_strings(const detect_match_list_t *matches,
-                         strbuf_t *rules,
-                         strbuf_t *texts)
-{
+int append_match_strings(const detect_match_list_t *matches, strbuf_t *rules,
+                         strbuf_t *texts) {
     size_t i;
 
-    if (!matches)
-    {
+    if (!matches) {
         return 0;
     }
 
-    for (i = 0; i < matches->count; i++)
-    {
+    for (i = 0; i < matches->count; i++) {
         const detect_match_t *m = &matches->items[i];
 
-        if (i > 0)
-        {
+        if (i > 0) {
             if (strbuf_append_str(rules, "; ") != 0 ||
-                strbuf_append_str(texts, "; ") != 0)
-            {
+                strbuf_append_str(texts, "; ") != 0) {
                 return -1;
             }
         }
 
         if (strbuf_append_str(rules, ctx_name(m->context)) != 0 ||
             strbuf_append_char(rules, '|') != 0 ||
-            strbuf_append_str(
-                rules,
-                (m->rule && m->rule->policy_name) ?
-                    m->rule->policy_name : "unknown") != 0 ||
+            strbuf_append_str(rules, (m->rule && m->rule->policy_name)
+                                         ? m->rule->policy_name
+                                         : "unknown") != 0 ||
             strbuf_append_char(rules, '|') != 0 ||
-            strbuf_append_str(
-                rules,
-                (m->rule && m->rule->pattern) ?
-                    m->rule->pattern : "unknown") != 0)
-        {
+            strbuf_append_str(rules, (m->rule && m->rule->pattern)
+                                         ? m->rule->pattern
+                                         : "unknown") != 0) {
             return -1;
         }
 
         if (strbuf_append_str(texts, ctx_name(m->context)) != 0 ||
             strbuf_append_char(texts, '|') != 0 ||
             strbuf_append_escaped(
-                texts,
-                m->matched_text ? m->matched_text : "") != 0)
-        {
+                texts, m->matched_text ? m->matched_text : "") != 0) {
             return -1;
         }
     }
@@ -231,38 +185,27 @@ LOG_FILE 환경 변수가 없으면 logs/ips.log를 사용한다.
 * @param shared 공유 앱 데이터
 * @return 성공 여부
 */
-int app_log_open(app_shared_t *shared)
-{
+int app_log_open(app_shared_t *shared) {
     const char *log_file_env;
 
-    if (!shared)
-    {
+    if (!shared) {
         return -1;
     }
 
     log_file_env = getenv("LOG_FILE");
-    if (log_file_env && log_file_env[0] != '\0')
-    {
-        snprintf(shared->log_path,
-                 sizeof(shared->log_path),
-                 "%s",
+    if (log_file_env && log_file_env[0] != '\0') {
+        snprintf(shared->log_path, sizeof(shared->log_path), "%s",
                  log_file_env);
-    }
-    else
-    {
-        snprintf(shared->log_path,
-                 sizeof(shared->log_path),
-                 "logs/ips.log");
+    } else {
+        snprintf(shared->log_path, sizeof(shared->log_path), "logs/ips.log");
     }
 
-    if (ensure_parent_dir(shared->log_path) != 0)
-    {
+    if (ensure_parent_dir(shared->log_path) != 0) {
         return -1;
     }
 
     shared->log_fp = fopen(shared->log_path, "a");
-    if (!shared->log_fp)
-    {
+    if (!shared->log_fp) {
         return -1;
     }
 
@@ -276,10 +219,8 @@ int app_log_open(app_shared_t *shared)
 * @param shared 공유 앱 데이터
 * @return 없음
 */
-void app_log_close(app_shared_t *shared)
-{
-    if (!shared || !shared->log_fp)
-    {
+void app_log_close(app_shared_t *shared) {
+    if (!shared || !shared->log_fp) {
         return;
     }
 
@@ -297,24 +238,18 @@ timestamp와 level을 먼저 기록한 뒤 caller format을 이어서 기록한�
 * @param fmt 로그 본문 format
 @return 없음
 */
-void app_log_write(app_shared_t *shared,
-                   const char *category,
-                   const char *fmt,
-                   ...)
-{
+void app_log_write(app_shared_t *shared, const char *category, const char *fmt,
+                   ...) {
     va_list ap;
-    char ts[40];
+    char    ts[40];
 
-    if (!shared || !shared->log_fp || !fmt)
-    {
+    if (!shared || !shared->log_fp || !fmt) {
         return;
     }
 
     make_log_timestamp(ts, sizeof(ts));
     pthread_mutex_lock(&shared->log_mu);
-    fprintf(shared->log_fp,
-            "ts=%s level=%s ",
-            ts,
+    fprintf(shared->log_fp, "ts=%s level=%s ", ts,
             category ? category : "INFO");
 
     va_start(ap, fmt);
@@ -346,40 +281,27 @@ void app_log_write(app_shared_t *shared,
 * @param detect_ms 탐지 시간 ms
 * @return 없음
 */
-void app_log_attack(app_shared_t *shared,
-                    const char *event_id,
-                    const char *event_ts,
-                    const char *attack,
-                    const char *where,
-                    const char *from,
-                    const char *detected,
-                    const char *matched_rules,
-                    const char *matched_texts,
-                    const char *ip,
-                    uint16_t port,
-                    int score,
-                    int threshold,
-                    size_t match_count,
-                    uint64_t detect_us,
-                    long detect_ms)
-{
-    char ts[40];
+void app_log_attack(app_shared_t *shared, const char *event_id,
+                    const char *event_ts, const char *attack, const char *where,
+                    const char *from, const char *detected,
+                    const char *matched_rules, const char *matched_texts,
+                    const char *ip, uint16_t port, int score, int threshold,
+                    size_t match_count, uint64_t detect_us, long detect_ms) {
+    char  ts[40];
     char *from_esc;
     char *detected_esc;
     char *rules_esc;
     char *texts_esc;
 
-    if (!shared || !shared->log_fp)
-    {
+    if (!shared || !shared->log_fp) {
         return;
     }
 
-    from_esc = log_escape_dup(from);
+    from_esc     = log_escape_dup(from);
     detected_esc = log_escape_dup(detected);
-    rules_esc = log_escape_dup(matched_rules);
-    texts_esc = log_escape_dup(matched_texts);
-    if (!from_esc || !detected_esc || !rules_esc || !texts_esc)
-    {
+    rules_esc    = log_escape_dup(matched_rules);
+    texts_esc    = log_escape_dup(matched_texts);
+    if (!from_esc || !detected_esc || !rules_esc || !texts_esc) {
         free(from_esc);
         free(detected_esc);
         free(rules_esc);
@@ -387,12 +309,9 @@ void app_log_attack(app_shared_t *shared,
         return;
     }
 
-    if (event_ts && event_ts[0] != '\0')
-    {
+    if (event_ts && event_ts[0] != '\0') {
         snprintf(ts, sizeof(ts), "%s", event_ts);
-    }
-    else
-    {
+    } else {
         make_log_timestamp(ts, sizeof(ts));
     }
     pthread_mutex_lock(&shared->log_mu);
@@ -403,21 +322,11 @@ void app_log_attack(app_shared_t *shared,
             "match_count=%zu matched_rules=\"%s\" "
             "matched_texts=\"%s\" src_ip=%s "
             "src_port=%u detect_us=%llu detect_ms=%ld\n",
-            ts,
-            (event_id && event_id[0] != '\0') ? event_id : "-",
-            attack ? attack : "unknown",
-            where ? where : "unknown",
-            from_esc,
-            detected_esc,
-            score,
-            threshold,
-            match_count,
-            rules_esc,
-            texts_esc,
-            ip ? ip : "unknown",
-            (unsigned int)port,
-            (unsigned long long)detect_us,
-            detect_ms);
+            ts, (event_id && event_id[0] != '\0') ? event_id : "-",
+            attack ? attack : "unknown", where ? where : "unknown", from_esc,
+            detected_esc, score, threshold, match_count, rules_esc, texts_esc,
+            ip ? ip : "unknown", (unsigned int)port,
+            (unsigned long long)detect_us, detect_ms);
     fflush(shared->log_fp);
     pthread_mutex_unlock(&shared->log_mu);
 
@@ -435,20 +344,13 @@ host order ipv4 값을 dotted decimal 문자열로 변환한다.
 * @param out_sz 출력 버퍼 크기
 * @return 없음
 */
-void ip4_to_str(uint32_t ip, char *out, size_t out_sz)
-{
-    if (!out || 0 == out_sz)
-    {
+void ip4_to_str(uint32_t ip, char *out, size_t out_sz) {
+    if (!out || 0 == out_sz) {
         return;
     }
 
-    snprintf(out,
-             out_sz,
-             "%u.%u.%u.%u",
-             (ip >> 24) & 0xFF,
-             (ip >> 16) & 0xFF,
-             (ip >> 8) & 0xFF,
-             ip & 0xFF);
+    snprintf(out, out_sz, "%u.%u.%u.%u", (ip >> 24) & 0xFF, (ip >> 16) & 0xFF,
+             (ip >> 8) & 0xFF, ip & 0xFF);
 }
 
 /*
@@ -463,29 +365,25 @@ void ip4_to_str(uint32_t ip, char *out, size_t out_sz)
 * @param out_sz 출력 버퍼 크기
 * @return 없음
 */
-static void make_log_timestamp(char *out, size_t out_sz)
-{
+static void make_log_timestamp(char *out, size_t out_sz) {
     struct timespec ts;
-    struct tm tm_now;
-    int ms;
-    size_t n;
+    struct tm       tm_now;
+    int             ms;
+    size_t          n;
 
-    if (!out || 0 == out_sz)
-    {
+    if (!out || 0 == out_sz) {
         return;
     }
 
-    if (clock_gettime(CLOCK_REALTIME, &ts) != 0)
-    {
+    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
         snprintf(out, out_sz, "1970-01-01T00:00:00.000");
         return;
     }
 
     localtime_r(&ts.tv_sec, &tm_now);
     ms = (int)(ts.tv_nsec / 1000000L);
-    n = strftime(out, out_sz, "%Y-%m-%dT%H:%M:%S", &tm_now);
-    if (0 == n || n + 6 >= out_sz)
-    {
+    n  = strftime(out, out_sz, "%Y-%m-%dT%H:%M:%S", &tm_now);
+    if (0 == n || n + 6 >= out_sz) {
         snprintf(out, out_sz, "1970-01-01T00:00:00.000");
         return;
     }
@@ -500,30 +398,25 @@ static void make_log_timestamp(char *out, size_t out_sz)
 * @param need 필요한 크기
 * @return 성공 여부
 */
-static int strbuf_reserve(strbuf_t *sb, size_t need)
-{
-    char *next;
+static int strbuf_reserve(strbuf_t *sb, size_t need) {
+    char  *next;
     size_t next_cap;
 
-    if (!sb)
-    {
+    if (!sb) {
         return -1;
     }
 
-    if (need <= sb->cap)
-    {
+    if (need <= sb->cap) {
         return 0;
     }
 
     next_cap = sb->cap ? sb->cap : 256U;
-    while (next_cap < need)
-    {
+    while (next_cap < need) {
         next_cap *= 2U;
     }
 
     next = (char *)realloc(sb->buf, next_cap);
-    if (!next)
-    {
+    if (!next) {
         return -1;
     }
 
@@ -539,15 +432,13 @@ static int strbuf_reserve(strbuf_t *sb, size_t need)
 * @param c 추가할 문자
 * @return 성공 여부
 */
-static int strbuf_append_char(strbuf_t *sb, char c)
-{
-    if (strbuf_reserve(sb, sb->len + 2U) != 0)
-    {
+static int strbuf_append_char(strbuf_t *sb, char c) {
+    if (strbuf_reserve(sb, sb->len + 2U) != 0) {
         return -1;
     }
 
     sb->buf[sb->len++] = c;
-    sb->buf[sb->len] = '\0';
+    sb->buf[sb->len]   = '\0';
     return 0;
 }
 
@@ -558,18 +449,15 @@ static int strbuf_append_char(strbuf_t *sb, char c)
 * @param s 추가할 문자열
 * @return 성공 여부
 */
-static int strbuf_append_str(strbuf_t *sb, const char *s)
-{
+static int strbuf_append_str(strbuf_t *sb, const char *s) {
     size_t n;
 
-    if (!s)
-    {
+    if (!s) {
         s = "";
     }
 
     n = strlen(s);
-    if (strbuf_reserve(sb, sb->len + n + 1U) != 0)
-    {
+    if (strbuf_reserve(sb, sb->len + n + 1U) != 0) {
         return -1;
     }
 
@@ -586,51 +474,41 @@ static int strbuf_append_str(strbuf_t *sb, const char *s)
 * @param s 입력 문자열
 * @return 성공 여부
 */
-static int strbuf_append_escaped(strbuf_t *sb, const char *s)
-{
-    size_t i;
+static int strbuf_append_escaped(strbuf_t *sb, const char *s) {
+    size_t        i;
     unsigned char c;
-    char hex[5];
+    char          hex[5];
 
-    if (!s)
-    {
+    if (!s) {
         return strbuf_append_str(sb, "");
     }
 
-    for (i = 0; s[i] != '\0'; i++)
-    {
+    for (i = 0; s[i] != '\0'; i++) {
         c = (unsigned char)s[i];
-        if (c == '"' || c == '\\')
-        {
+        if (c == '"' || c == '\\') {
             if (strbuf_append_char(sb, '\\') != 0 ||
-                strbuf_append_char(sb, (char)c) != 0)
-            {
+                strbuf_append_char(sb, (char)c) != 0) {
                 return -1;
             }
             continue;
         }
 
-        if (c == '\n' || c == '\r' || c == '\t')
-        {
-            if (strbuf_append_char(sb, ' ') != 0)
-            {
+        if (c == '\n' || c == '\r' || c == '\t') {
+            if (strbuf_append_char(sb, ' ') != 0) {
                 return -1;
             }
             continue;
         }
 
-        if (!isprint(c))
-        {
+        if (!isprint(c)) {
             snprintf(hex, sizeof(hex), "\\x%02X", c);
-            if (strbuf_append_str(sb, hex) != 0)
-            {
+            if (strbuf_append_str(sb, hex) != 0) {
                 return -1;
             }
             continue;
         }
 
-        if (strbuf_append_char(sb, (char)c) != 0)
-        {
+        if (strbuf_append_char(sb, (char)c) != 0) {
             return -1;
         }
     }
@@ -644,28 +522,25 @@ detect context enum 값을 로그 문자열로 변환한다.
 * @param ctx detect context
 * @return context 문자열
 */
-static const char *ctx_name(ips_context_t ctx)
-{
-    switch (ctx)
-    {
-        case IPS_CTX_REQUEST_URI:
-            return "REQUEST_URI";
-        case IPS_CTX_ARGS:
-            return "ARGS";
-        case IPS_CTX_ARGS_NAMES:
-            return "ARGS_NAMES";
-        case IPS_CTX_REQUEST_HEADERS:
-            return "REQUEST_HEADERS";
-        case IPS_CTX_REQUEST_BODY:
-            return "REQUEST_BODY";
-        case IPS_CTX_RESPONSE_BODY:
-            return "RESPONSE_BODY";
-        case IPS_CTX_ALL:
-        default:
-            return "ALL";
+static const char *ctx_name(ips_context_t ctx) {
+    switch (ctx) {
+    case IPS_CTX_REQUEST_URI:
+        return "REQUEST_URI";
+    case IPS_CTX_ARGS:
+        return "ARGS";
+    case IPS_CTX_ARGS_NAMES:
+        return "ARGS_NAMES";
+    case IPS_CTX_REQUEST_HEADERS:
+        return "REQUEST_HEADERS";
+    case IPS_CTX_REQUEST_BODY:
+        return "REQUEST_BODY";
+    case IPS_CTX_RESPONSE_BODY:
+        return "RESPONSE_BODY";
+    case IPS_CTX_ALL:
+    default:
+        return "ALL";
     }
 }
-
 
 /**
 * @brief parent dir 생성 함수
@@ -673,39 +548,32 @@ static const char *ctx_name(ips_context_t ctx)
 * @param path 파일 경로
 * @return 성공 여부
 */
-static int ensure_parent_dir(const char *path)
-{
-    char dir_path[256];
+static int ensure_parent_dir(const char *path) {
+    char  dir_path[256];
     char *slash;
 
-    if (!path || path[0] == '\0')
-    {
+    if (!path || path[0] == '\0') {
         return -1;
     }
 
     snprintf(dir_path, sizeof(dir_path), "%s", path);
     slash = strrchr(dir_path, '/');
-    if (!slash)
-    {
-        if (mkdir(".", 0755) != 0 && errno != EEXIST)
-        {
+    if (!slash) {
+        if (mkdir(".", 0755) != 0 && errno != EEXIST) {
             return -1;
         }
         return 0;
     }
 
-    if (slash == dir_path)
-    {
-        if (mkdir("/", 0755) != 0 && errno != EEXIST)
-        {
+    if (slash == dir_path) {
+        if (mkdir("/", 0755) != 0 && errno != EEXIST) {
             return -1;
         }
         return 0;
     }
 
     *slash = '\0';
-    if (mkdir(dir_path, 0755) != 0 && errno != EEXIST)
-    {
+    if (mkdir(dir_path, 0755) != 0 && errno != EEXIST) {
         return -1;
     }
 

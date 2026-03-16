@@ -9,10 +9,9 @@
 
 #define LINE_BUF_SIZE 262144
 
-static char *dup_range(const char *start, const char *end)
-{
+static char *dup_range(const char *start, const char *end) {
     size_t len;
-    char *out;
+    char  *out;
 
     if (start == NULL || end == NULL || end < start) {
         return NULL;
@@ -29,8 +28,7 @@ static char *dup_range(const char *start, const char *end)
     return out;
 }
 
-static int hex_value(char c)
-{
+static int hex_value(char c) {
     if (c >= '0' && c <= '9') {
         return c - '0';
     }
@@ -43,10 +41,9 @@ static int hex_value(char c)
     return -1;
 }
 
-static char *json_unescape(const char *src)
-{
+static char *json_unescape(const char *src) {
     size_t src_len;
-    char *out;
+    char  *out;
     size_t i;
     size_t j = 0;
 
@@ -55,7 +52,7 @@ static char *json_unescape(const char *src)
     }
 
     src_len = strlen(src);
-    out = (char *)malloc(src_len + 1);
+    out     = (char *)malloc(src_len + 1);
     if (out == NULL) {
         return NULL;
     }
@@ -121,14 +118,13 @@ static char *json_unescape(const char *src)
     return out;
 }
 
-static char *json_extract_string(const char *line, const char *key)
-{
-    char pattern[64];
+static char *json_extract_string(const char *line, const char *key) {
+    char        pattern[64];
     const char *p;
     const char *start;
     const char *cur;
-    char *raw;
-    char *decoded;
+    char       *raw;
+    char       *decoded;
 
     snprintf(pattern, sizeof(pattern), "\"%s\":", key);
     p = strstr(line, pattern);
@@ -160,18 +156,13 @@ static char *json_extract_string(const char *line, const char *key)
     return NULL;
 }
 
-static bool pcre_pattern_ok(const char *pattern)
-{
-    int errcode = 0;
-    PCRE2_SIZE erroff = 0;
+static bool pcre_pattern_ok(const char *pattern) {
+    int         errcode = 0;
+    PCRE2_SIZE  erroff  = 0;
     pcre2_code *re;
 
-    re = pcre2_compile((PCRE2_SPTR)pattern,
-                       PCRE2_ZERO_TERMINATED,
-                       0,
-                       &errcode,
-                       &erroff,
-                       NULL);
+    re = pcre2_compile((PCRE2_SPTR)pattern, PCRE2_ZERO_TERMINATED, 0, &errcode,
+                       &erroff, NULL);
     if (re == NULL) {
         (void)errcode;
         (void)erroff;
@@ -182,11 +173,10 @@ static bool pcre_pattern_ok(const char *pattern)
     return true;
 }
 
-static bool hs_pattern_ok(const char *pattern)
-{
-    hs_database_t *db = NULL;
+static bool hs_pattern_ok(const char *pattern) {
+    hs_database_t      *db  = NULL;
     hs_compile_error_t *err = NULL;
-    hs_error_t rc;
+    hs_error_t          rc;
 
     rc = hs_compile(pattern, 0, HS_MODE_BLOCK, NULL, &db, &err);
     if (rc != HS_SUCCESS) {
@@ -203,14 +193,14 @@ static bool hs_pattern_ok(const char *pattern)
     return true;
 }
 
-static int filter_file(const char *input_path, const char *common_path, const char *hs_fail_path)
-{
-    FILE *in;
-    FILE *common_out;
-    FILE *hs_fail_out;
-    char line[LINE_BUF_SIZE];
-    unsigned int total_rx = 0;
-    unsigned int common_count = 0;
+static int filter_file(const char *input_path, const char *common_path,
+                       const char *hs_fail_path) {
+    FILE        *in;
+    FILE        *common_out;
+    FILE        *hs_fail_out;
+    char         line[LINE_BUF_SIZE];
+    unsigned int total_rx      = 0;
+    unsigned int common_count  = 0;
     unsigned int hs_fail_count = 0;
 
     in = fopen(input_path, "r");
@@ -235,10 +225,10 @@ static int filter_file(const char *input_path, const char *common_path, const ch
     }
 
     while (fgets(line, sizeof(line), in) != NULL) {
-        char *op = json_extract_string(line, "op");
+        char *op  = json_extract_string(line, "op");
         char *pat = NULL;
-        bool pcre_ok;
-        bool hs_ok;
+        bool  pcre_ok;
+        bool  hs_ok;
 
         if (op == NULL) {
             continue;
@@ -256,7 +246,7 @@ static int filter_file(const char *input_path, const char *common_path, const ch
         }
 
         pcre_ok = pcre_pattern_ok(pat);
-        hs_ok = hs_pattern_ok(pat);
+        hs_ok   = hs_pattern_ok(pat);
 
         if (pcre_ok && hs_ok) {
             fputs(line, common_out);
@@ -280,10 +270,9 @@ static int filter_file(const char *input_path, const char *common_path, const ch
     return 0;
 }
 
-int main(int argc, char **argv)
-{
-    const char *input_path = "rules/generated/rules.jsonl";
-    const char *common_path = "rules/generated/rules_common.jsonl";
+int main(int argc, char **argv) {
+    const char *input_path   = "rules/generated/rules.jsonl";
+    const char *common_path  = "rules/generated/rules_common.jsonl";
     const char *hs_fail_path = "rules/generated/rules_hs_incompatible.jsonl";
 
     if (argc > 1) {

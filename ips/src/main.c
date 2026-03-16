@@ -2,7 +2,7 @@
  * @file main.c
  * @brief Mini-IPS 메인 함수 및 진입점
  * @date 2026-03-12
- * 
+ *
  */
 
 /**
@@ -17,133 +17,102 @@
 #define _DEFAULT_SOURCE
 #endif
 
+#include <pthread.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 #include <sys/types.h>
-#include <pthread.h>
-#include <stdatomic.h>
+#include <unistd.h>
 
-#include "net_compat.h"
-#include "html.h"
-#include "logging.h"
 #include "detect.h"
-#include "engine.h"
 #include "driver.h"
+#include "engine.h"
+#include "html.h"
 #include "httgw.h"
+#include "logging.h"
+#include "net_compat.h"
 
 static volatile sig_atomic_t g_stop = 0; /**< stop signal flag */
-static const char *g_block_page_template_path = "DB/index.html";
+static const char           *g_block_page_template_path = "DB/index.html";
 
 static void on_sigint(int signo);
-static void on_request(const flow_key_t *flow,
-                       tcp_dir_t dir,
-                       const http_message_t *msg,
-                       const char *query,
-                       size_t query_len,
-                       void *user);
+static void on_request(const flow_key_t *flow, tcp_dir_t dir,
+                       const http_message_t *msg, const char *query,
+                       size_t query_len, void *user);
 static void on_error(const char *stage, const char *detail, void *user);
-static void on_packet(const uint8_t *data,
-                      uint32_t len,
-                      uint64_t ts_ns,
+static void on_packet(const uint8_t *data, uint32_t len, uint64_t ts_ns,
                       void *user);
 static void destroy_workers(app_ctx_t *workers, int count);
-static int parse_mode_arg(const char *arg, httgw_mode_t *out);
 static void usage(const char *prog);
 
 /**
 @brief hello Main 함수
-캡처 장치, detect engine, gateway, worker thread를 모두 초기화하고 패킷 처리를 시작한다.
-종료 신호가 들어오면 runtime 자원을 정리하고 종료한다.
+캡처 장치, detect engine, gateway, worker thread를 모두 초기화하고 패킷 처리를
+시작한다. 종료 신호가 들어오면 runtime 자원을 정리하고 종료한다.
 @param argc 인자 갯수
 @param argv 인자 스티링
 @return 성공 여부
 */
-int main(int argc, char **argv)
-{
-    const char *iface = NULL;
-    const char *bpf = NULL;
-    const char *policy = "ALL";
-    const char *engine_name = NULL;
-    httgw_mode_t mode = HTTGW_MODE_SNIFF;
-    driver_runtime_t rt;
-    app_shared_t shared;
-    app_ctx_t *workers = NULL;
-    void **worker_users = NULL;
-    int worker_count = 1;
-    httgw_cfg_t hcfg;
+int main(int argc, char **argv) {
+    const char       *iface       = NULL;
+    const char       *bpf         = NULL;
+    const char       *policy      = "ALL";
+    const char       *engine_name = NULL;
+    driver_runtime_t  rt;
+    app_shared_t      shared;
+    app_ctx_t        *workers      = NULL;
+    void            **worker_users = NULL;
+    int               worker_count = 1;
+    httgw_cfg_t       hcfg;
     httgw_callbacks_t cbs;
-    pcap_ctx_t pcfg;
-    int rc;
-    int exit_code = 0;
-    int argi = 0;
-    int i;
+    pcap_ctx_t        pcfg;
+    int               rc;
+    int               exit_code = 0;
+    int               argi      = 0;
+    int               i;
 
     (void)argc;
 
-    for (i = 1; argv[i] != NULL; i++)
-    {
-        if (strncmp(argv[i], "-mode=", 6) == 0)
-        {
-            if (parse_mode_arg(argv[i] + 6, &mode) != 0)
-            {
-                fprintf(stderr, "invalid mode: %s\n", argv[i] + 6);
-                return 1;
-            }
-            continue;
-        }
-
-        if (strncmp(argv[i], "-iface=", 7) == 0)
-        {
+    for (i = 1; argv[i] != NULL; i++) {
+        if (strncmp(argv[i], "-iface=", 7) == 0) {
             iface = argv[i] + 7;
             continue;
         }
 
-        if (strncmp(argv[i], "-bpf=", 5) == 0)
-        {
+        if (strncmp(argv[i], "-bpf=", 5) == 0) {
             bpf = argv[i] + 5;
             continue;
         }
 
-        if (strncmp(argv[i], "-engine=", 8) == 0)
-        {
+        if (strncmp(argv[i], "-engine=", 8) == 0) {
             engine_name = argv[i] + 8;
             continue;
         }
 
-        if ('-' == argv[i][0])
-        {
+        if ('-' == argv[i][0]) {
             continue;
         }
 
         argi++;
-        if (1 == argi)
-        {
+        if (1 == argi) {
             iface = argv[i];
-        }
-        else if (2 == argi)
-        {
+        } else if (2 == argi) {
             bpf = argv[i];
         }
     }
 
-    if (!iface || !bpf)
-    {
+    if (!iface || !bpf) {
         usage(argv[0]);
         return 1;
     }
 
-    if (engine_name != NULL)
-    {
+    if (engine_name != NULL) {
         char errbuf[64];
 
-        if (engine_set_backend_name(engine_name,
-                                    errbuf,
-                                    sizeof(errbuf)) != 0)
-        {
+        if (engine_set_backend_name(engine_name, errbuf, sizeof(errbuf)) != 0) {
             fprintf(stderr, "invalid engine: %s\n", engine_name);
             usage(argv[0]);
             return 1;
@@ -155,8 +124,7 @@ int main(int argc, char **argv)
     memset(&rt, 0, sizeof(rt));
     memset(&shared, 0, sizeof(shared));
 
-    if (app_log_open(&shared) != 0)
-    {
+    if (app_log_open(&shared) != 0) {
         fprintf(stderr, "log init failed\n");
         return 1;
     }
@@ -166,28 +134,25 @@ int main(int argc, char **argv)
     atomic_init(&shared.reasm_errs, 0);
     atomic_init(&shared.parse_errs, 0);
     atomic_init(&shared.event_seq, 0);
-    shared.pass_log_enabled = env_flag_enabled("IPS_LOG_PASS", 0);
+    shared.pass_log_enabled  = env_flag_enabled("IPS_LOG_PASS", 0);
     shared.debug_log_enabled = env_flag_enabled("IPS_LOG_DEBUG", 0);
 
     worker_count = 1;
-    if (worker_count < 1)
-    {
+    if (worker_count < 1) {
         worker_count = 1;
     }
-    if (worker_count > MAX_QUEUE_COUNT)
-    {
+    if (worker_count > MAX_QUEUE_COUNT) {
         worker_count = MAX_QUEUE_COUNT;
     }
 
     memset(&pcfg, 0, sizeof(pcfg));
-    pcfg.dev = iface;
-    pcfg.snaplen = 65535;
-    pcfg.promisc = 1;
-    pcfg.timeout_ms = 1000;
+    pcfg.dev         = iface;
+    pcfg.snaplen     = 65535;
+    pcfg.promisc     = 1;
+    pcfg.timeout_ms  = 1000;
     pcfg.nonblocking = 0;
 
-    if (driver_init(&rt, worker_count) != 0)
-    {
+    if (driver_init(&rt, worker_count) != 0) {
         fprintf(stderr, "driver_init failed\n");
         app_log_write(&shared, "ERROR", "driver_init failed");
         app_log_close(&shared);
@@ -195,61 +160,40 @@ int main(int argc, char **argv)
     }
 
     rc = capture_create(&rt.cc, &pcfg);
-    if (rc != 0)
-    {
+    if (rc != 0) {
         fprintf(stderr, "capture_create failed rc=%d\n", rc);
-        app_log_write(&shared,
-                      "ERROR",
-                      "capture_create failed rc=%d",
-                      rc);
+        app_log_write(&shared, "ERROR", "capture_create failed rc=%d", rc);
         driver_destroy(&rt);
         app_log_close(&shared);
         return 1;
     }
 
     rc = capture_activate(&rt.cc, &pcfg);
-    if (rc != 0)
-    {
+    if (rc != 0) {
         fprintf(stderr, "capture_activate failed rc=%d\n", rc);
-        app_log_write(&shared,
-                      "ERROR",
-                      "capture_activate failed rc=%d",
-                      rc);
+        app_log_write(&shared, "ERROR", "capture_activate failed rc=%d", rc);
         driver_destroy(&rt);
         app_log_close(&shared);
         return 1;
     }
 
-    if (bpf && bpf[0] != '\0')
-    {
+    if (bpf && bpf[0] != '\0') {
         struct bpf_program fp;
 
-        if (pcap_compile(rt.cc.handle,
-                         &fp,
-                         bpf,
-                         1,
-                         PCAP_NETMASK_UNKNOWN) < 0)
-        {
-            fprintf(stderr,
-                    "pcap_compile failed: %s\n",
+        if (pcap_compile(rt.cc.handle, &fp, bpf, 1, PCAP_NETMASK_UNKNOWN) < 0) {
+            fprintf(stderr, "pcap_compile failed: %s\n",
                     pcap_geterr(rt.cc.handle));
-            app_log_write(&shared,
-                          "ERROR",
-                          "pcap_compile failed: %s",
+            app_log_write(&shared, "ERROR", "pcap_compile failed: %s",
                           pcap_geterr(rt.cc.handle));
             driver_destroy(&rt);
             app_log_close(&shared);
             return 1;
         }
 
-        if (pcap_setfilter(rt.cc.handle, &fp) < 0)
-        {
-            fprintf(stderr,
-                    "pcap_setfilter failed: %s\n",
+        if (pcap_setfilter(rt.cc.handle, &fp) < 0) {
+            fprintf(stderr, "pcap_setfilter failed: %s\n",
                     pcap_geterr(rt.cc.handle));
-            app_log_write(&shared,
-                          "ERROR",
-                          "pcap_setfilter failed: %s",
+            app_log_write(&shared, "ERROR", "pcap_setfilter failed: %s",
                           pcap_geterr(rt.cc.handle));
             pcap_freecode(&fp);
             driver_destroy(&rt);
@@ -262,19 +206,17 @@ int main(int argc, char **argv)
 
     memset(&hcfg, 0, sizeof(hcfg));
     hcfg.max_buffer_bytes = 12U * 1024U * 1024U;
-    hcfg.max_body_bytes = 12U * 1024U * 1024U;
-    hcfg.reasm_mode = REASM_MODE_LATE_START;
-    hcfg.verbose = 0;
-    hcfg.mode = mode;
+    hcfg.max_body_bytes   = 12U * 1024U * 1024U;
+    hcfg.reasm_mode       = REASM_MODE_LATE_START;
+    hcfg.verbose          = 0;
 
     memset(&cbs, 0, sizeof(cbs));
     cbs.on_request = on_request;
-    cbs.on_error = on_error;
+    cbs.on_error   = on_error;
 
-    workers = calloc((size_t)worker_count, sizeof(*workers));
+    workers      = calloc((size_t)worker_count, sizeof(*workers));
     worker_users = calloc((size_t)worker_count, sizeof(*worker_users));
-    if (!workers || !worker_users)
-    {
+    if (!workers || !worker_users) {
         fprintf(stderr, "worker alloc failed\n");
         app_log_write(&shared, "ERROR", "worker alloc failed");
         free(workers);
@@ -284,20 +226,15 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    for (i = 0; i < worker_count; i++)
-    {
+    for (i = 0; i < worker_count; i++) {
         app_ctx_t *w = &workers[i];
 
         memset(w, 0, sizeof(*w));
         w->shared = &shared;
-        w->mode = hcfg.mode;
-        w->det = detect_engine_create(policy, DETECT_JIT_AUTO);
-        if (!w->det)
-        {
+        w->det    = detect_engine_create(policy, DETECT_JIT_AUTO);
+        if (!w->det) {
             fprintf(stderr, "detect_engine_create failed\n");
-            app_log_write(&shared,
-                          "ERROR",
-                          "detect_engine_create failed");
+            app_log_write(&shared, "ERROR", "detect_engine_create failed");
             destroy_workers(workers, worker_count);
             free(worker_users);
             free(workers);
@@ -306,23 +243,17 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        fprintf(stderr,
-                "[DETECT] backend=%s jit=%s\n",
+        fprintf(stderr, "[DETECT] backend=%s jit=%s\n",
                 detect_engine_backend_name(w->det),
                 detect_engine_jit_enabled(w->det) ? "on" : "off");
-        app_log_write(&shared,
-                      "INFO",
-                      "event=detect_engine backend=%s jit=%s",
+        app_log_write(&shared, "INFO", "event=detect_engine backend=%s jit=%s",
                       detect_engine_backend_name(w->det),
                       detect_engine_jit_enabled(w->det) ? "on" : "off");
 
         w->gw = httgw_create(&hcfg, &cbs, w);
-        if (!w->gw)
-        {
+        if (!w->gw) {
             fprintf(stderr, "httgw_create failed\n");
-            app_log_write(&shared,
-                          "ERROR",
-                          "httgw_create failed");
+            app_log_write(&shared, "ERROR", "httgw_create failed");
             destroy_workers(workers, worker_count);
             free(worker_users);
             free(workers);
@@ -331,8 +262,7 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        if (tx_ctx_init(&w->rst_tx) != 0)
-        {
+        if (tx_ctx_init(&w->rst_tx) != 0) {
             fprintf(stderr, "tx_ctx_init failed (need root?)\n");
             app_log_write(&shared, "ERROR", "tx_ctx_init failed");
             destroy_workers(workers, worker_count);
@@ -343,8 +273,7 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        if (httgw_set_tx(w->gw, &w->rst_tx) != 0)
-        {
+        if (httgw_set_tx(w->gw, &w->rst_tx) != 0) {
             fprintf(stderr, "httgw_set_tx failed\n");
             app_log_write(&shared, "ERROR", "httgw_set_tx failed");
             destroy_workers(workers, worker_count);
@@ -358,13 +287,10 @@ int main(int argc, char **argv)
         worker_users[i] = w;
     }
 
-    driver_set_packet_handler_multi(&rt,
-                                    on_packet,
-                                    worker_users,
+    driver_set_packet_handler_multi(&rt, on_packet, worker_users,
                                     (size_t)worker_count);
 
-    if (driver_start(&rt) != 0)
-    {
+    if (driver_start(&rt) != 0) {
         fprintf(stderr, "driver_start failed\n");
         app_log_write(&shared, "ERROR", "driver_start failed");
         destroy_workers(workers, worker_count);
@@ -375,31 +301,19 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    printf("capture start: iface=%s filter=\"%s\" policy=%s mode=%d\n",
-           iface,
-           bpf,
-           policy,
-           mode);
-    app_log_write(&shared,
-                  "INFO",
+    printf("capture start: iface=%s filter=\"%s\" policy=%s mode=sniffing\n",
+           iface, bpf, policy);
+    app_log_write(&shared, "INFO",
                   "event=capture_start iface=%s filter=\"%s\" "
-                  "policy=%s mode=%d pass_log=%d debug_log=%d",
-                  iface,
-                  bpf,
-                  policy,
-                  mode,
-                  shared.pass_log_enabled,
+                  "policy=%s mode=sniffing pass_log=%d debug_log=%d",
+                  iface, bpf, policy, shared.pass_log_enabled,
                   shared.debug_log_enabled);
 
-    while (!g_stop)
-    {
-        if (driver_has_failed(&rt))
-        {
+    while (!g_stop) {
+        if (driver_has_failed(&rt)) {
             rc = driver_last_error(&rt);
             fprintf(stderr, "capture thread failed rc=%d\n", rc);
-            app_log_write(&shared,
-                          "ERROR",
-                          "event=capture_thread_failed rc=%d",
+            app_log_write(&shared, "ERROR", "event=capture_thread_failed rc=%d",
                           rc);
             exit_code = 1;
             break;
@@ -417,152 +331,103 @@ int main(int argc, char **argv)
     return exit_code;
 }
 
-/*
-********************************************************************************
-* Local functions
-********************************************************************************
-*/
-
-static void on_sigint(int signo)
-{
+static void on_sigint(int signo) {
     (void)signo;
     g_stop = 1;
 }
 
-static void on_request(const flow_key_t *flow,
-                       tcp_dir_t dir,
-                       const http_message_t *msg,
-                       const char *query,
-                       size_t query_len,
-                       void *user)
-{
-    fprintf(stderr,
-            "[REQ] method=%s uri=%s body_len=%zu\n",
-            msg->method,
-            msg->uri,
-            msg->body_len);
+static void on_request(const flow_key_t *flow, tcp_dir_t dir,
+                       const http_message_t *msg, const char *query,
+                       size_t query_len, void *user) {
 
-    app_ctx_t *app = (app_ctx_t *)user;
+    app_ctx_t           *app  = (app_ctx_t *)user;
     const IPS_Signature *rule = NULL;
-    detect_match_list_t matches;
-    int score = 0;
-    int rc;
-    uint64_t detect_us = 0;
-    long detect_ms;
-    strbuf_t matched_rules = {0};
-    strbuf_t matched_texts = {0};
-    char ip[32];
-    char event_id[48];
-    char event_ts[40];
-    char *block_page_html = NULL;
+    detect_match_list_t  matches;
+    int                  score = 0;
+    int                  rc;
+    uint64_t             detect_us = 0;
+    long                 detect_ms;
+    strbuf_t             matched_rules = {0};
+    strbuf_t             matched_texts = {0};
+    char                 ip[32];
+    char                 event_id[48];
+    char                 event_ts[40];
+    char                *block_page_html = NULL;
 
-    if (!app || !app->shared || !app->det)
-    {
+    if (!app || !app->shared || !app->det) {
         return;
     }
 
     (void)query;
     (void)query_len;
 
-    rc = run_detect(app->det, msg, &score, &rule, &matches, &detect_us);
+    rc        = run_detect(app->det, msg, &score, &rule, &matches, &detect_us);
     detect_ms = (long)((detect_us + 999ULL) / 1000ULL);
     ip4_to_str(flow->src_ip, ip, sizeof(ip));
 
-    if (rc > 0)
-    {
+    if (rc > 0) {
         char from[256];
 
-        if (app_make_event_id(app->shared, event_id, sizeof(event_id)) != 0)
-        {
+        if (app_make_event_id(app->shared, event_id, sizeof(event_id)) != 0) {
             snprintf(event_id, sizeof(event_id), "evt-unavailable");
         }
-        if (app_make_timestamp(event_ts, sizeof(event_ts)) != 0)
-        {
+        if (app_make_timestamp(event_ts, sizeof(event_ts)) != 0) {
             snprintf(event_ts, sizeof(event_ts), "1970-01-01T00:00:00.000");
         }
 
         block_page_html = app_render_block_page(g_block_page_template_path,
-                                                event_id,
-                                                event_ts,
-                                                ip);
+                                                event_id, event_ts, ip);
         free(app->last_block_page_html);
         app->last_block_page_html = block_page_html;
-        snprintf(app->last_event_id, sizeof(app->last_event_id), "%s", event_id);
-        snprintf(app->last_event_ts, sizeof(app->last_event_ts), "%s", event_ts);
+        snprintf(app->last_event_id, sizeof(app->last_event_id), "%s",
+                 event_id);
+        snprintf(app->last_event_ts, sizeof(app->last_event_ts), "%s",
+                 event_ts);
         snprintf(app->last_client_ip, sizeof(app->last_client_ip), "%s", ip);
-        if (block_page_html == NULL)
-        {
-            app_log_write(app->shared,
-                          "ERROR",
-                          "event=block_page_render_failed event_id=%s template=%s",
-                          event_id,
-                          g_block_page_template_path);
+        if (block_page_html == NULL) {
+            app_log_write(
+                app->shared, "ERROR",
+                "event=block_page_render_failed event_id=%s template=%s",
+                event_id, g_block_page_template_path);
         }
 
-        snprintf(from,
-                 sizeof(from),
-                 "%.31s %.200s",
+        snprintf(from, sizeof(from), "%.31s %.200s",
                  msg->method[0] ? msg->method : "UNKNOWN",
                  msg->uri[0] ? msg->uri : "/");
         append_match_strings(&matches, &matched_rules, &matched_texts);
-        app_log_attack(app->shared,
-                       event_id,
-                       event_ts,
-                       rule ? rule->policy_name : "unknown",
-                       "REQUEST",
-                       from,
-                       rule ? rule->pattern : "unknown",
-                       matched_rules.buf,
-                       matched_texts.buf,
-                       ip,
-                       flow->src_port,
-                       score,
-                       APP_DETECT_THRESHOLD,
-                       matches.count,
-                       detect_us,
+        app_log_attack(app->shared, event_id, event_ts,
+                       rule ? rule->policy_name : "unknown", "REQUEST", from,
+                       rule ? rule->pattern : "unknown", matched_rules.buf,
+                       matched_texts.buf, ip, flow->src_port, score,
+                       APP_DETECT_THRESHOLD, matches.count, detect_us,
                        detect_ms);
         atomic_fetch_add(&app->shared->http_msgs, 1);
         atomic_fetch_add(&app->shared->reqs, 1);
         request_block_action_v2(app, flow, event_id);
-    }
-    else if (0 == rc)
-    {
-        if (app->shared->pass_log_enabled)
-        {
+    } else if (0 == rc) {
+        if (app->shared->pass_log_enabled) {
             char *uri_esc = log_escape_dup(msg->uri[0] ? msg->uri : "/");
 
-            if (uri_esc != NULL)
-            {
-                app_log_write(app->shared,
-                              "INFO",
+            if (uri_esc != NULL) {
+                app_log_write(app->shared, "INFO",
                               "event=http_pass where=request "
                               "method=%s uri=\"%s\" src_ip=%s "
                               "src_port=%u detect_ms=%ld",
-                              msg->method[0] ? msg->method : "unknown",
-                              uri_esc,
-                              ip,
-                              flow->src_port,
-                              detect_ms);
+                              msg->method[0] ? msg->method : "unknown", uri_esc,
+                              ip, flow->src_port, detect_ms);
                 free(uri_esc);
             }
         }
         atomic_fetch_add(&app->shared->http_msgs, 1);
         atomic_fetch_add(&app->shared->reqs, 1);
-    }
-    else
-    {
+    } else {
         char *detail_esc;
 
         detail_esc = log_escape_dup(detect_engine_last_error(app->det));
-        fprintf(stderr,
-                "detect error: %s\n",
-                detect_engine_last_error(app->det));
-        if (detail_esc != NULL)
-        {
-            app_log_write(app->shared,
-                          "ERROR",
-                          "event=detect_error detail=\"%s\"",
-                          detail_esc);
+
+        if (detail_esc != NULL) {
+            app_log_write(app->shared, "ERROR",
+                          "event=detect_error detail=\"%s\"", detail_esc);
             free(detail_esc);
         }
     }
@@ -580,44 +445,28 @@ static void on_request(const flow_key_t *flow,
  * @param detail 오류 상세 정보
  * @param user app context
  */
-static void on_error(const char *stage, const char *detail, void *user)
-{
+static void on_error(const char *stage, const char *detail, void *user) {
     app_ctx_t *app = (app_ctx_t *)user;
-    fprintf(stderr,
-            "[ERR] stage=%s detail=%s\n",
-            stage ? stage : "-",
-            detail ? detail : "-");
-    char *detail_esc;
+    char      *detail_esc;
 
-    if (!app || !app->shared)
-    {
+    if (!app || !app->shared) {
         return;
     }
 
     detail_esc = log_escape_dup(detail ? detail : "unknown");
-    fprintf(stderr,
-            "[ERR] %s: %s\n",
-            stage ? stage : "unknown",
-            detail ? detail : "unknown");
 
-    if (detail_esc != NULL)
-    {
-        app_log_write(app->shared,
-                      "ERROR",
+    if (detail_esc != NULL) {
+        app_log_write(app->shared, "ERROR",
                       "event=stream_error stage=%s detail=\"%s\"",
-                      stage ? stage : "unknown",
-                      detail_esc);
+                      stage ? stage : "unknown", detail_esc);
         free(detail_esc);
     }
 
-    if (stage)
-    {
-        if (strcmp(stage, "reasm_ingest") == 0)
-        {
+    if (stage) {
+        if (strcmp(stage, "reasm_ingest") == 0) {
             atomic_fetch_add(&app->shared->reasm_errs, 1);
         }
-        if (strcmp(stage, "http_stream_feed") == 0)
-        {
+        if (strcmp(stage, "http_stream_feed") == 0) {
             atomic_fetch_add(&app->shared->parse_errs, 1);
         }
     }
@@ -626,7 +475,8 @@ static void on_error(const char *stage, const char *detail, void *user)
 /**
  * @brief packet handler 함수
  * 캡처된 패킷을 처리한다. 현재는 RST 패킷
- * 처리와 로그 기록만 수행한다. 향후 TP/SYN, Reverse 모드의 패킷 처리도 이 함수에서 수행할 수 있다.
+ * 처리와 로그 기록만 수행한다. 향후 TP/SYN, Reverse 모드의 패킷 처리도 이
+ * 함수에서 수행할 수 있다.
  * @param data 패킷 데이터
  * @param len 패킷 길이
  * @param ts_ns 패킷 캡처 타임스탬프 (나노초 단위)
@@ -634,92 +484,62 @@ static void on_error(const char *stage, const char *detail, void *user)
  *
  * @return 없음
  */
-static void on_packet(const uint8_t *data,
-                      uint32_t len,
-                      uint64_t ts_ns,
-                      void *user)
-{
-    app_ctx_t *app = (app_ctx_t *)user;
-    uint64_t ts_ms = ts_ns / 1000000ULL;
-    flow_key_t flow;
-    tcp_dir_t dir;
-    uint8_t flags = 0;
-    httgw_sess_snapshot_t pre_snap;
+static void on_packet(const uint8_t *data, uint32_t len, uint64_t ts_ns,
+                      void *user) {
+    app_ctx_t                   *app   = (app_ctx_t *)user;
+    uint64_t                     ts_ms = ts_ns / 1000000ULL;
+    flow_key_t                   flow;
+    tcp_dir_t                    dir;
+    uint8_t                      flags = 0;
+    httgw_sess_snapshot_t        pre_snap;
     const httgw_sess_snapshot_t *fallback_snap = NULL;
 
-    if (parse_flow_dir_and_flags(data, len, &flow, &dir, &flags))
-    {
-        fprintf(stderr,
-                "[WORKER] len=%u dir=%d flags=0x%02x sport=%u dport=%u\n",
-                len,
-                dir,
-                flags,
-                flow.src_port,
-                flow.dst_port);
-    }
-
-    if (app &&
-        app->gw &&
+    if (app && app->gw &&
         parse_flow_dir_and_flags(data, len, &flow, &dir, &flags) &&
-        (flags & TCP_RST))
-    {
-        if (httgw_get_session_snapshot(app->gw, &flow, &pre_snap) == 0)
-        {
+        (flags & TCP_RST)) {
+        if (httgw_get_session_snapshot(app->gw, &flow, &pre_snap) == 0) {
             rst_log_cache_put(app, &flow, &pre_snap, ts_ms);
             fallback_snap = &pre_snap;
-        }
-        else
-        {
+        } else {
             fallback_snap = rst_log_cache_get(app, &flow, ts_ms);
         }
     }
 
-    switch (app->mode)
-    {
-    case HTTGW_MODE_SNIFF:
-    {
+    if (app && app->gw) {
         int rc = httgw_ingest_packet(app->gw, data, len, ts_ms);
-
-        fprintf(stderr,
-                "[GW] ingest rc=%d len=%u ts_ms=%llu\n",
-                rc,
-                len,
-                (unsigned long long)ts_ms);
+        if(rc == 0) {
+            /* 패킷이 무시됨 로그 기록*/
+            app_log_write(app->shared, "DEBUG",
+                      "event=packet_ignored len=%u ts_ms=%llu",
+                      len, (unsigned long long)ts_ms);
+        } else if( rc == -1) {
+            /* 오류 발생 로그 기록*/
+            app_log_write(app->shared, "ERROR",
+                      "event=httgw_ingest_invalid_arg len=%u ts_ms=%llu",
+                      len, (unsigned long long)ts_ms);
+        }
         log_tcp_packet_line(app, data, len, fallback_snap);
-        break;
-    }
-    case HTTGW_MODE_TP_SYN:
-        break;
-    case HTTGW_MODE_REVERSE:
-        break;
-    default:
-        break;
     }
 
     (void)dir;
 }
 
-static void destroy_workers(app_ctx_t *workers, int count)
-{
+static void destroy_workers(app_ctx_t *workers, int count) {
     int i;
 
-    if (!workers || count <= 0)
-    {
+    if (!workers || count <= 0) {
         return;
     }
 
-    for (i = 0; i < count; i++)
-    {
+    for (i = 0; i < count; i++) {
         app_ctx_t *w = &workers[i];
 
-        if (w->det)
-        {
+        if (w->det) {
             detect_engine_destroy(w->det);
             w->det = NULL;
         }
 
-        if (w->gw)
-        {
+        if (w->gw) {
             httgw_destroy(w->gw);
             w->gw = NULL;
         }
@@ -731,40 +551,9 @@ static void destroy_workers(app_ctx_t *workers, int count)
     }
 }
 
-static int parse_mode_arg(const char *arg, httgw_mode_t *out)
-{
-    if (!arg || !out)
-    {
-        return -1;
-    }
-
-    if (strcmp(arg, "sniffing") == 0 || strcmp(arg, "sniff") == 0)
-    {
-        *out = HTTGW_MODE_SNIFF;
-        return 0;
-    }
-
-    if (strcmp(arg, "tp/syn") == 0 ||
-        strcmp(arg, "tp_syn") == 0 ||
-        strcmp(arg, "tpsyn") == 0)
-    {
-        *out = HTTGW_MODE_TP_SYN;
-        return 0;
-    }
-
-    if (strcmp(arg, "reverse") == 0)
-    {
-        *out = HTTGW_MODE_REVERSE;
-        return 0;
-    }
-
-    return -1;
-}
-
-static void usage(const char *prog)
-{
+static void usage(const char *prog) {
     fprintf(stderr,
             "usage: %s -iface=<iface> -bpf=<filter> "
-            "[-mode=sniffing|tp/syn|reverse] [-engine=pcre2|hs]\n",
+            "[-engine=pcre2|hs]\n",
             prog ? prog : "main");
 }

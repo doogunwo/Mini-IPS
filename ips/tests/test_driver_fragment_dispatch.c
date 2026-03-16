@@ -1,31 +1,29 @@
 /**
- * @file test_driver_fragments.c
+ * @file test_driver_fragment_dispatch.c
  * @brief driver fragment worker selection unit test
  */
 #ifndef _DEFAULT_SOURCE
 #define _DEFAULT_SOURCE
 #endif
 
-#include <sys/types.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/types.h>
 
 /* Static helpers are exercised by including the implementation. */
 #include "../src/driver.c"
 
-#define CHECK(cond, msg) do { \
-    if (!(cond)) { \
-        fprintf(stderr, "FAIL: %s\n", (msg)); \
-        return 1; \
-    } \
-} while (0)
+#define CHECK(cond, msg)                          \
+    do {                                          \
+        if (!(cond)) {                            \
+            fprintf(stderr, "FAIL: %s\n", (msg)); \
+            return 1;                             \
+        }                                         \
+    } while (0)
 
-static void write_eth_ipv4_header(uint8_t *pkt,
-                                  uint16_t total_len,
-                                  uint16_t ip_id,
-                                  uint16_t frag_field,
-                                  uint8_t proto)
-{
+static void write_eth_ipv4_header(uint8_t *pkt, uint16_t total_len,
+                                  uint16_t ip_id, uint16_t frag_field,
+                                  uint8_t proto) {
     memset(pkt, 0, 14 + 20);
 
     pkt[12] = 0x08;
@@ -52,15 +50,14 @@ static void write_eth_ipv4_header(uint8_t *pkt,
     pkt[33] = 2;
 }
 
-static int test_fragmented_packets_do_not_parse_as_5tuple(void)
-{
-    uint8_t first_frag[14 + 20 + 16];
-    uint8_t later_frag[14 + 20 + 8];
-    uint32_t sip = 0;
-    uint32_t dip = 0;
+static int test_fragmented_packets_do_not_parse_as_5tuple(void) {
+    uint8_t  first_frag[14 + 20 + 16];
+    uint8_t  later_frag[14 + 20 + 8];
+    uint32_t sip   = 0;
+    uint32_t dip   = 0;
     uint16_t sport = 0;
     uint16_t dport = 0;
-    uint8_t proto = 0;
+    uint8_t  proto = 0;
 
     write_eth_ipv4_header(first_frag, 20 + 16, 0x1234, 0x2000, IPPROTO_UDP);
     first_frag[34] = 0x30;
@@ -78,20 +75,26 @@ static int test_fragmented_packets_do_not_parse_as_5tuple(void)
     later_frag[36] = 0xcc;
     later_frag[37] = 0xdd;
 
-    CHECK(parse_ipv4_5tuple(first_frag, sizeof(first_frag), &sip, &dip, &sport, &dport, &proto) == 0,
+    CHECK(parse_ipv4_5tuple(first_frag, sizeof(first_frag), &sip, &dip, &sport,
+                            &dport, &proto) == 0,
           "first fragment should not be treated as a complete 5-tuple packet");
-    CHECK(parse_ipv4_5tuple(later_frag, sizeof(later_frag), &sip, &dip, &sport, &dport, &proto) == 0,
+    CHECK(parse_ipv4_5tuple(later_frag, sizeof(later_frag), &sip, &dip, &sport,
+                            &dport, &proto) == 0,
           "non-initial fragment should not be treated as a 5-tuple packet");
+
+    fprintf(stderr,
+            "[test_driver_fragment_dispatch] case=no_5tuple first_len=%zu "
+            "later_len=%zu proto=%u sport=%u dport=%u\n",
+            sizeof(first_frag), sizeof(later_frag), proto, sport, dport);
     return 0;
 }
 
-static int test_fragments_stick_to_same_worker(void)
-{
-    uint8_t first_frag[14 + 20 + 16];
-    uint8_t later_frag[14 + 20 + 8];
+static int test_fragments_stick_to_same_worker(void) {
+    uint8_t       first_frag[14 + 20 + 16];
+    uint8_t       later_frag[14 + 20 + 8];
     capture_ctx_t cc;
-    uint32_t first_idx;
-    uint32_t later_idx;
+    uint32_t      first_idx;
+    uint32_t      later_idx;
 
     memset(&cc, 0, sizeof(cc));
 
@@ -118,17 +121,24 @@ static int test_fragments_stick_to_same_worker(void)
     first_idx = pick_worker_idx(&cc, first_frag, sizeof(first_frag), 8);
     later_idx = pick_worker_idx(&cc, later_frag, sizeof(later_frag), 8);
     CHECK(first_idx == later_idx,
-          "all fragments of the same IPv4 datagram should map to the same worker");
+          "all fragments of the same IPv4 datagram should map to the same "
+          "worker");
+
+    fprintf(stderr,
+            "[test_driver_fragment_dispatch] case=fragment_affinity "
+            "worker_count=8 first_idx=%u later_idx=%u\n",
+            first_idx, later_idx);
     return 0;
 }
 
-int main(void)
-{
-    if (test_fragmented_packets_do_not_parse_as_5tuple() != 0)
+int main(void) {
+    if (test_fragmented_packets_do_not_parse_as_5tuple() != 0) {
         return 1;
-    if (test_fragments_stick_to_same_worker() != 0)
+    }
+    if (test_fragments_stick_to_same_worker() != 0) {
         return 1;
+    }
 
-    printf("ok: test_driver_fragments\n");
+    printf("ok: test_driver_fragment_dispatch\n");
     return 0;
 }

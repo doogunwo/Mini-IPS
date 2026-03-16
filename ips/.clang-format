@@ -1,0 +1,50 @@
+---
+# Monitorapp C Coding Standard .clang-format
+Language: Cpp
+# 기본 스타일을 기반으로 하되 아래 설정들로 덮어씁니다.
+BasedOnStyle: Google
+
+# 1. 라인 길이
+ColumnLimit: 80
+
+# 2. 들여쓰기 (Space 4개)
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+
+# 4. 조건문 및 BRACES (K&R 스타일)
+BreakBeforeBraces: Attach # 여는 중괄호를 같은 줄에 배치 (K&R)
+AllowShortIfStatementsOnASingleLine: false # 단일 구문도 항상 여러 줄로
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: false
+AllowShortFunctionsOnASingleLine: false
+KeepEmptyLinesAtTheStartOfBlocks: false
+
+# 키워드(if, while, for 등) 뒤에 공백 추가
+SpaceBeforeParens: ControlStatements
+
+# 함수 정의 및 호출 시 공백 없음
+SpaceBeforeParensOptions:
+  AfterControlStatements: true
+  AfterFunctionDefinitionName: false
+  AfterFunctionDeclarationName: false
+
+# 3. 수식 Layout
+# 이항 연산자 주위에 공백 추가 (기본 동작)
+SpaceAroundPointerQualifiers: Default
+SpaceBeforeAssignmentOperators: true
+
+# 단항 연산자는 피연산자에 붙임 (기본 동작)
+
+# 5. 포인터 (변수명 쪽에 붙임)
+PointerAlignment: Right
+
+# 기타 정렬 설정 (가독성 향상)
+AlignConsecutiveAssignments: true # 연속된 할당문 정렬 (문서 예제 반영)
+AlignConsecutiveDeclarations: true # 연속된 선언문 정렬
+AlignTrailingComments: true # 주석 정렬
+
+# case 문 들여쓰기 (switch문 내에서)
+IndentCaseLabels: false
+
+InsertBraces: true

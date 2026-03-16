@@ -1,9 +1,9 @@
 CC ?= gcc
 CFLAGS ?= -O2 -Wall -Wextra -std=c11
 
-SRCS := bot.c
+SRCS := benchmark.c
 OBJS := $(SRCS:.c=.o)
-TARGET := bot
+TARGET := benchmark
 
 all: $(TARGET)
 
