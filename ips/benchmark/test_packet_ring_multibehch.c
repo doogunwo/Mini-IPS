@@ -25,6 +25,10 @@
 #define DEFAULT_PAYLOAD_LEN 1500U
 #define BENCH_META_BYTES 8U
 
+/**
+ * @brief worker별 dispatch key 역할을 하는 synthetic flow 정보
+ * 실제 런타임의 flow hash 분배를 벤치마크에서도 흉내내기 위해 사용한다.
+ */
 typedef struct dispatch_flow {
     uint32_t sip;
     uint32_t dip;
@@ -34,6 +38,9 @@ typedef struct dispatch_flow {
     uint32_t worker_idx;
 } dispatch_flow_t;
 
+/**
+ * @brief producer 스레드 실행 인자와 producer 측정값
+ */
 typedef struct producer_arg {
     packet_queue_set_t *queues;
     dispatch_flow_t    *flows;
@@ -47,6 +54,9 @@ typedef struct producer_arg {
     uint64_t            cpu_end_ns;
 } producer_arg_t;
 
+/**
+ * @brief worker별 consumer 스레드 실행 인자와 측정값
+ */
 typedef struct consumer_arg {
     packet_ring_t *ring;
     uint32_t       worker_idx;
@@ -171,6 +181,13 @@ static uint32_t benchmark_flow_hash_5tuple(uint32_t sip, uint32_t dip,
     return h;
 }
 
+/**
+ * @brief worker 수만큼 서로 다른 hash 결과를 갖는 synthetic flow를 만든다.
+ *
+ * @param flows 생성 결과를 기록할 배열
+ * @param worker_count worker 수
+ * @return int 0=성공, 음수=실패
+ */
 static int build_dispatch_flows(dispatch_flow_t *flows, uint32_t worker_count) {
     uint32_t attempts = 0;
     uint32_t filled = 0;
@@ -214,6 +231,14 @@ static int build_dispatch_flows(dispatch_flow_t *flows, uint32_t worker_count) {
     return 0;
 }
 
+/**
+ * @brief payload 앞부분에 worker 인덱스와 시퀀스 번호를 함께 기록한다.
+ *
+ * @param buf payload 버퍼
+ * @param worker_idx 기록할 worker 인덱스
+ * @param seq 기록할 시퀀스 번호
+ * @param len payload 전체 길이
+ */
 static void payload_set_meta(uint8_t *buf, uint32_t worker_idx, uint32_t seq,
                              uint32_t len) {
     memset(buf, 0xA5, len);
@@ -221,6 +246,12 @@ static void payload_set_meta(uint8_t *buf, uint32_t worker_idx, uint32_t seq,
     memcpy(buf + sizeof(worker_idx), &seq, sizeof(seq));
 }
 
+/**
+ * @brief payload에서 worker 인덱스를 추출한다.
+ *
+ * @param buf payload 버퍼
+ * @return uint32_t 기록된 worker 인덱스
+ */
 static uint32_t payload_get_worker(const uint8_t *buf) {
     uint32_t worker_idx = 0;
 
@@ -228,6 +259,12 @@ static uint32_t payload_get_worker(const uint8_t *buf) {
     return worker_idx;
 }
 
+/**
+ * @brief payload에서 시퀀스 번호를 추출한다.
+ *
+ * @param buf payload 버퍼
+ * @return uint32_t 기록된 시퀀스 번호
+ */
 static uint32_t payload_get_seq(const uint8_t *buf) {
     uint32_t seq = 0;
 
@@ -235,6 +272,13 @@ static uint32_t payload_get_seq(const uint8_t *buf) {
     return seq;
 }
 
+/**
+ * @brief 단일 producer 스레드 진입점
+ * flow-hash 결과에 따라 여러 SPSC ring으로 payload를 분배한다.
+ *
+ * @param arg producer_arg_t*
+ * @return void*
+ */
 static void *producer_thread(void *arg) {
     producer_arg_t *ctx = (producer_arg_t *)arg;
     uint8_t         payload[PACKET_MAX_BYTES];
@@ -277,6 +321,13 @@ static void *producer_thread(void *arg) {
     return NULL;
 }
 
+/**
+ * @brief worker별 consumer 스레드 진입점
+ * 자기 ring만 dequeue 하면서 worker별 지연시간과 CPU 시간을 측정한다.
+ *
+ * @param arg consumer_arg_t*
+ * @return void*
+ */
 static void *consumer_thread(void *arg) {
     consumer_arg_t *ctx = (consumer_arg_t *)arg;
     uint8_t         out[PACKET_MAX_BYTES];
@@ -338,6 +389,13 @@ static void *consumer_thread(void *arg) {
     return NULL;
 }
 
+/**
+ * @brief producer 1개와 consumer 여러 개를 두고 worker 확장 효과를 보는 메인 함수
+ *
+ * @param argc
+ * @param argv argv[1]=worker_count argv[2]=iterations_per_worker argv[3]=payload_len argv[4]=slot_count
+ * @return int
+ */
 int main(int argc, char **argv) {
     packet_queue_set_t queues;
     pthread_t          producer_tid;

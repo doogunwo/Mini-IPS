@@ -12,6 +12,7 @@
 
 #include "httgw.h"
 #include "net_compat.h"
+#include "pipeline_bench_common.h"
 
 #define CHECK(cond, msg)                          \
     do {                                          \
@@ -24,7 +25,11 @@
 #define DEFAULT_REQUEST_COUNT 10000U
 #define DEFAULT_URI_PAD_LEN 1460U
 #define DEFAULT_SEGMENT_BYTES 1460U
+#define DEFAULT_RING_SLOT_COUNT 1024U
 
+/**
+ * @brief 재조립 벤치마크 누적 결과를 저장하는 컨텍스트
+ */
 typedef struct reasm_ctx {
     uint64_t request_count;
     uint64_t stream_error_count;
@@ -33,6 +38,9 @@ typedef struct reasm_ctx {
     uint64_t max_reasm_ns;
 } reasm_ctx_t;
 
+/**
+ * @brief synthetic TCP 패킷 생성에 필요한 필드 묶음
+ */
 typedef struct tcp_pkt_spec {
     uint32_t       sip;
     uint16_t       sport;
@@ -178,6 +186,15 @@ static uint16_t tcp_checksum_ipv4(const IPHDR *ip, const TCPHDR *tcp,
     return (uint16_t)(~sum);
 }
 
+/**
+ * @brief synthetic Ethernet+IPv4+TCP 패킷을 생성한다.
+ *
+ * @param out 결과 패킷 버퍼
+ * @param out_cap 결과 버퍼 크기
+ * @param sp 패킷 필드 입력값
+ * @param out_len 생성된 패킷 길이를 돌려받을 포인터
+ * @return int 0=성공, 음수=실패
+ */
 static int build_tcp_packet(uint8_t *out, size_t out_cap,
                             const tcp_pkt_spec_t *sp, uint32_t *out_len) {
     struct ether_header *eth;
@@ -231,66 +248,17 @@ static int build_tcp_packet(uint8_t *out, size_t out_cap,
     return 0;
 }
 
-static char *build_http_request(size_t uri_pad_len, size_t *out_len) {
-    const char *uri_prefix = "/bench?x=";
-    const char *uri_suffix = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    const char *body =
-        "user=admin&mode=normal&payload=abcdefghijklmnopqrstuvwxyz0123456789";
-    const char *hdr_a = "POST ";
-    const char *hdr_b =
-        " HTTP/1.1\r\n"
-        "Host: localhost\r\n"
-        "User-Agent: reasm-pipeline-bench\r\n"
-        "Accept: */*\r\n"
-        "Content-Type: application/x-www-form-urlencoded\r\n"
-        "Content-Length: ";
-    const char *hdr_c = "\r\nConnection: keep-alive\r\n\r\n";
-    char        body_len_buf[32];
-    size_t      total_len;
-    char       *req;
-    char       *p;
-    int         n;
-
-    if (NULL == out_len) {
-        return NULL;
-    }
-
-    n = snprintf(body_len_buf, sizeof(body_len_buf), "%zu", strlen(body));
-    if (n <= 0) {
-        return NULL;
-    }
-
-    total_len = strlen(hdr_a) + strlen(uri_prefix) + uri_pad_len +
-                strlen(uri_suffix) + strlen(hdr_b) + (size_t)n +
-                strlen(hdr_c) + strlen(body);
-    req = (char *)malloc(total_len + 1U);
-    if (NULL == req) {
-        return NULL;
-    }
-
-    p = req;
-    memcpy(p, hdr_a, strlen(hdr_a));
-    p += strlen(hdr_a);
-    memcpy(p, uri_prefix, strlen(uri_prefix));
-    p += strlen(uri_prefix);
-    memset(p, 'A', uri_pad_len);
-    p += uri_pad_len;
-    memcpy(p, uri_suffix, strlen(uri_suffix));
-    p += strlen(uri_suffix);
-    memcpy(p, hdr_b, strlen(hdr_b));
-    p += strlen(hdr_b);
-    memcpy(p, body_len_buf, (size_t)n);
-    p += n;
-    memcpy(p, hdr_c, strlen(hdr_c));
-    p += strlen(hdr_c);
-    memcpy(p, body, strlen(body));
-    p += strlen(body);
-    *p = '\0';
-
-    *out_len = total_len;
-    return req;
-}
-
+/**
+ * @brief HTTP 요청 완성 시 호출되는 콜백
+ * 요청 완성까지 걸린 시간을 재조립 지연으로 누적한다.
+ *
+ * @param flow
+ * @param dir
+ * @param msg
+ * @param query
+ * @param query_len
+ * @param user reasm_ctx_t*
+ */
 static void on_request_cb(const flow_key_t *flow, tcp_dir_t dir,
                           const http_message_t *msg, const char *query,
                           size_t query_len, void *user) {
@@ -316,6 +284,13 @@ static void on_request_cb(const flow_key_t *flow, tcp_dir_t dir,
     }
 }
 
+/**
+ * @brief 재조립 또는 HTTP 파싱 오류를 누적 기록하는 콜백
+ *
+ * @param stage
+ * @param detail
+ * @param user reasm_ctx_t*
+ */
 static void on_error_cb(const char *stage, const char *detail, void *user) {
     reasm_ctx_t *ctx = (reasm_ctx_t *)user;
 
@@ -324,9 +299,23 @@ static void on_error_cb(const char *stage, const char *detail, void *user) {
     ctx->stream_error_count++;
 }
 
-static int feed_request(httgw_t *gw, reasm_ctx_t *ctx, const uint8_t *request,
-                        size_t request_len, uint32_t segment_payload_len,
-                        uint32_t base_seq, uint64_t *ts_ms,
+/**
+ * @brief HTTP 요청 하나를 여러 TCP 세그먼트로 나눠 httgw에 투입한다.
+ *
+ * @param gw HTTP 게이트웨이 인스턴스
+ * @param ctx 재조립 측정 컨텍스트
+ * @param request 요청 원문 버퍼
+ * @param request_len 요청 길이
+ * @param segment_payload_len 세그먼트당 payload 크기
+ * @param base_seq 시작 sequence 번호
+ * @param ts_ms 패킷 타임스탬프 누적값
+ * @param packet_count 투입 패킷 수 누적값
+ * @return int 0=성공, 음수=실패
+ */
+static int feed_request(packet_ring_t *ring, httgw_t *gw, reasm_ctx_t *ctx,
+                        const uint8_t *request, size_t request_len,
+                        uint32_t segment_payload_len, uint32_t base_seq,
+                        uint64_t *ts_ms,
                         uint64_t *packet_count) {
     tcp_pkt_spec_t sp;
     uint8_t        pkt[2048];
@@ -361,7 +350,7 @@ static int feed_request(httgw_t *gw, reasm_ctx_t *ctx, const uint8_t *request,
             return -1;
         }
 
-        rc = httgw_ingest_packet(gw, pkt, pkt_len, *ts_ms);
+        rc = ingest_packet_via_ring(ring, gw, pkt, pkt_len, *ts_ms);
         if (1 != rc) {
             return -1;
         }
@@ -374,6 +363,13 @@ static int feed_request(httgw_t *gw, reasm_ctx_t *ctx, const uint8_t *request,
     return 0;
 }
 
+/**
+ * @brief 재조립 + HTTP 파싱 경로 처리량과 요청 완성 지연을 측정하는 메인 함수
+ *
+ * @param argc
+ * @param argv argv[1]=request_count argv[2]=uri_pad_len argv[3]=segment_payload_len
+ * @return int
+ */
 int main(int argc, char **argv) {
     uint32_t          request_count = DEFAULT_REQUEST_COUNT;
     uint32_t          uri_pad_len = DEFAULT_URI_PAD_LEN;
@@ -382,6 +378,7 @@ int main(int argc, char **argv) {
     httgw_cfg_t       hcfg;
     httgw_callbacks_t cbs;
     httgw_t          *gw = NULL;
+    packet_ring_t     ring;
     char             *request = NULL;
     size_t            request_len = 0;
     size_t            segments_per_request;
@@ -420,6 +417,7 @@ int main(int argc, char **argv) {
     memset(&ctx, 0, sizeof(ctx));
     memset(&hcfg, 0, sizeof(hcfg));
     memset(&cbs, 0, sizeof(cbs));
+    memset(&ring, 0, sizeof(ring));
 
     hcfg.max_buffer_bytes = 12U * 1024U * 1024U;
     hcfg.max_body_bytes = 12U * 1024U * 1024U;
@@ -429,9 +427,11 @@ int main(int argc, char **argv) {
 
     gw = httgw_create(&hcfg, &cbs, &ctx);
     CHECK(NULL != gw, "httgw_create failed");
+    CHECK(0 == packet_ring_init(&ring, DEFAULT_RING_SLOT_COUNT, 0),
+          "packet_ring_init failed");
 
-    request = build_http_request(uri_pad_len, &request_len);
-    CHECK(NULL != request, "build_http_request failed");
+    request = build_pipeline_http_request(uri_pad_len, &request_len);
+    CHECK(NULL != request, "build_pipeline_http_request failed");
 
     segments_per_request =
         (request_len + (size_t)segment_payload_len - 1U) /
@@ -441,11 +441,13 @@ int main(int argc, char **argv) {
     process_cpu_start_ns = now_process_cpu_ns();
 
     for (uint32_t i = 0; i < request_count; i++) {
-        if (0 != feed_request(gw, &ctx, (const uint8_t *)request, request_len,
+        if (0 != feed_request(&ring, gw, &ctx, (const uint8_t *)request,
+                              request_len,
                               segment_payload_len, next_seq, &ts_ms,
                               &total_packets)) {
             fprintf(stderr, "feed_request failed at request=%u\n", i);
             free(request);
+            packet_ring_destroy(&ring);
             httgw_destroy(gw);
             return 1;
         }
@@ -478,7 +480,7 @@ int main(int argc, char **argv) {
                           (double)ctx.request_count) /
                              1000.0;
 
-    puts("[test_reasm_pipeline]");
+    puts("[benchmark_ring_reasm]");
     table_line();
     table_row_str("metric", "value");
     table_line();
@@ -486,6 +488,7 @@ int main(int argc, char **argv) {
     table_row_u64("request_len", (unsigned long long)request_len);
     table_row_u64("segments_per_req", (unsigned long long)segments_per_request);
     table_row_u64("segment_bytes", segment_payload_len);
+    table_row_u64("ring_slot_count", ring.slot_count);
     table_row_u64("total_packets", total_packets);
     table_row_f64("total_ms", total_ms, "ms");
     table_row_f64("process_cpu_ms", process_cpu_ms, "ms");
@@ -495,11 +498,16 @@ int main(int argc, char **argv) {
     table_row_f64("payload_mib_s", payload_mib_s, "MiB/s");
     table_row_f64("avg_reasm_us", avg_reasm_us, "us");
     table_row_f64("max_reasm_us", (double)ctx.max_reasm_ns / 1000.0, "us");
+    table_row_u64("ring_enq_ok", ring.stats.enq_ok);
+    table_row_u64("ring_deq_ok", ring.stats.deq_ok);
+    table_row_u64("ring_drop_full", ring.stats.drop_full);
+    table_row_u64("ring_wait_full", ring.stats.wait_full);
     table_row_u64("request_seen", ctx.request_count);
     table_row_u64("stream_errors", ctx.stream_error_count);
     table_line();
 
     free(request);
+    packet_ring_destroy(&ring);
     httgw_destroy(gw);
     return 0;
 }

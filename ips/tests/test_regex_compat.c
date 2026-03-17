@@ -1,3 +1,7 @@
+/**
+ * @file test_regex_compat.c
+ * @brief PCRE2와 Hyperscan 정규식 호환성 비교 유틸리티
+ */
 #include <ctype.h>
 #define PCRE2_CODE_UNIT_WIDTH 8
 #include <hs/hs.h>
@@ -9,6 +13,13 @@
 
 #define LINE_BUF_SIZE 262144
 
+/**
+ * @brief 문자열 일부 구간을 새 버퍼로 복사한다.
+ *
+ * @param start 시작 주소
+ * @param end 끝 주소
+ * @return char* 복사 결과, 실패 시 NULL
+ */
 static char *dup_range(const char *start, const char *end) {
     size_t len;
     char  *out;
@@ -28,6 +39,12 @@ static char *dup_range(const char *start, const char *end) {
     return out;
 }
 
+/**
+ * @brief 단일 hex 문자를 정수값으로 변환한다.
+ *
+ * @param c hex 문자
+ * @return int 0~15, 실패 시 -1
+ */
 static int hex_value(char c) {
     if (c >= '0' && c <= '9') {
         return c - '0';
@@ -41,6 +58,12 @@ static int hex_value(char c) {
     return -1;
 }
 
+/**
+ * @brief JSON 문자열 escape를 해제해 일반 문자열로 변환한다.
+ *
+ * @param src JSON 문자열 본문
+ * @return char* 변환 결과, 실패 시 NULL
+ */
 static char *json_unescape(const char *src) {
     size_t src_len;
     char  *out;

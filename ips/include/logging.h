@@ -14,6 +14,9 @@
 #include "detect.h"
 #include "httgw.h"
 
+struct app_ctx;
+struct driver_runtime;
+
 typedef struct rst_log_cache {
     flow_key_t            flow;
     httgw_sess_snapshot_t snap;
@@ -24,14 +27,28 @@ typedef struct rst_log_cache {
 typedef struct app_shared {
     FILE                *log_fp;
     char                 log_path[256];
+    FILE                *monitor_log_fp;
+    char                 monitor_log_path[256];
     pthread_mutex_t      log_mu;
     int                  pass_log_enabled;
     int                  debug_log_enabled;
     atomic_uint_fast64_t event_seq;
+    atomic_uint_fast64_t packet_count;
     atomic_uint_fast64_t http_msgs;
     atomic_uint_fast64_t reqs;
+    atomic_uint_fast64_t detect_count;
     atomic_uint_fast64_t reasm_errs;
     atomic_uint_fast64_t parse_errs;
+    atomic_uint_fast64_t monitor_last_emit_ms;
+    struct driver_runtime *driver_rt;
+    struct app_ctx        *workers;
+    int                    worker_count;
+    uint64_t               monitor_prev_packets;
+    uint64_t               monitor_prev_reqs;
+    uint64_t               monitor_prev_detects;
+    uint64_t               monitor_prev_reasm_in_order;
+    uint64_t               monitor_prev_reasm_out_of_order;
+    uint64_t               monitor_prev_reasm_trimmed;
 } app_shared_t;
 
 typedef struct app_ctx {
@@ -44,6 +61,7 @@ typedef struct app_ctx {
     char             last_event_ts[40];
     char             last_client_ip[32];
     char            *last_block_page_html;
+    uint64_t         last_gc_ms;
 } app_ctx_t;
 
 typedef struct {
@@ -63,6 +81,7 @@ int   app_log_open(app_shared_t *shared);
 void  app_log_close(app_shared_t *shared);
 void  app_log_write(app_shared_t *shared, const char *category, const char *fmt,
                     ...);
+void  app_monitor_write(app_shared_t *shared, const char *fmt, ...);
 void  app_log_attack(app_shared_t *shared, const char *event_id,
                      const char *event_ts, const char *attack, const char *where,
                      const char *from, const char *detected,

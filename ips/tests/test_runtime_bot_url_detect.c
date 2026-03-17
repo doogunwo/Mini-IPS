@@ -1,3 +1,7 @@
+/**
+ * @file test_runtime_bot_url_detect.c
+ * @brief bot-like URL 요청 재조립 및 탐지 통합 단위 테스트
+ */
 #include <arpa/inet.h>
 #include <net/ethernet.h>
 #include <stdint.h>
@@ -23,6 +27,9 @@
 // #define TEST_SEGMENT_SIZE 1500U // MTU = 1500
 #define TEST_SEGMENT_SIZE 1460U  // MSS = 1460
 
+/**
+ * @brief 탐지 결과와 파싱 오류를 기록하는 테스트 컨텍스트
+ */
 typedef struct {
     detect_engine_t *det;
     int              req_count;
@@ -34,6 +41,9 @@ typedef struct {
     char             last_uri[256];
 } test_ctx_t;
 
+/**
+ * @brief synthetic TCP 세그먼트 생성용 입력 필드 묶음
+ */
 typedef struct {
     uint32_t       sip;
     uint16_t       sport;
@@ -47,6 +57,16 @@ typedef struct {
     uint32_t       payload_len;
 } tcp_pkt_spec_t;
 
+/**
+ * @brief HTTP 요청 완성 시 run_detect를 수행하는 테스트 콜백
+ *
+ * @param flow
+ * @param dir
+ * @param msg 완성된 HTTP 메시지
+ * @param query
+ * @param query_len
+ * @param user test_ctx_t*
+ */
 static void on_request_cb(const flow_key_t *flow, tcp_dir_t dir,
                           const http_message_t *msg, const char *query,
                           size_t query_len, void *user) {
@@ -76,6 +96,13 @@ static void on_request_cb(const flow_key_t *flow, tcp_dir_t dir,
     detect_match_list_free(&matches);
 }
 
+/**
+ * @brief 재조립 또는 파싱 오류를 기록하는 테스트 콜백
+ *
+ * @param stage
+ * @param detail
+ * @param user test_ctx_t*
+ */
 static void on_error_cb(const char *stage, const char *detail, void *user) {
     test_ctx_t *ctx = (test_ctx_t *)user;
     (void)stage;

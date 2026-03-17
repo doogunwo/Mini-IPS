@@ -1,3 +1,7 @@
+/**
+ * @file test_httgw_reasm_modes.c
+ * @brief 재조립 모드별 동작 차이 단위 테스트
+ */
 #include <arpa/inet.h>
 #include <net/ethernet.h>
 #include <stdint.h>
@@ -16,12 +20,18 @@
         }                                         \
     } while (0)
 
+/**
+ * @brief 요청 수와 에러 수를 기록하는 테스트 컨텍스트
+ */
 typedef struct {
     int  req_count;
     int  err_count;
     char last_uri[128];
 } test_ctx_t;
 
+/**
+ * @brief synthetic TCP 세그먼트 생성용 입력 필드 묶음
+ */
 typedef struct {
     uint32_t       sip;
     uint16_t       sport;
@@ -35,6 +45,16 @@ typedef struct {
     uint32_t       payload_len;
 } tcp_pkt_spec_t;
 
+/**
+ * @brief HTTP 요청 완성 시 호출되는 테스트 콜백
+ *
+ * @param flow
+ * @param dir
+ * @param msg
+ * @param query
+ * @param query_len
+ * @param user test_ctx_t*
+ */
 static void on_request_cb(const flow_key_t *flow, tcp_dir_t dir,
                           const http_message_t *msg, const char *query,
                           size_t query_len, void *user) {
@@ -48,6 +68,13 @@ static void on_request_cb(const flow_key_t *flow, tcp_dir_t dir,
     snprintf(ctx->last_uri, sizeof(ctx->last_uri), "%.127s", msg->uri);
 }
 
+/**
+ * @brief 파싱 또는 재조립 오류를 기록하는 테스트 콜백
+ *
+ * @param stage
+ * @param detail
+ * @param user test_ctx_t*
+ */
 static void on_error_cb(const char *stage, const char *detail, void *user) {
     test_ctx_t *ctx = (test_ctx_t *)user;
     (void)stage;

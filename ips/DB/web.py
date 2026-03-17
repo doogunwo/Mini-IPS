@@ -213,114 +213,511 @@ def render_page(overview, summary, rows, selected_event: Optional[str], query: O
             "</tr>"
         )
 
-    active = html.escape(selected_event or "all")
     search_value = html.escape(query or "")
+    event_options = "".join(
+        f"<option value='{html.escape(name or 'unknown')}' "
+        f"{'selected' if selected_event == name else ''}>"
+        f"{html.escape(name or 'unknown')}</option>"
+        for name in summary.keys()
+    )
+    summary_rows = "".join(
+        "<div class='event-row'>"
+        f"<span class='event-name'>{html.escape(name or 'unknown')}</span>"
+        f"<span class='event-count mono'>{count}</span>"
+        "</div>"
+        for name, count in list(summary.items())[:10]
+    )
+    latest_ts = html.escape(str(overview.get("latest") or "-"))
     body = f"""<!doctype html>
 <html lang="ko">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta http-equiv="refresh" content="15">
-  <title>IPS Security Console</title>
+  <title>Mini-IPS DB Console</title>
   <style>
     :root {{
-      --bg: #f3efe6;
-      --paper: #fffdf7;
-      --panel: #fbf7ef;
-      --line: #d6c7ae;
-      --ink: #171411;
-      --muted: #6f6559;
-      --threat: #8f2417;
-      --block: #996c14;
-      --error: #7f1d1d;
-      --info: #29546b;
-      --accent: #123d54;
-      --shadow: 0 18px 45px rgba(56, 39, 20, 0.08);
+      --shell: #171c24;
+      --shell-line: #313a4a;
+      --shell-ink: #eef3ff;
+      --bg: #eef3f9;
+      --bg-2: #dde8f5;
+      --panel: rgba(255, 255, 255, 0.88);
+      --line: #d8e2ef;
+      --ink: #101828;
+      --muted: #667085;
+      --accent: #2f6fed;
+      --good: #0f9d76;
+      --warn: #c08b24;
+      --danger: #d04f37;
+      --info: #2c7fb8;
+      --shadow: 0 26px 60px rgba(15, 23, 42, 0.10);
+      --radius: 24px;
     }}
     * {{ box-sizing: border-box; }}
-    body {{ margin: 0; font-family: Georgia, serif; color: var(--ink); font-size: 9pt; background:
-      radial-gradient(circle at top left, rgba(18,61,84,0.12), transparent 30%),
-      radial-gradient(circle at top right, rgba(143,36,23,0.12), transparent 25%),
-      linear-gradient(180deg, #eee5d3, var(--bg)); }}
-    main {{ max-width: 1280px; margin: 0 auto; padding: 28px 18px 46px; }}
-    .toolbar {{ display: block; margin-bottom: 18px; }}
-    .panel {{ background: var(--paper); border: 1px solid var(--line); border-radius: 22px; padding: 18px; box-shadow: var(--shadow); }}
-    .panel h2 {{ margin: 0 0 12px; font-size: 20px; }}
-    form {{ display: grid; grid-template-columns: 1fr 180px 110px 90px; gap: 10px; }}
-    input, select, button, a.button {{ width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); font: inherit; background: #fff; color: var(--ink); text-decoration: none; }}
-    button {{ background: var(--accent); color: #fff; border-color: var(--accent); cursor: pointer; }}
-    a.button {{ display: inline-flex; align-items: center; justify-content: center; }}
-    .table-wrap {{ overflow: auto; }}
-    table {{ width: 100%; border-collapse: collapse; min-width: 980px; }}
-    th, td {{ padding: 12px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; font-size: 9pt; }}
-    th {{ position: sticky; top: 0; background: #efe3cf; z-index: 1; }}
-    .mono {{ font-family: "SFMono-Regular", Menlo, monospace; }}
+    body {{
+      margin: 0;
+      font-family: "Pretendard", "Noto Sans KR", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, rgba(47,111,237,0.14), transparent 24%),
+        radial-gradient(circle at bottom right, rgba(15,157,118,0.12), transparent 20%),
+        linear-gradient(180deg, var(--bg-2), var(--bg));
+    }}
+    .app-shell {{ min-height: 100vh; }}
+    .sidebar {{
+      position: fixed;
+      inset: 0 auto 0 0;
+      width: 252px;
+      background: linear-gradient(180deg, var(--shell), #121720 76%);
+      color: var(--shell-ink);
+      border-right: 1px solid var(--shell-line);
+      padding: 22px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }}
+    .brand {{
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.10);
+    }}
+    .brand-mark {{
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+    }}
+    .brand-dot {{
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #63c96b, #2f6fed);
+      box-shadow: 0 0 0 6px rgba(99,201,107,0.12);
+    }}
+    .brand-copy {{
+      margin-top: 8px;
+      color: rgba(238,243,255,0.68);
+      font-size: 13px;
+      line-height: 1.5;
+    }}
+    .nav-group {{ display: grid; gap: 8px; }}
+    .nav-label {{
+      color: rgba(238,243,255,0.55);
+      font-size: 11px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 0 10px;
+    }}
+    .nav-link {{
+      display: block;
+      padding: 13px 14px;
+      border-radius: 16px;
+      text-decoration: none;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid transparent;
+      transition: 0.18s ease;
+      color: inherit;
+    }}
+    .nav-link:hover {{
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.08);
+    }}
+    .nav-link.active {{
+      background: linear-gradient(180deg, rgba(47,111,237,0.22), rgba(47,111,237,0.12));
+      border-color: rgba(84,148,255,0.35);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+    }}
+    .nav-title {{ font-weight: 700; font-size: 14px; }}
+    .nav-sub {{
+      margin-top: 4px;
+      color: rgba(238,243,255,0.65);
+      font-size: 12px;
+      line-height: 1.4;
+    }}
+    .content {{
+      margin-left: 252px;
+      padding: 24px;
+    }}
+    .topbar {{
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 18px;
+    }}
+    .title h1 {{
+      margin: 0;
+      font-size: 34px;
+      line-height: 1.05;
+      letter-spacing: -0.05em;
+    }}
+    .title p {{
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }}
+    .header-chips {{
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }}
+    .chip {{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(216,226,239,0.95);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
+    }}
+    .chip strong {{ color: var(--ink); }}
+    .stats-grid {{
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }}
+    .card, .panel {{
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.65);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }}
+    .card {{
+      padding: 18px;
+      min-height: 126px;
+      display: grid;
+      align-content: space-between;
+      gap: 10px;
+    }}
+    .card-label {{
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 800;
+    }}
+    .card-value {{
+      font-size: 34px;
+      font-weight: 800;
+      letter-spacing: -0.05em;
+    }}
+    .card-sub {{
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }}
+    .layout {{
+      display: grid;
+      grid-template-columns: minmax(0, 1.55fr) 320px;
+      gap: 18px;
+    }}
+    .panel {{ padding: 18px; }}
+    .panel-head {{
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 14px;
+    }}
+    .panel-title {{
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: -0.04em;
+    }}
+    .panel-copy {{
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }}
+    form {{
+      display: grid;
+      grid-template-columns: 1fr 190px 110px 100px;
+      gap: 10px;
+      margin-bottom: 16px;
+    }}
+    input, select, button {{
+      width: 100%;
+      padding: 13px 14px;
+      border-radius: 16px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.94);
+      color: var(--ink);
+      font: inherit;
+    }}
+    input:focus, select:focus {{
+      outline: none;
+      border-color: rgba(47,111,237,0.45);
+      box-shadow: 0 0 0 4px rgba(47,111,237,0.10);
+    }}
+    button {{
+      border-color: var(--accent);
+      background: linear-gradient(180deg, #4d83f3, var(--accent));
+      color: #fff;
+      font-weight: 800;
+      cursor: pointer;
+    }}
+    .table-wrap {{
+      overflow: auto;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.72);
+    }}
+    table {{
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 980px;
+      font-size: 13px;
+    }}
+    th, td {{
+      padding: 14px 12px;
+      border-bottom: 1px solid rgba(216,226,239,0.92);
+      text-align: left;
+      vertical-align: top;
+    }}
+    th {{
+      position: sticky;
+      top: 0;
+      background: rgba(239,245,253,0.96);
+      z-index: 1;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }}
+    .mono {{ font-family: "SFMono-Regular", Menlo, Consolas, monospace; }}
     .ts-date {{ font-weight: 700; }}
-    .ts-time {{ margin-top: 4px; }}
+    .ts-time {{ margin-top: 4px; color: var(--muted); }}
     .sub {{ margin-top: 6px; color: var(--muted); font-size: 12px; }}
     .muted-cell {{ color: var(--muted); }}
-    .pill {{ display: inline-block; border-radius: 999px; padding: 6px 10px; font-size: 12px; font-weight: 700; letter-spacing: 0.03em; }}
-    .level-warn {{ background: rgba(153,108,20,0.12); color: var(--block); }}
-    .level-error {{ background: rgba(127,29,29,0.12); color: var(--error); }}
-    .level-info {{ background: rgba(41,84,107,0.12); color: var(--info); }}
-    .event-threat {{ background: rgba(143,36,23,0.12); color: var(--threat); }}
-    .event-block {{ background: rgba(153,108,20,0.12); color: var(--block); }}
-    .event-error {{ background: rgba(127,29,29,0.12); color: var(--error); }}
-    .event-info {{ background: rgba(41,84,107,0.12); color: var(--info); }}
-    .tone-threat td:first-child, .tone-block td:first-child, .tone-error td:first-child {{ border-left: 5px solid transparent; }}
-    .tone-threat td:first-child {{ border-left-color: var(--threat); }}
-    .tone-block td:first-child {{ border-left-color: var(--block); }}
-    .tone-error td:first-child {{ border-left-color: var(--error); }}
-    code {{ white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; background: rgba(18,61,84,0.05); padding: 2px 4px; border-radius: 6px; }}
+    .pill {{
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }}
+    .level-warn {{ background: rgba(192,139,36,0.12); color: var(--warn); }}
+    .level-error {{ background: rgba(208,79,55,0.12); color: var(--danger); }}
+    .level-info {{ background: rgba(44,127,184,0.12); color: var(--info); }}
+    .event-threat {{ background: rgba(208,79,55,0.12); color: var(--danger); }}
+    .event-block {{ background: rgba(192,139,36,0.14); color: var(--warn); }}
+    .event-error {{ background: rgba(208,79,55,0.12); color: var(--danger); }}
+    .event-info {{ background: rgba(44,127,184,0.12); color: var(--info); }}
+    .tone-threat td:first-child,
+    .tone-block td:first-child,
+    .tone-error td:first-child {{ box-shadow: inset 4px 0 0 transparent; }}
+    .tone-threat td:first-child {{ box-shadow: inset 4px 0 0 var(--danger); }}
+    .tone-block td:first-child {{ box-shadow: inset 4px 0 0 var(--warn); }}
+    .tone-error td:first-child {{ box-shadow: inset 4px 0 0 #8d1f1f; }}
+    code {{
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      background: rgba(47,111,237,0.08);
+      color: #1e3a5f;
+      padding: 3px 6px;
+      border-radius: 8px;
+    }}
     .detail-stack {{ display: grid; gap: 8px; }}
-    .detail-line {{ display: grid; gap: 4px; padding: 8px; background: rgba(18,61,84,0.04); border-radius: 12px; }}
+    .detail-line {{
+      display: grid;
+      gap: 5px;
+      padding: 10px;
+      background: rgba(47,111,237,0.05);
+      border: 1px solid rgba(47,111,237,0.08);
+      border-radius: 14px;
+    }}
     .detail-label {{ font-weight: 700; }}
-    .detail-key {{ color: var(--muted); font-size: 8pt; text-transform: uppercase; letter-spacing: 0.04em; }}
+    .detail-key {{
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }}
+    .event-list {{ display: grid; gap: 10px; }}
+    .event-row {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 16px;
+      background: rgba(248,250,252,0.88);
+      border: 1px solid var(--line);
+    }}
+    .event-name {{
+      font-weight: 700;
+      text-transform: capitalize;
+    }}
+    .event-count {{ color: var(--muted); }}
+    .side-note {{
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(47,111,237,0.10), rgba(47,111,237,0.04));
+      border: 1px solid rgba(47,111,237,0.12);
+      color: #21426b;
+      font-size: 13px;
+      line-height: 1.6;
+    }}
+    .side-note strong {{
+      display: block;
+      margin-bottom: 6px;
+      color: var(--ink);
+    }}
+    @media (max-width: 1260px) {{
+      .stats-grid {{ grid-template-columns: repeat(3, minmax(0, 1fr)); }}
+      .layout {{ grid-template-columns: 1fr; }}
+    }}
     @media (max-width: 900px) {{
+      .sidebar {{
+        position: static;
+        width: auto;
+        border-right: 0;
+        border-bottom: 1px solid var(--shell-line);
+      }}
+      .content {{ margin-left: 0; padding: 18px 14px 28px; }}
+      .topbar {{ flex-direction: column; }}
+      .header-chips {{ justify-content: flex-start; }}
+      .stats-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
       form {{ grid-template-columns: 1fr; }}
+    }}
+    @media (max-width: 640px) {{
+      .stats-grid {{ grid-template-columns: 1fr; }}
+      .title h1 {{ font-size: 28px; }}
+      .card-value {{ font-size: 28px; }}
     }}
   </style>
 </head>
 <body>
-  <main>
-    <section class="toolbar">
-      <div class="panel">
-        <h2>Search Events</h2>
-        <form method="get" action="/">
-          <input type="text" name="q" value="{search_value}" placeholder="attack, ip, matched, detail, raw log">
-          <select name="event">
-            <option value="">all events</option>
-            {''.join(f"<option value='{html.escape(name or 'unknown')}' {'selected' if selected_event == name else ''}>{html.escape(name or 'unknown')}</option>" for name in summary.keys())}
-          </select>
-          <input type="number" name="limit" min="1" max="500" value="{limit}">
-          <button type="submit">Apply</button>
-        </form>
-      </div>
-    </section>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <section class="brand">
+        <div class="brand-mark"><span class="brand-dot"></span><span>Mini-IPS</span></div>
+      </section>
+      <section class="nav-group">
+        <div class="nav-label">Sections</div>
+        <a class="nav-link active" href="/" data-target-port="8090">
+          <div class="nav-title">DB</div>
+          <div class="nav-sub">SQLite 적재 이벤트 조회와 필터링</div>
+        </a>
+        <a class="nav-link" href="/" data-target-port="8091">
+          <div class="nav-title">Monitor</div>
+          <div class="nav-sub">실시간 PPS · 재조립 · 처리량 모니터</div>
+        </a>
+      </section>
+    </aside>
 
-    <section class="panel">
-      <h2>Recent Events</h2>
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Event ID</th>
-              <th>Timestamp</th>
-              <th>Level</th>
-              <th>Event</th>
-              <th>Source</th>
-              <th>Dest</th>
-              <th>Detect ms</th>
-              <th>Detail</th>
-            </tr>
-          </thead>
-          <tbody>
-            {''.join(table_rows) or "<tr><td colspan='8'>no rows</td></tr>"}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  </main>
+    <main class="content">
+      <section class="topbar">
+        <div class="title">
+          <h1>이벤트 대시보드</h1>
+        </div>
+        <div class="header-chips">
+          <span class="chip"><strong>Latest</strong> {latest_ts}</span>
+          <span class="chip"><strong>Filter</strong> {html.escape(selected_event or 'all')}</span>
+          <span class="chip"><strong>Refresh</strong> 15s</span>
+        </div>
+      </section>
+
+      <section class="stats-grid">
+        <article class="card">
+          <div class="card-label">Total Events</div>
+          <div class="card-value">{overview["total"]}</div>
+          <div class="card-sub">적재된 전체 보안 이벤트</div>
+        </article>
+        <article class="card">
+          <div class="card-label">Detect</div>
+          <div class="card-value">{overview["detect"]}</div>
+          <div class="card-sub">탐지 이벤트 누적</div>
+        </article>
+        <article class="card">
+          <div class="card-label">RST Requests</div>
+          <div class="card-value">{overview["rst"]}</div>
+          <div class="card-sub">능동 차단 요청 누적</div>
+        </article>
+        <article class="card">
+          <div class="card-label">Errors</div>
+          <div class="card-value">{overview["errors"]}</div>
+          <div class="card-sub">레벨 ERROR 기록</div>
+        </article>
+      </section>
+
+      <section class="layout">
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">Recent Events</h2>
+              <p class="panel-copy">이벤트 ID, 방향, 탐지 시간과 상세 매칭 내용을 한 화면에서 본다.</p>
+            </div>
+          </div>
+          <form method="get" action="/">
+            <input type="text" name="q" value="{search_value}" placeholder="attack, ip, matched, detail, raw log">
+            <select name="event">
+              <option value="">all events</option>
+              {event_options}
+            </select>
+            <input type="number" name="limit" min="1" max="500" value="{limit}">
+            <button type="submit">Apply</button>
+          </form>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Event ID</th>
+                  <th>Timestamp</th>
+                  <th>Level</th>
+                  <th>Event</th>
+                  <th>Source</th>
+                  <th>Dest</th>
+                  <th>Detect ms</th>
+                  <th>Detail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {''.join(table_rows) or "<tr><td colspan='8'>no rows</td></tr>"}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside class="panel">
+          <div class="panel-head">
+            <div>
+              <h2 class="panel-title">Event Mix</h2>
+              <p class="panel-copy">최근 적재된 카테고리 분포와 현재 조회 상태</p>
+            </div>
+          </div>
+          <div class="event-list">
+            {summary_rows or "<div class='muted-cell'>no event summary</div>"}
+          </div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    (() => {{
+      const proto = window.location.protocol;
+      const host = window.location.hostname || "127.0.0.1";
+      document.querySelectorAll("[data-target-port]").forEach((link) => {{
+        const port = link.getAttribute("data-target-port");
+        link.setAttribute("href", `${{proto}}//${{host}}:${{port}}/`);
+      }});
+    }})();
+  </script>
 </body>
 </html>"""
     return body.encode("utf-8")

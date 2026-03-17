@@ -1,8 +1,6 @@
 /**
  * @file main.c
- * @brief Mini-IPS 메인 함수 및 진입점
- * @date 2026-03-12
- *
+ * @brief Mini-IPS 프로세스 초기화와 메인 콜백 연결
  */
 
 /**
@@ -45,17 +43,21 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
 static void on_error(const char *stage, const char *detail, void *user);
 static void on_packet(const uint8_t *data, uint32_t len, uint64_t ts_ns,
                       void *user);
+static void maybe_emit_monitor_stats(app_ctx_t *app, uint64_t ts_ms);
 static void destroy_workers(app_ctx_t *workers, int count);
 static void usage(const char *prog);
 
 /**
-@brief hello Main 함수
-캡처 장치, detect engine, gateway, worker thread를 모두 초기화하고 패킷 처리를
-시작한다. 종료 신호가 들어오면 runtime 자원을 정리하고 종료한다.
-@param argc 인자 갯수
-@param argv 인자 스티링
-@return 성공 여부
-*/
+ * @brief 캡처/탐지/게이트웨이 런타임을 구성하고 패킷 처리를 시작한다.
+ *
+ * 명령행 인자를 해석한 뒤 driver, pcap capture, worker별 detect engine,
+ * worker별 httgw를 차례로 초기화한다. 종료 신호 또는 capture thread 실패가
+ * 감지되면 전체 runtime을 역순으로 정리한다.
+ *
+ * @param argc 인자 개수
+ * @param argv 인자 문자열 배열
+ * @return int 성공 시 0, 초기화 실패 시 1
+ */
 int main(int argc, char **argv) {
     const char       *iface       = NULL;
     const char       *bpf         = NULL;
@@ -76,6 +78,7 @@ int main(int argc, char **argv) {
 
     (void)argc;
 
+    /* 위치 인자와 `-key=value` 형태를 모두 허용해 최소 설정만 읽는다. */
     for (i = 1; argv[i] != NULL; i++) {
         if (strncmp(argv[i], "-iface=", 7) == 0) {
             iface = argv[i] + 7;
@@ -131,11 +134,17 @@ int main(int argc, char **argv) {
 
     atomic_init(&shared.http_msgs, 0);
     atomic_init(&shared.reqs, 0);
+    atomic_init(&shared.packet_count, 0);
+    atomic_init(&shared.detect_count, 0);
     atomic_init(&shared.reasm_errs, 0);
     atomic_init(&shared.parse_errs, 0);
     atomic_init(&shared.event_seq, 0);
+    atomic_init(&shared.monitor_last_emit_ms, 0);
     shared.pass_log_enabled  = env_flag_enabled("IPS_LOG_PASS", 0);
     shared.debug_log_enabled = env_flag_enabled("IPS_LOG_DEBUG", 0);
+    shared.driver_rt         = &rt;
+    shared.workers           = NULL;
+    shared.worker_count      = 0;
 
     worker_count = 1;
     if (worker_count < 1) {
@@ -145,6 +154,7 @@ int main(int argc, char **argv) {
         worker_count = MAX_QUEUE_COUNT;
     }
 
+    /* pcap capture는 full snaplen/sniffing 모드 기준으로 초기화한다. */
     memset(&pcfg, 0, sizeof(pcfg));
     pcfg.dev         = iface;
     pcfg.snaplen     = 65535;
@@ -226,6 +236,10 @@ int main(int argc, char **argv) {
         return 1;
     }
 
+    shared.workers      = workers;
+    shared.worker_count = worker_count;
+
+    /* worker마다 detect engine, httgw, raw RST 송신 컨텍스트를 따로 둔다. */
     for (i = 0; i < worker_count; i++) {
         app_ctx_t *w = &workers[i];
 
@@ -309,6 +323,7 @@ int main(int argc, char **argv) {
                   iface, bpf, policy, shared.pass_log_enabled,
                   shared.debug_log_enabled);
 
+    /* 메인 스레드는 stop 신호 또는 capture thread 실패만 감시한다. */
     while (!g_stop) {
         if (driver_has_failed(&rt)) {
             rc = driver_last_error(&rt);
@@ -331,11 +346,29 @@ int main(int argc, char **argv) {
     return exit_code;
 }
 
+/**
+ * @brief SIGINT를 수신하면 메인 루프 종료 플래그를 세운다.
+ *
+ * @param signo 수신한 signal 번호
+ */
 static void on_sigint(int signo) {
     (void)signo;
     g_stop = 1;
 }
 
+/**
+ * @brief 완성된 HTTP 요청에 대해 탐지와 차단 후속 동작을 수행한다.
+ *
+ * `httgw`가 요청 하나를 완성하면 본 콜백이 실행된다. 탐지 결과를 로그로 남기고,
+ * threshold를 넘기면 차단 페이지 렌더링과 RST/응답 주입까지 이어서 수행한다.
+ *
+ * @param flow 정규화된 flow 키
+ * @param dir 요청 방향
+ * @param msg 완성된 HTTP 메시지
+ * @param query query string 포인터
+ * @param query_len query string 길이
+ * @param user worker app context
+ */
 static void on_request(const flow_key_t *flow, tcp_dir_t dir,
                        const http_message_t *msg, const char *query,
                        size_t query_len, void *user) {
@@ -361,6 +394,7 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
     (void)query;
     (void)query_len;
 
+    /* HTTP 요청 전체 컨텍스트를 돌며 탐지 엔진을 실행한다. */
     rc        = run_detect(app->det, msg, &score, &rule, &matches, &detect_us);
     detect_ms = (long)((detect_us + 999ULL) / 1000ULL);
     ip4_to_str(flow->src_ip, ip, sizeof(ip));
@@ -375,6 +409,7 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
             snprintf(event_ts, sizeof(event_ts), "1970-01-01T00:00:00.000");
         }
 
+        /* 차단 이벤트를 고유 ID로 기록하고, 같은 이벤트 ID로 차단 페이지를 생성한다. */
         block_page_html = app_render_block_page(g_block_page_template_path,
                                                 event_id, event_ts, ip);
         free(app->last_block_page_html);
@@ -401,8 +436,10 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
                        matched_texts.buf, ip, flow->src_port, score,
                        APP_DETECT_THRESHOLD, matches.count, detect_us,
                        detect_ms);
+        atomic_fetch_add(&app->shared->detect_count, 1);
         atomic_fetch_add(&app->shared->http_msgs, 1);
         atomic_fetch_add(&app->shared->reqs, 1);
+        /* 탐지 로그 기록 후 실제 차단 동작을 수행한다. */
         request_block_action_v2(app, flow, event_id);
     } else if (0 == rc) {
         if (app->shared->pass_log_enabled) {
@@ -439,11 +476,11 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
 }
 
 /**
- * @brief http_stream_feed에서 오류 발생 시 호출되는 콜백 함수
+ * @brief `httgw`/`http_stream` 오류를 공통 로그와 통계에 반영한다.
  *
- * @param stage 오류가 발생한 단계 (예: "reasm_ingest", "http_stream_feed" 등)
+ * @param stage 오류가 발생한 단계
  * @param detail 오류 상세 정보
- * @param user app context
+ * @param user worker app context
  */
 static void on_error(const char *stage, const char *detail, void *user) {
     app_ctx_t *app = (app_ctx_t *)user;
@@ -473,16 +510,16 @@ static void on_error(const char *stage, const char *detail, void *user) {
 }
 
 /**
- * @brief packet handler 함수
- * 캡처된 패킷을 처리한다. 현재는 RST 패킷
- * 처리와 로그 기록만 수행한다. 향후 TP/SYN, Reverse 모드의 패킷 처리도 이
- * 함수에서 수행할 수 있다.
+ * @brief worker가 dequeue한 raw packet을 `httgw`와 로그 계층에 전달한다.
+ *
+ * RST 패킷은 세션이 사라지기 전에 snapshot을 미리 보관하고, 이후 패킷을
+ * `httgw_ingest_packet()`에 넣어 재조립/HTTP 파싱/탐지로 넘긴다. timeout
+ * 기반 stale session 정리를 위해 주기적으로 `httgw_gc()`도 호출한다.
+ *
  * @param data 패킷 데이터
  * @param len 패킷 길이
- * @param ts_ns 패킷 캡처 타임스탬프 (나노초 단위)
- * @param user app context
- *
- * @return 없음
+ * @param ts_ns 패킷 캡처 시각(ns)
+ * @param user worker app context
  */
 static void on_packet(const uint8_t *data, uint32_t len, uint64_t ts_ns,
                       void *user) {
@@ -494,6 +531,7 @@ static void on_packet(const uint8_t *data, uint32_t len, uint64_t ts_ns,
     httgw_sess_snapshot_t        pre_snap;
     const httgw_sess_snapshot_t *fallback_snap = NULL;
 
+    /* wire에서 RST가 관측될 때 사용할 fallback snapshot을 미리 잡아 둔다. */
     if (app && app->gw &&
         parse_flow_dir_and_flags(data, len, &flow, &dir, &flags) &&
         (flags & TCP_RST)) {
@@ -506,24 +544,171 @@ static void on_packet(const uint8_t *data, uint32_t len, uint64_t ts_ns,
     }
 
     if (app && app->gw) {
+        atomic_fetch_add(&app->shared->packet_count, 1);
+
         int rc = httgw_ingest_packet(app->gw, data, len, ts_ms);
-        if(rc == 0) {
-            /* 패킷이 무시됨 로그 기록*/
-            app_log_write(app->shared, "DEBUG",
-                      "event=packet_ignored len=%u ts_ms=%llu",
-                      len, (unsigned long long)ts_ms);
-        } else if( rc == -1) {
-            /* 오류 발생 로그 기록*/
-            app_log_write(app->shared, "ERROR",
-                      "event=httgw_ingest_invalid_arg len=%u ts_ms=%llu",
-                      len, (unsigned long long)ts_ms);
+
+        /* idle session/reassembly state가 무한히 쌓이지 않도록 주기 GC를 돈다. */
+        if (0 == app->last_gc_ms || ts_ms - app->last_gc_ms >= 1000ULL) {
+            httgw_gc(app->gw, ts_ms);
+            app->last_gc_ms = ts_ms;
         }
+
+        /* ingest 결과는 무시/입력 오류만 로깅하고, 정상 경로는 후속 콜백에서 처리한다. */
+        if (rc == 0) {
+            app_log_write(app->shared, "DEBUG",
+                          "event=packet_ignored len=%u ts_ms=%llu", len,
+                          (unsigned long long)ts_ms);
+        } else if (rc == -1) {
+            app_log_write(app->shared, "ERROR",
+                          "event=httgw_ingest_invalid_arg len=%u ts_ms=%llu",
+                          len, (unsigned long long)ts_ms);
+        }
+
+        /* 디버그 로그가 켜진 경우 TCP 라인 로그용 파싱을 별도로 수행한다. */
         log_tcp_packet_line(app, data, len, fallback_snap);
+        maybe_emit_monitor_stats(app, ts_ms);
     }
 
     (void)dir;
 }
 
+/**
+ * @brief 주기적으로 monitor.log에 성능/상태 통계를 기록한다.
+ *
+ * event 단위 로그가 아니라 pps, req/s, detect/s, queue depth, 재조립 순서 통계의
+ * 누적/초당 변화를 1초 주기로 한 줄에 기록한다.
+ *
+ * @param app worker app context
+ * @param ts_ms 현재 패킷 시각(ms)
+ */
+static void maybe_emit_monitor_stats(app_ctx_t *app, uint64_t ts_ms) {
+    app_shared_t     *shared;
+    uint_fast64_t     last_emit_ms;
+    uint_fast64_t     expected;
+    uint64_t          interval_ms;
+    uint64_t          packets;
+    uint64_t          reqs;
+    uint64_t          detects;
+    uint64_t          pps;
+    uint64_t          req_ps;
+    uint64_t          detect_ps;
+    uint64_t          queue_depth = 0;
+    reasm_stats_t     total_reasm = {0};
+    uint64_t          reasm_in_order_ps;
+    uint64_t          reasm_out_of_order_ps;
+    uint64_t          reasm_trimmed_ps;
+
+    if (NULL == app || NULL == app->shared) {
+        return;
+    }
+
+    shared = app->shared;
+    if (NULL == shared->monitor_log_fp || NULL == shared->driver_rt ||
+        NULL == shared->workers || shared->worker_count <= 0) {
+        return;
+    }
+
+    last_emit_ms = atomic_load_explicit(&shared->monitor_last_emit_ms,
+                                        memory_order_relaxed);
+    if (0 != last_emit_ms && ts_ms - (uint64_t)last_emit_ms < 1000ULL) {
+        return;
+    }
+
+    expected = last_emit_ms;
+    if (0 == atomic_compare_exchange_strong_explicit(
+                 &shared->monitor_last_emit_ms, &expected, ts_ms,
+                 memory_order_relaxed, memory_order_relaxed)) {
+        return;
+    }
+
+    interval_ms = (0 != last_emit_ms && ts_ms > (uint64_t)last_emit_ms)
+                      ? (ts_ms - (uint64_t)last_emit_ms)
+                      : 1000ULL;
+
+    packets =
+        atomic_load_explicit(&shared->packet_count, memory_order_relaxed);
+    reqs = atomic_load_explicit(&shared->reqs, memory_order_relaxed);
+    detects =
+        atomic_load_explicit(&shared->detect_count, memory_order_relaxed);
+
+    for (int i = 0; i < shared->worker_count; i++) {
+        reasm_stats_t rs = {0};
+
+        if (NULL != shared->workers[i].gw &&
+            0 == httgw_get_reasm_stats(shared->workers[i].gw, &rs)) {
+            total_reasm.in_order_pkts += rs.in_order_pkts;
+            total_reasm.out_of_order_pkts += rs.out_of_order_pkts;
+            total_reasm.trimmed_pkts += rs.trimmed_pkts;
+        }
+    }
+
+    for (uint32_t i = 0; i < shared->driver_rt->queues.qcount; i++) {
+        packet_ring_t *ring = &shared->driver_rt->queues.q[i];
+        uint32_t       head;
+        uint32_t       tail;
+
+        head = atomic_load_explicit(&ring->head, memory_order_relaxed);
+        tail = atomic_load_explicit(&ring->tail, memory_order_relaxed);
+        queue_depth += (uint64_t)(tail - head);
+    }
+
+    pps =
+        ((packets - shared->monitor_prev_packets) * 1000ULL) / interval_ms;
+    req_ps = ((reqs - shared->monitor_prev_reqs) * 1000ULL) / interval_ms;
+    detect_ps =
+        ((detects - shared->monitor_prev_detects) * 1000ULL) / interval_ms;
+    reasm_in_order_ps =
+        ((total_reasm.in_order_pkts - shared->monitor_prev_reasm_in_order) *
+         1000ULL) /
+        interval_ms;
+    reasm_out_of_order_ps =
+        ((total_reasm.out_of_order_pkts -
+          shared->monitor_prev_reasm_out_of_order) *
+         1000ULL) /
+        interval_ms;
+    reasm_trimmed_ps =
+        ((total_reasm.trimmed_pkts - shared->monitor_prev_reasm_trimmed) *
+         1000ULL) /
+        interval_ms;
+
+    app_monitor_write(
+        shared,
+        "event=stats interval_ms=%llu worker_count=%d "
+        "pps=%llu req_ps=%llu detect_ps=%llu queue_depth=%llu "
+        "reasm_in_order_ps=%llu reasm_out_of_order_ps=%llu "
+        "reasm_trimmed_ps=%llu total_packets=%llu total_reqs=%llu "
+        "total_detect=%llu total_reasm_in_order=%llu "
+        "total_reasm_out_of_order=%llu total_reasm_trimmed=%llu",
+        (unsigned long long)interval_ms, shared->worker_count,
+        (unsigned long long)pps, (unsigned long long)req_ps,
+        (unsigned long long)detect_ps, (unsigned long long)queue_depth,
+        (unsigned long long)reasm_in_order_ps,
+        (unsigned long long)reasm_out_of_order_ps,
+        (unsigned long long)reasm_trimmed_ps, (unsigned long long)packets,
+        (unsigned long long)reqs, (unsigned long long)detects,
+        (unsigned long long)total_reasm.in_order_pkts,
+        (unsigned long long)total_reasm.out_of_order_pkts,
+        (unsigned long long)total_reasm.trimmed_pkts);
+
+    shared->monitor_prev_packets           = packets;
+    shared->monitor_prev_reqs              = reqs;
+    shared->monitor_prev_detects           = detects;
+    shared->monitor_prev_reasm_in_order    = total_reasm.in_order_pkts;
+    shared->monitor_prev_reasm_out_of_order =
+        total_reasm.out_of_order_pkts;
+    shared->monitor_prev_reasm_trimmed = total_reasm.trimmed_pkts;
+}
+
+/**
+ * @brief worker별 런타임 자원을 정리한다.
+ *
+ * detect engine, httgw, 차단 페이지 캐시, raw RST 송신 컨텍스트를 worker 단위로
+ * 해제한다.
+ *
+ * @param workers worker 배열
+ * @param count worker 개수
+ */
 static void destroy_workers(app_ctx_t *workers, int count) {
     int i;
 
@@ -551,6 +736,11 @@ static void destroy_workers(app_ctx_t *workers, int count) {
     }
 }
 
+/**
+ * @brief 명령행 사용법을 출력한다.
+ *
+ * @param prog 실행 파일 이름
+ */
 static void usage(const char *prog) {
     fprintf(stderr,
             "usage: %s -iface=<iface> -bpf=<filter> "

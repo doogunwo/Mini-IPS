@@ -60,6 +60,7 @@ APP_SRCS := $(SRC_DIR)/main.c \
 		$(SRC_DIR)/runtime.c \
 		$(SRC_DIR)/packet_ring.c \
 		$(SRC_DIR)/driver.c \
+		$(SRC_DIR)/reasm.c \
 		$(SRC_DIR)/httgw.c \
 		$(SRC_DIR)/http_stream.c \
 	$(SRC_DIR)/engine.c \
@@ -105,47 +106,47 @@ $(REGEX_COMPAT_BIN): $(TEST_DIR)/test_regex_compat.c | $(BUILD_DIR)
 
 $(DETECT_ENGINE_BIN): check_pcre $(BENCH_DIR)/test_engine_detect.c \
 	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
-	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/httgw.c \
+	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c \
 	$(SRC_DIR)/http_stream.c | $(BENCH_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
 		$(BENCH_DIR)/test_engine_detect.c $(SRC_DIR)/runtime.c \
 		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
 		$(SRC_DIR)/html.c \
-		$(SRC_DIR)/regex.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
+		$(SRC_DIR)/regex.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
 		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
 
 $(DETECT_PIPELINE_BIN): check_pcre $(BENCH_DIR)/test_detect_pipeline.c \
 	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
-	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/httgw.c \
+	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/packet_ring.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c \
 	$(SRC_DIR)/http_stream.c | $(BENCH_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
 		$(BENCH_DIR)/test_detect_pipeline.c $(SRC_DIR)/runtime.c \
 		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
 		$(SRC_DIR)/html.c \
-		$(SRC_DIR)/regex.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
+		$(SRC_DIR)/regex.c $(SRC_DIR)/packet_ring.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
 		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
 
 $(REASM_PIPELINE_BIN): $(BENCH_DIR)/test_reasm_pipeline.c \
-	$(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c | $(BENCH_BUILD_DIR)
+	$(SRC_DIR)/packet_ring.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c | $(BENCH_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) \
-		$(BENCH_DIR)/test_reasm_pipeline.c $(SRC_DIR)/httgw.c \
+		$(BENCH_DIR)/test_reasm_pipeline.c $(SRC_DIR)/packet_ring.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c \
 		$(SRC_DIR)/http_stream.c -o $@ $(LDFLAGS) -lpcap $(LDLIBS)
 
 $(HTTP_LIVE_LIKE_REASM_BIN): $(TEST_DIR)/test_httgw_live_reasm.c \
-	$(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c | $(BUILD_DIR)
+	$(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) \
-		$(TEST_DIR)/test_httgw_live_reasm.c $(SRC_DIR)/httgw.c \
+		$(TEST_DIR)/test_httgw_live_reasm.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c \
 		$(SRC_DIR)/http_stream.c -o $@ $(LDFLAGS) -lpcap $(LDLIBS)
 
 $(BOT_URL_DETECT_BIN): check_pcre $(TEST_DIR)/test_runtime_bot_url_detect.c \
 	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
-	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/httgw.c \
+	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c \
 	$(SRC_DIR)/http_stream.c | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
 		$(TEST_DIR)/test_runtime_bot_url_detect.c $(SRC_DIR)/runtime.c \
 		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
 		$(SRC_DIR)/html.c \
-		$(SRC_DIR)/regex.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
+		$(SRC_DIR)/regex.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
 		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
 
 test-detect-engine: $(DETECT_ENGINE_BIN)
@@ -197,8 +198,8 @@ valgrind-units: $(UNIT_BINS) | $(LOG_DIR)
 valgrind-main: $(MAIN_BIN) | $(LOG_DIR)
 	$(VALGRIND) $(VALGRIND_FLAGS) --log-file=$(MAIN_VG_LOG) ./$(MAIN_BIN) $(RUN_ARGS)
 
-$(BUILD_DIR)/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c $(SRC_DIR)/packet_ring.c $(INC_DIR)/httgw.h $(INC_DIR)/http_stream.h $(INC_DIR)/packet_ring.h | $(BUILD_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c $(SRC_DIR)/packet_ring.c -o $@ $(LDFLAGS) -lpcap $(LDLIBS)
+$(BUILD_DIR)/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c $(SRC_DIR)/packet_ring.c $(INC_DIR)/httgw.h $(INC_DIR)/http_stream.h $(INC_DIR)/packet_ring.h | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c $(SRC_DIR)/packet_ring.c -o $@ $(LDFLAGS) -lpcap $(LDLIBS)
 
 $(PACKET_RING_BENCH_BINS): $(BENCH_BUILD_DIR)/%: $(BENCH_DIR)/%.c $(SRC_DIR)/packet_ring.c $(INC_DIR)/packet_ring.h | $(BENCH_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(SRC_DIR)/packet_ring.c -o $@ $(LDFLAGS) -pthread $(LDLIBS)

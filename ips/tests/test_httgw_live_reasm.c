@@ -1,3 +1,7 @@
+/**
+ * @file test_httgw_live_reasm.c
+ * @brief live-like 재조립 시나리오 단위 테스트
+ */
 #include <arpa/inet.h>
 #include <assert.h>
 #include <net/ethernet.h>
@@ -9,6 +13,9 @@
 #include "httgw.h"
 #include "net_compat.h"
 
+/**
+ * @brief 요청 수와 마지막 파싱 결과를 기록하는 테스트 컨텍스트
+ */
 typedef struct {
     int    req_count;
     int    err_count;
@@ -16,6 +23,9 @@ typedef struct {
     char   last_method[16];
 } test_ctx_t;
 
+/**
+ * @brief synthetic TCP 패킷 생성에 필요한 필드 묶음
+ */
 typedef struct {
     uint32_t       sip;
     uint16_t       sport;
@@ -28,6 +38,16 @@ typedef struct {
     uint32_t       payload_len;
 } tcp_pkt_spec_t;
 
+/**
+ * @brief HTTP 요청 완성 시 호출되는 테스트 콜백
+ *
+ * @param flow
+ * @param dir
+ * @param msg 완성된 HTTP 메시지
+ * @param query
+ * @param query_len
+ * @param user test_ctx_t*
+ */
 static void on_request_cb(const flow_key_t *flow, tcp_dir_t dir,
                           const http_message_t *msg, const char *query,
                           size_t query_len, void *user) {
@@ -42,6 +62,13 @@ static void on_request_cb(const flow_key_t *flow, tcp_dir_t dir,
     snprintf(ctx->last_method, sizeof(ctx->last_method), "%.15s", msg->method);
 }
 
+/**
+ * @brief 재조립 또는 파싱 오류를 기록하는 테스트 콜백
+ *
+ * @param stage
+ * @param detail
+ * @param user test_ctx_t*
+ */
 static void on_error_cb(const char *stage, const char *detail, void *user) {
     test_ctx_t *ctx = (test_ctx_t *)user;
     (void)stage;
@@ -49,6 +76,14 @@ static void on_error_cb(const char *stage, const char *detail, void *user) {
     ctx->err_count++;
 }
 
+/**
+ * @brief synthetic TCP 세그먼트를 Ethernet 프레임 형태로 생성한다.
+ *
+ * @param sp 패킷 필드 입력값
+ * @param out_pkt 결과 패킷 버퍼 주소를 돌려받을 포인터
+ * @param out_len 생성된 패킷 길이를 돌려받을 포인터
+ * @return int 0=성공, 음수=실패
+ */
 static int build_tcp_packet(const tcp_pkt_spec_t *sp, uint8_t **out_pkt,
                             uint32_t *out_len) {
     struct ether_header *eth;

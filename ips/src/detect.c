@@ -88,6 +88,11 @@ static void set_err(detect_engine_t *e, const char *msg) {
     snprintf(e->last_err, sizeof(e->last_err), "%s", msg);
 }
 
+/**
+ * @brief detect_match_list를 빈 상태로 초기화한다.
+ *
+ * @param matches 매치 결과 리스트
+ */
 void detect_match_list_init(detect_match_list_t *matches) {
     if (!matches) {
         return;
@@ -95,6 +100,11 @@ void detect_match_list_init(detect_match_list_t *matches) {
     memset(matches, 0, sizeof(*matches));
 }
 
+/**
+ * @brief detect_match_list 내부 항목과 배열 메모리를 해제한다.
+ *
+ * @param matches 매치 결과 리스트
+ */
 void detect_match_list_free(detect_match_list_t *matches) {
     size_t i;
 
@@ -108,6 +118,13 @@ void detect_match_list_free(detect_match_list_t *matches) {
     memset(matches, 0, sizeof(*matches));
 }
 
+/**
+ * @brief 특정 정책 이름에 해당하는 룰 집합만 추려낸다.
+ *
+ * @param policy_name 찾을 정책 이름
+ * @param out 결과 룰 집합
+ * @return int 0이면 성공, -1이면 실패
+ */
 static int collect_policy_patterns(const char           *policy_name,
                                    policy_pattern_set_t *out) {
     int          i;
@@ -139,6 +156,12 @@ static int collect_policy_patterns(const char           *policy_name,
     return 0;
 }
 
+/**
+ * @brief 로드된 모든 룰을 하나의 집합으로 수집한다.
+ *
+ * @param out 결과 룰 집합
+ * @return int 0이면 성공, -1이면 실패
+ */
 static int collect_all_patterns(policy_pattern_set_t *out) {
     unsigned int n = (unsigned int)g_signature_count;
     unsigned int i;
@@ -161,11 +184,26 @@ static int collect_all_patterns(policy_pattern_set_t *out) {
     return 0;
 }
 
+/**
+ * @brief collect_* 함수가 만든 임시 룰 집합을 해제한다.
+ *
+ * @param set 해제할 룰 집합
+ */
 static void free_policy_patterns(policy_pattern_set_t *set) {
     free(set->rules);
     memset(set, 0, sizeof(*set));
 }
 
+/**
+ * @brief 정책 이름에 맞는 탐지 엔진 인스턴스를 생성한다.
+ *
+ * JSONL 시그니처를 적재하고, 선택한 정책에 맞는 룰 집합만 모아 내부
+ * regex backend 런타임을 초기화한다.
+ *
+ * @param policy_name 사용할 정책 이름, NULL/ALL이면 전체 룰 사용
+ * @param jit_mode JIT 사용 정책
+ * @return detect_engine_t* 생성된 탐지 엔진, 실패 시 NULL
+ */
 detect_engine_t *detect_engine_create(const char       *policy_name,
                                       detect_jit_mode_t jit_mode) {
     detect_engine_t     *e;
@@ -209,6 +247,11 @@ detect_engine_t *detect_engine_create(const char       *policy_name,
     return e;
 }
 
+/**
+ * @brief 탐지 엔진과 내부 regex runtime을 해제한다.
+ *
+ * @param e 해제할 탐지 엔진
+ */
 void detect_engine_destroy(detect_engine_t *e) {
     if (!e) {
         return;
@@ -218,6 +261,16 @@ void detect_engine_destroy(detect_engine_t *e) {
     free(e);
 }
 
+/**
+ * @brief 지정한 context에서 첫 번째 매칭 룰 하나를 찾는다.
+ *
+ * @param e 탐지 엔진
+ * @param data 검사할 데이터
+ * @param len 데이터 길이
+ * @param ctx 검사 context
+ * @param matched_rule 첫 매칭 룰을 받을 포인터
+ * @return int 1이면 매칭, 0이면 미매칭, -1이면 오류
+ */
 int detect_engine_match_ctx(detect_engine_t *e, const uint8_t *data, size_t len,
                             ips_context_t         ctx,
                             const IPS_Signature **matched_rule) {
@@ -248,6 +301,16 @@ int detect_engine_match_ctx(detect_engine_t *e, const uint8_t *data, size_t len,
                                       e->last_err, sizeof(e->last_err));
 }
 
+/**
+ * @brief 지정한 context에서 매칭된 모든 룰을 수집한다.
+ *
+ * @param e 탐지 엔진
+ * @param data 검사할 데이터
+ * @param len 데이터 길이
+ * @param ctx 검사 context
+ * @param matches 매치 결과 리스트
+ * @return int 1이면 매칭 존재, 0이면 미매칭, -1이면 오류
+ */
 int detect_engine_collect_matches_ctx(detect_engine_t *e, const uint8_t *data,
                                       size_t len, ips_context_t ctx,
                                       detect_match_list_t *matches) {
@@ -280,6 +343,12 @@ int detect_engine_match(detect_engine_t *e, const uint8_t *data, size_t len,
     return detect_engine_match_ctx(e, data, len, IPS_CTX_ALL, matched_rule);
 }
 
+/**
+ * @brief 현재 탐지 엔진이 사용하는 regex backend 이름을 반환한다.
+ *
+ * @param e 탐지 엔진
+ * @return const char* backend 이름
+ */
 const char *detect_engine_backend_name(const detect_engine_t *e) {
     if (!e) {
         return "-";
@@ -287,6 +356,12 @@ const char *detect_engine_backend_name(const detect_engine_t *e) {
     return engine_runtime_backend_name(e->runtime);
 }
 
+/**
+ * @brief 탐지 엔진의 JIT 활성화 여부를 반환한다.
+ *
+ * @param e 탐지 엔진
+ * @return int 활성화면 1, 아니면 0
+ */
 int detect_engine_jit_enabled(const detect_engine_t *e) {
     if (!e) {
         return 0;
@@ -294,6 +369,12 @@ int detect_engine_jit_enabled(const detect_engine_t *e) {
     return engine_runtime_jit_enabled(e->runtime);
 }
 
+/**
+ * @brief 마지막 탐지 오류 문자열을 반환한다.
+ *
+ * @param e 탐지 엔진
+ * @return const char* 마지막 오류 문자열
+ */
 const char *detect_engine_last_error(const detect_engine_t *e) {
     if (!e) {
         return "null engine";

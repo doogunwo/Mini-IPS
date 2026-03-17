@@ -22,6 +22,9 @@
 #define BENCH_SLOT_COUNT 1024U
 #define BENCH_PAYLOAD_LEN 1500U
 
+/**
+ * @brief 벤치마크 스레드가 공유하는 실행 인자와 측정값
+ */
 typedef struct bench_thread_arg {
     packet_ring_t *ring;
     uint32_t       iterations;
@@ -83,11 +86,24 @@ static void table_row_f64(const char *metric, double value,
     table_row_str(metric, buf);
 }
 
+/**
+ * @brief payload 앞부분에 순서 검증용 시퀀스 번호를 기록한다.
+ *
+ * @param buf payload 버퍼
+ * @param seq 기록할 시퀀스 번호
+ * @param len payload 전체 길이
+ */
 static void payload_set_seq(uint8_t *buf, uint32_t seq, uint32_t len) {
     memset(buf, 0xA5, len);
     memcpy(buf, &seq, sizeof(seq));
 }
 
+/**
+ * @brief payload에 기록된 시퀀스 번호를 읽는다.
+ *
+ * @param buf payload 버퍼
+ * @return uint32_t 기록된 시퀀스 번호
+ */
 static uint32_t payload_get_seq(const uint8_t *buf) {
     uint32_t seq = 0;
 
@@ -95,6 +111,13 @@ static uint32_t payload_get_seq(const uint8_t *buf) {
     return seq;
 }
 
+/**
+ * @brief producer 스레드 진입점
+ * 지정한 횟수만큼 payload를 enqueue 하면서 producer 처리 시간을 측정한다.
+ *
+ * @param arg bench_thread_arg_t*
+ * @return void*
+ */
 static void *bench_producer_thread(void *arg) {
     bench_thread_arg_t *ctx = (bench_thread_arg_t *)arg;
     uint8_t             payload[BENCH_PAYLOAD_LEN];
@@ -120,6 +143,13 @@ static void *bench_producer_thread(void *arg) {
     return NULL;
 }
 
+/**
+ * @brief consumer 스레드 진입점
+ * dequeue 순서를 검증하고 큐 체류 지연시간을 측정한다.
+ *
+ * @param arg bench_thread_arg_t*
+ * @return void*
+ */
 static void *bench_consumer_thread(void *arg) {
     bench_thread_arg_t *ctx = (bench_thread_arg_t *)arg;
     uint8_t             out[PACKET_MAX_BYTES];
@@ -171,6 +201,11 @@ static void *bench_consumer_thread(void *arg) {
     return NULL;
 }
 
+/**
+ * @brief packet ring 단일 SPSC 처리량 및 큐 지연 벤치마크 메인 함수
+ *
+ * @return int
+ */
 int main(void) {
     packet_ring_t     ring;
     pthread_t         producer_tid;
@@ -276,7 +311,7 @@ int main(void) {
         100.0 * (double)(process_cpu_end_ns - process_cpu_start_ns) /
         (double)(total_end_ns - total_start_ns);
 
-    puts("[test_packet_ring_bench]");
+    puts("[benchmark_ring_only]");
     table_line();
     table_row_str("metric", "value");
     table_line();

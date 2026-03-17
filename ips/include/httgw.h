@@ -28,6 +28,12 @@
 #endif
 
 #ifndef HTTGW_SERVER_NEXT_BIAS
+/**
+ * @brief 서버 쪽 next_seq를 맞추기 위해 약간 더해주는 보정값이다.
+ * 로그를 기반으로 64바이트가 느리다는 걸 확인하고
+ * DIR_AB, DIR_BA RST에서 seq,ack에 각각 64바이트를 더해준다.
+ * 이 값을 통해 RST가 상대 수신 윈도우 안에 들어갈 확률을 높이는 것이다.
+ */
 #define HTTGW_SERVER_NEXT_BIAS 64U
 #endif
 
@@ -68,6 +74,13 @@ typedef struct {
     size_t reasm_errs;
     size_t parse_errs;
 } httgw_stats_t;
+
+/** 재조립 엔진 순서 처리 통계이다. */
+typedef struct {
+    uint64_t in_order_pkts;
+    uint64_t out_of_order_pkts;
+    uint64_t trimmed_pkts;
+} reasm_stats_t;
 
 /** 파싱된 클라이언트 요청을 전달하는 콜백이다. */
 typedef void (*httgw_on_request_cb)(const flow_key_t *flow, tcp_dir_t dir,
@@ -141,6 +154,8 @@ int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen,
 void httgw_gc(httgw_t *gw, uint64_t now_ms);
 /** 읽기 전용 실행 통계를 돌려준다. */
 const httgw_stats_t *httgw_stats(const httgw_t *gw);
+/** 재조립 순서 관련 누적 통계를 복사한다. */
+int httgw_get_reasm_stats(const httgw_t *gw, reasm_stats_t *out);
 /** 지정한 흐름의 현재 TCP 상태 스냅샷을 복사한다. */
 int httgw_get_session_snapshot(const httgw_t *gw, const flow_key_t *flow,
                                httgw_sess_snapshot_t *out);

@@ -21,9 +21,9 @@ typedef struct worker_arg {
  * @brief (ip, port) 두 엔드포인트를 사전식 비교함
  *
  * @param a_ip 종단간 엔드포인트
- * @param a_port
- * @param b_ip
- * @param b_port
+ * @param a_port 종단간 엔드포인트
+ * @param b_ip 종단간 엔드포인트
+ * @param b_port 종단간 엔드포인트
  * @return int
  */
 static int endpoint_cmp(uint32_t a_ip, uint16_t a_port, uint32_t b_ip,
@@ -44,14 +44,44 @@ static int endpoint_cmp(uint32_t a_ip, uint16_t a_port, uint32_t b_ip,
 }
 
 /**
- * @brief 매개인자를 합쳐서 해시화하는 함수
+ * @brief 4개의 정수 필드를 FNV 스타일로 섞어 32비트 해시를 만든다.
  *
- * @param sip
- * @param dip
- * @param sport
- * @param dport
- * @param proto
- * @return uint32_t
+ * @param a 첫 번째 필드
+ * @param b 두 번째 필드
+ * @param c 세 번째 필드
+ * @param d 네 번째 필드
+ * @return uint32_t 계산된 해시값
+ */
+static uint32_t flow_hash_mix4(uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
+    uint32_t h = 2166136261u;
+
+    h ^= a;
+    h *= 16777619u;
+
+    h ^= b;
+    h *= 16777619u;
+
+    h ^= c;
+    h *= 16777619u;
+
+    h ^= d;
+    h *= 16777619u;
+
+    return h;
+}
+
+/**
+ * @brief TCP/UDP 5-tuple을 기반으로 worker 분산용 해시값을 계산한다.
+ *
+ * src/dst endpoint를 사전식으로 정렬한 뒤 해시하므로,
+ * 같은 flow는 방향이 바뀌어도 동일한 해시값을 만든다.
+ *
+ * @param sip source IPv4 address
+ * @param dip destination IPv4 address
+ * @param sport source L4 port
+ * @param dport destination L4 port
+ * @param proto L4 protocol number
+ * @return uint32_t 계산된 32비트 flow hash
  */
 static uint32_t flow_hash_5tuple(uint32_t sip, uint32_t dip, uint16_t sport,
                                  uint16_t dport, uint8_t proto) {
@@ -64,32 +94,51 @@ static uint32_t flow_hash_5tuple(uint32_t sip, uint32_t dip, uint16_t sport,
         dport             = tmp_port;
     }
 
-    uint32_t h = 2166136261u;
-    h ^= sip;
-    h *= 16777619u;
-    h ^= dip;
-    h *= 16777619u;
-    h ^= ((uint32_t)sport << 16) | dport;
-    h *= 16777619u;
-    h ^= proto;
-    h *= 16777619u;
+    uint32_t h = flow_hash_mix4(sip, dip, ((uint32_t)sport << 16) | dport, proto);
     return h;
 }
 
+/**
+ * @brief IPv4 fragment용 worker 분산 해시값을 계산한다.
+ *
+ * fragment에는 port 정보가 없으므로 src/dst IP와 IP ID, proto를 이용해
+ * 해시를 계산한다. src/dst IP 순서를 정규화해 양방향 대칭성을 맞춘다.
+ *
+ * @param sip source IPv4 address
+ * @param dip destination IPv4 address
+ * @param ip_id IPv4 identification field
+ * @param proto IP protocol number
+ * @return uint32_t 계산된 32비트 fragment hash
+ */
 static uint32_t flow_hash_fragment(uint32_t sip, uint32_t dip, uint16_t ip_id,
                                    uint8_t proto) {
-    uint32_t h = 2166136261u;
-    h ^= sip;
-    h *= 16777619u;
-    h ^= dip;
-    h *= 16777619u;
-    h ^= ip_id;
-    h *= 16777619u;
-    h ^= proto;
-    h *= 16777619u;
+    if (endpoint_cmp(sip, 0, dip, 0) > 0) {
+        uint32_t tmp_ip = sip;
+        sip             = dip;
+        dip             = tmp_ip;
+    }
+
+    uint32_t h = flow_hash_mix4(sip, dip, ip_id, proto);
     return h;
 }
 
+/**
+ * @brief 이더넷 프레임에서 worker 분산에 필요한 IPv4 키를 추출한다.
+ *
+ * VLAN 태그가 있으면 이를 건너뛰고 IPv4 헤더를 파싱해 src/dst IP,
+ * IP ID, fragment field, L4 시작 위치를 돌려준다.
+ *
+ * @param pkt 원본 패킷
+ * @param len 패킷 길이
+ * @param l4 L4 시작 주소
+ * @param l4_len L4 길이
+ * @param sip source IPv4
+ * @param dip destination IPv4
+ * @param ip_id IPv4 identification
+ * @param frag_field IPv4 fragment field
+ * @param proto IP protocol
+ * @return int 성공이면 1, 아니면 0
+ */
 static int parse_ipv4_dispatch_key(const uint8_t *pkt, uint32_t len,
                                    const uint8_t **l4, uint32_t *l4_len,
                                    uint32_t *sip, uint32_t *dip,
@@ -255,6 +304,11 @@ static void wake_all_queues(driver_runtime_t *rt) {
     }
 }
 
+/**
+ * @brief blocking libpcap 호출을 종료 방향으로 깨운다.
+ *
+ * @param cc 캡처 컨텍스트
+ */
 static void wake_capture_handle(capture_ctx_t *cc) {
     if (!cc || !cc->handle) {
         return;
@@ -278,7 +332,7 @@ int capture_create(capture_ctx_t *cc, pcap_ctx_t *pc) {
         return EIO;
     }
 
-    /* snaplen*/
+    /* snaplen/promisc/timeout 같은 capture 기본 속성을 먼저 설정한다. */
     if (pcap_set_snaplen(h, pc->snaplen) != 0) {
         goto fail;
     }
@@ -297,6 +351,13 @@ fail:
     return EIO;
 }
 
+/**
+ * @brief pcap handle을 실제 활성화하고 필요 시 non-blocking 모드를 건다.
+ *
+ * @param cc 캡처 컨텍스트
+ * @param pc 사용자 pcap 설정
+ * @return int 0이면 성공, 그 외 오류
+ */
 int capture_activate(capture_ctx_t *cc, pcap_ctx_t *pc) {
     if (!cc || !cc->handle) {
         return EINVAL;
@@ -317,6 +378,11 @@ int capture_activate(capture_ctx_t *cc, pcap_ctx_t *pc) {
     return 0;
 }
 
+/**
+ * @brief 열려 있는 pcap handle을 닫는다.
+ *
+ * @param cc 캡처 컨텍스트
+ */
 void capture_close(capture_ctx_t *cc) {
     if (!cc) {
         return;
@@ -342,11 +408,12 @@ int capture_poll_once(capture_ctx_t *cc) {
     struct pcap_pkthdr *hdr;
     const u_char       *pkt;
 
-    /* libpcap에d 실제로 패킷을 읽는 지점 */
+    /* libpcap에서 실제 패킷 1건을 가져오는 지점이다. */
     int ret = pcap_next_ex(cc->handle, &hdr, &pkt);
     if (ret == 1) {
         uint64_t ts_ns = ((uint64_t)hdr->ts.tv_sec * 1000000000ULL) +
                          ((uint64_t)hdr->ts.tv_usec * 1000ULL);
+        /* 5-tuple 또는 fragment hash로 worker queue를 골라 enqueue 한다. */
         uint32_t idx =
             pick_worker_idx(cc, pkt, hdr->caplen, cc->queues->qcount);
         int rc = packet_ring_enq(&cc->queues->q[idx], pkt, hdr->caplen, ts_ns);
@@ -367,6 +434,15 @@ int capture_poll_once(capture_ctx_t *cc) {
     return EIO;
 }
 
+/**
+ * @brief 캡처 스레드 메인 루프.
+ *
+ * 패킷을 읽어 worker queue로 넘기고, 오류 발생 시 stop 플래그와
+ * 마지막 오류 코드를 기록한다.
+ *
+ * @param arg driver runtime
+ * @return void* 항상 NULL
+ */
 static void *capture_thread_func(void *arg) {
     driver_runtime_t *rt = arg;
     while (!atomic_load(&rt->stop)) {
@@ -392,6 +468,14 @@ static void *capture_thread_func(void *arg) {
     return NULL;
 }
 
+/**
+ * @brief worker 스레드 메인 루프.
+ *
+ * 자신의 ring queue에서 패킷을 dequeue 한 뒤 등록된 on_packet 콜백으로 넘긴다.
+ *
+ * @param arg worker 인자
+ * @return void* 항상 NULL
+ */
 static void *worker_thread_func(void *arg) {
     worker_arg_t     *wa   = arg;
     driver_runtime_t *rt   = wa->rt;

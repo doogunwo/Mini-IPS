@@ -1,9 +1,7 @@
 /**
  * @file http_stream.c
- * @brief HTTP 세션 관리
- *
-
-*/
+ * @brief HTTP 스트림 버퍼링, 메시지 파싱, 큐잉 구현
+ */
 #include "http_stream.h"
 
 #include <ctype.h>
@@ -30,6 +28,12 @@ struct http_stream {
     char last_err[128];
 };
 
+/**
+ * @brief 마지막 파서 오류 메시지를 스트림에 기록한다.
+ *
+ * @param s HTTP 스트림 컨텍스트
+ * @param msg 기록할 오류 문자열
+ */
 static void set_err(http_stream_t *s, const char *msg) {
     if (!s) {
         return;
@@ -40,6 +44,12 @@ static void set_err(http_stream_t *s, const char *msg) {
     snprintf(s->last_err, sizeof(s->last_err), "%s", msg);
 }
 
+/**
+ * @brief 스트림에 기록된 마지막 오류 문자열을 반환한다.
+ *
+ * @param s HTTP 스트림 컨텍스트
+ * @return const char* 마지막 오류 문자열
+ */
 const char *http_stream_last_error(const http_stream_t *s) {
     if (!s) {
         return "null stream";
@@ -50,14 +60,26 @@ const char *http_stream_last_error(const http_stream_t *s) {
     return s->last_err;
 }
 
+/**
+ * @brief 내부 수신 버퍼가 지정 크기 이상을 담을 수 있도록 확장한다.
+ *
+ * @param s HTTP 스트림 컨텍스트
+ * @param need 필요한 최소 버퍼 크기
+ * @return int 0이면 성공, -1이면 실패
+ */
 static int ensure_cap(http_stream_t *s, size_t need) {
+    /* 현재 용량이 충분하면 재할당하지 않는다. */
     if (need <= s->cap) {
         return 0;
     }
+
+    /* 작은 버퍼에서 시작해 2배씩 키워 realloc 횟수를 줄인다. */
     size_t ncap = s->cap ? s->cap : 1024;
     while (ncap < need) {
         ncap *= 2;
     }
+
+    /* 설정한 최대 버퍼 크기를 넘으면 더 이상 입력을 받지 않는다. */
     if (ncap > s->max_buffer_bytes) {
         return -1;
     }
@@ -70,6 +92,14 @@ static int ensure_cap(http_stream_t *s, size_t need) {
     return 0;
 }
 
+/**
+ * @brief 바이트 배열에서 첫 번째 CRLF 위치를 찾는다.
+ *
+ * @param p 검색 대상 버퍼
+ * @param len 검색 길이
+ * @param idx 찾은 위치를 받을 포인터
+ * @return int 찾으면 1, 못 찾으면 0
+ */
 static int memmem_crlf(const uint8_t *p, size_t len, size_t *idx) {
     size_t i;
     for (i = 0; i + 1 < len; i++) {
@@ -81,6 +111,16 @@ static int memmem_crlf(const uint8_t *p, size_t len, size_t *idx) {
     return 0;
 }
 
+/**
+ * @brief 바이트 배열에서 첫 번째 CRLFCRLF 위치를 찾는다.
+ *
+ * HTTP 헤더 종료 지점 검출에 사용한다.
+ *
+ * @param p 검색 대상 버퍼
+ * @param len 검색 길이
+ * @param idx 찾은 위치를 받을 포인터
+ * @return int 찾으면 1, 못 찾으면 0
+ */
 static int memmem_crlfcrlf(const uint8_t *p, size_t len, size_t *idx) {
     size_t i;
     for (i = 0; i + 3 < len; i++) {
@@ -93,6 +133,15 @@ static int memmem_crlfcrlf(const uint8_t *p, size_t len, size_t *idx) {
     return 0;
 }
 
+/**
+ * @brief 길이가 명시된 토큰을 C 문자열 버퍼로 복사한다.
+ *
+ * @param dst 목적지 문자열 버퍼
+ * @param dst_cap 목적지 버퍼 크기
+ * @param src 원본 토큰 시작 주소
+ * @param n 원본 길이
+ * @return int 0이면 성공, -1이면 overflow
+ */
 static int copy_token(char *dst, size_t dst_cap, const uint8_t *src, size_t n) {
     if (n + 1 > dst_cap) {
         return -1;
@@ -102,6 +151,13 @@ static int copy_token(char *dst, size_t dst_cap, const uint8_t *src, size_t n) {
     return 0;
 }
 
+/**
+ * @brief HTTP header value 앞의 공백/탭을 건너뛴다.
+ *
+ * @param p 현재 위치
+ * @param end 버퍼 끝
+ * @return const uint8_t* leading whitespace를 건너뛴 새 위치
+ */
 static const uint8_t *skip_lws(const uint8_t *p, const uint8_t *end) {
     while (p < end && (*p == ' ' || *p == '\t')) {
         p++;
@@ -109,12 +165,26 @@ static const uint8_t *skip_lws(const uint8_t *p, const uint8_t *end) {
     return p;
 }
 
+/**
+ * @brief HTTP header value 뒤의 공백/탭을 제거한다.
+ *
+ * @param p 값 시작 위치
+ * @param end 값 끝 위치
+ */
 static void trim_rws(const uint8_t **p, const uint8_t **end) {
     while (*end > *p && ((*(*end - 1) == ' ') || (*(*end - 1) == '\t'))) {
         (*end)--;
     }
 }
 
+/**
+ * @brief 길이가 명시된 토큰과 C 문자열을 대소문자 무시 비교한다.
+ *
+ * @param a 길이 명시 토큰
+ * @param an 토큰 길이
+ * @param b 비교할 C 문자열
+ * @return int 같으면 1, 다르면 0
+ */
 static int ci_eq_token(const uint8_t *a, size_t an, const char *b) {
     size_t i;
     size_t bn = strlen(b);
@@ -129,6 +199,14 @@ static int ci_eq_token(const uint8_t *a, size_t an, const char *b) {
     return 1;
 }
 
+/**
+ * @brief 길이가 명시된 토큰에 부분 문자열이 포함되는지 대소문자 무시 검사한다.
+ *
+ * @param a 검색 대상 토큰
+ * @param an 토큰 길이
+ * @param needle 찾을 문자열
+ * @return int 포함하면 1, 아니면 0
+ */
 static int ci_contains(const uint8_t *a, size_t an, const char *needle) {
     size_t i;
     size_t nn = strlen(needle);
@@ -152,6 +230,14 @@ static int ci_contains(const uint8_t *a, size_t an, const char *needle) {
     return 0;
 }
 
+/**
+ * @brief HTTP start-line 한 줄을 request/response 형식으로 해석한다.
+ *
+ * @param m 파싱 결과를 채울 메시지 구조체
+ * @param line start-line 시작 주소
+ * @param n 줄 길이
+ * @return http_stream_rc_t 파싱 결과 코드
+ */
 static http_stream_rc_t parse_start_line(http_message_t *m, const uint8_t *line,
                                          size_t n) {
     const uint8_t *sp1;
@@ -159,6 +245,7 @@ static http_stream_rc_t parse_start_line(http_message_t *m, const uint8_t *line,
     const uint8_t *end = line + n;
     const uint8_t *p;
 
+    /* "HTTP/"로 시작하면 response status-line으로 해석한다. */
     if (n >= 5 && memcmp(line, "HTTP/", 5) == 0) {
         m->is_request = 0;
 
@@ -194,6 +281,7 @@ static http_stream_rc_t parse_start_line(http_message_t *m, const uint8_t *line,
             return HTTP_STREAM_EOVERFLOW;
         }
     } else {
+        /* 그 외 형식은 request line으로 보고 method/uri/version을 추출한다. */
         m->is_request = 1;
 
         sp1 = (const uint8_t *)memchr(line, ' ', n);
@@ -222,6 +310,17 @@ static http_stream_rc_t parse_start_line(http_message_t *m, const uint8_t *line,
     return HTTP_STREAM_OK;
 }
 
+/**
+ * @brief 헤더 블록 전체를 파싱해 메시지 메타데이터를 추출한다.
+ *
+ * start-line, content-length, transfer-encoding, content-type를 해석한다.
+ *
+ * @param m 결과 메시지 구조체
+ * @param headers CRLFCRLF를 포함한 헤더 블록
+ * @param headers_len 헤더 블록 길이
+ * @param max_body_bytes 허용 최대 body 길이
+ * @return http_stream_rc_t 파싱 결과 코드
+ */
 static http_stream_rc_t parse_headers_meta(http_message_t *m,
                                            const uint8_t  *headers,
                                            size_t          headers_len,
@@ -229,10 +328,12 @@ static http_stream_rc_t parse_headers_meta(http_message_t *m,
     size_t pos             = 0;
     int    first_line_done = 0;
 
+    /* 바디 관련 메타데이터는 헤더 파싱 전에 기본값으로 초기화한다. */
     m->content_length  = -1;
     m->chunked         = 0;
     m->content_type[0] = '\0';
 
+    /* CRLF 단위로 헤더를 끊어 start-line과 각 header field를 순차 해석한다. */
     while (pos < headers_len) {
         size_t         line_end;
         const uint8_t *line;
@@ -273,6 +374,7 @@ static http_stream_rc_t parse_headers_meta(http_message_t *m,
             val_end  = line + line_len;
             trim_rws(&val, &val_end);
 
+            /* 알려진 헤더만 별도 메타데이터 필드로 정규화한다. */
             if (ci_eq_token(line, (size_t)(name_end - line),
                             "content-length")) {
                 char      tmp[32];
@@ -310,10 +412,22 @@ static http_stream_rc_t parse_headers_meta(http_message_t *m,
     return HTTP_STREAM_OK;
 }
 
+/**
+ * @brief body 버퍼 뒤에 새 바이트 구간을 이어 붙인다.
+ *
+ * @param buf body 버퍼 포인터
+ * @param len 현재 body 길이
+ * @param data 추가할 데이터
+ * @param n 추가 길이
+ * @param max_body_bytes 허용 최대 body 길이
+ * @return http_stream_rc_t append 결과 코드
+ */
 static http_stream_rc_t append_body(uint8_t **buf, size_t *len,
                                     const uint8_t *data, size_t n,
                                     size_t max_body_bytes) {
     uint8_t *nb;
+
+    /* chunked body도 최종 누적 길이는 max_body_bytes를 넘지 않게 제한한다. */
     if (*len + n > max_body_bytes) {
         return HTTP_STREAM_EOVERFLOW;
     }
@@ -327,6 +441,20 @@ static http_stream_rc_t append_body(uint8_t **buf, size_t *len,
     return HTTP_STREAM_OK;
 }
 
+/**
+ * @brief chunked transfer-encoding body를 완전한 body로 풀어낸다.
+ *
+ * 각 chunk size line, chunk data, trailing CRLF를 해석해 body 버퍼로
+ * 이어 붙인다.
+ *
+ * @param p chunked body 시작 주소
+ * @param n 남은 입력 길이
+ * @param max_body_bytes 허용 최대 body 길이
+ * @param consumed 소비한 총 길이
+ * @param body 완성된 body 버퍼
+ * @param body_len 완성된 body 길이
+ * @return http_stream_rc_t 파싱 결과 코드
+ */
 static http_stream_rc_t parse_chunked_body(const uint8_t *p, size_t n,
                                            size_t  max_body_bytes,
                                            size_t *consumed, uint8_t **body,
@@ -335,6 +463,7 @@ static http_stream_rc_t parse_chunked_body(const uint8_t *p, size_t n,
     *body      = NULL;
     *body_len  = 0;
 
+    /* 0-size chunk를 만날 때까지 chunk line과 data를 순차적으로 해석한다. */
     while (1) {
         size_t        le;
         char          tmp[64];
@@ -359,6 +488,7 @@ static http_stream_rc_t parse_chunked_body(const uint8_t *p, size_t n,
         pos += le + 2;
 
         if (sz == 0) {
+            /* 마지막 chunk 뒤에는 빈 줄 또는 trailer header block이 올 수 있다. */
             if (n - pos >= 2 && p[pos] == '\r' && p[pos + 1] == '\n') {
                 pos += 2;
                 *consumed = pos;
@@ -382,6 +512,7 @@ static http_stream_rc_t parse_chunked_body(const uint8_t *p, size_t n,
             return HTTP_STREAM_EPROTO;
         }
 
+        /* chunk payload만 body 버퍼에 누적하고, 뒤 CRLF는 소비만 한다. */
         {
             http_stream_rc_t rc =
                 append_body(body, body_len, p + pos, sz, max_body_bytes);
@@ -394,6 +525,13 @@ static http_stream_rc_t parse_chunked_body(const uint8_t *p, size_t n,
     }
 }
 
+/**
+ * @brief 완성된 HTTP 메시지를 스트림 내부 큐에 적재한다.
+ *
+ * @param s HTTP 스트림 컨텍스트
+ * @param msg 큐에 넣을 메시지
+ * @return http_stream_rc_t 0이면 성공, 메모리 부족이면 오류
+ */
 static http_stream_rc_t queue_message(http_stream_t *s, http_message_t *msg) {
     msg_node_t *n = (msg_node_t *)calloc(1, sizeof(*n));
     if (!n) {
@@ -409,15 +547,32 @@ static http_stream_rc_t queue_message(http_stream_t *s, http_message_t *msg) {
     return HTTP_STREAM_OK;
 }
 
+/**
+ * @brief 입력 버퍼 앞쪽 n바이트를 소비한다.
+ *
+ * @param s HTTP 스트림 컨텍스트
+ * @param n 제거할 길이
+ */
 static void consume_front(http_stream_t *s, size_t n) {
     if (n >= s->len) {
         s->len = 0;
         return;
     }
+
+    /* 아직 해석하지 않은 나머지 바이트를 버퍼 앞으로 당겨 재사용한다. */
     memmove(s->buf, s->buf + n, s->len - n);
     s->len -= n;
 }
 
+/**
+ * @brief 현재 버퍼 앞부분에서 HTTP 메시지 1개를 파싱한다.
+ *
+ * header block을 찾고, 메타데이터를 해석한 뒤 body를 확보해 메시지 큐에 넣는다.
+ *
+ * @param s HTTP 스트림 컨텍스트
+ * @param produced 메시지를 하나 만들었는지 여부
+ * @return http_stream_rc_t 파싱 결과 코드
+ */
 static http_stream_rc_t parse_one(http_stream_t *s, int *produced) {
     size_t         hdr_end_pos;
     size_t         msg_hdr_len;
@@ -428,11 +583,13 @@ static http_stream_rc_t parse_one(http_stream_t *s, int *produced) {
     size_t         body_off;
     size_t         consumed = 0;
 
+    /* 헤더 끝(CRLFCRLF)을 아직 못 찾으면 메시지가 덜 들어온 상태다. */
     *produced = 0;
     if (!memmem_crlfcrlf(s->buf, s->len, &hdr_end_pos)) {
         return HTTP_STREAM_NEED_MORE;
     }
 
+    /* 헤더 블록이 max buffer를 넘으면 비정상 입력으로 본다. */
     msg_hdr_len = hdr_end_pos + 4;
     if (msg_hdr_len > s->max_buffer_bytes) {
         return HTTP_STREAM_EOVERFLOW;
@@ -441,6 +598,7 @@ static http_stream_rc_t parse_one(http_stream_t *s, int *produced) {
     memset(&m, 0, sizeof(m));
     m.content_length = -1;
 
+    /* start-line과 주요 헤더를 먼저 파싱해 body 처리 방식을 결정한다. */
     {
         http_stream_rc_t rc =
             parse_headers_meta(&m, s->buf, msg_hdr_len, s->max_body_bytes);
@@ -462,6 +620,7 @@ static http_stream_rc_t parse_one(http_stream_t *s, int *produced) {
         headers_only_len = hdr_end_pos - headers_only_off;
     }
 
+    /* queue에 저장할 수 있도록 헤더 원문을 start-line 제외 구간만 따로 복사한다. */
     m.headers_raw = (uint8_t *)malloc(headers_only_len + 1);
     if (!m.headers_raw) {
         http_message_free(&m);
@@ -473,6 +632,7 @@ static http_stream_rc_t parse_one(http_stream_t *s, int *produced) {
     m.headers_raw[headers_only_len] = '\0';
     m.headers_raw_len               = headers_only_len;
 
+    /* chunked와 content-length를 동시에 허용하지 않는다. */
     if (m.chunked && m.content_length >= 0) {
         http_message_free(&m);
         return HTTP_STREAM_EPROTO;
@@ -480,6 +640,7 @@ static http_stream_rc_t parse_one(http_stream_t *s, int *produced) {
 
     body_off = msg_hdr_len;
     if (m.chunked) {
+        /* chunked 메시지는 body를 완전히 풀어서 단일 body 버퍼로 만든다. */
         http_stream_rc_t rc = parse_chunked_body(
             s->buf + body_off, s->len - body_off, s->max_body_bytes, &consumed,
             &m.body, &m.body_len);
@@ -489,6 +650,7 @@ static http_stream_rc_t parse_one(http_stream_t *s, int *produced) {
         }
         consumed += body_off;
     } else if (m.content_length > 0) {
+        /* content-length가 있으면 그 길이만큼 body가 쌓일 때까지 기다린다. */
         if ((size_t)m.content_length > s->len - body_off) {
             http_message_free(&m);
             return HTTP_STREAM_NEED_MORE;
@@ -504,11 +666,13 @@ static http_stream_rc_t parse_one(http_stream_t *s, int *produced) {
         }
         consumed = body_off + m.body_len;
     } else {
+        /* body 없는 메시지는 헤더까지만 소비하고 바로 완료 처리한다. */
         m.body     = NULL;
         m.body_len = 0;
         consumed   = body_off;
     }
 
+    /* 완성된 메시지는 내부 큐로 넘기고, 입력 버퍼 앞부분은 소비한다. */
     {
         http_stream_rc_t rc = queue_message(s, &m);
         if (rc != HTTP_STREAM_OK) {
@@ -522,11 +686,18 @@ static http_stream_rc_t parse_one(http_stream_t *s, int *produced) {
     return HTTP_STREAM_OK;
 }
 
+/**
+ * @brief HTTP 스트림 컨텍스트를 생성한다.
+ *
+ * @param cfg 버퍼/바디 제한 설정
+ * @return http_stream_t* 생성된 스트림 컨텍스트
+ */
 http_stream_t *http_stream_create(const http_stream_cfg_t *cfg) {
     http_stream_t *s;
     size_t         max_buf  = 12 * 1024 * 1024;
     size_t         max_body = 12 * 1024 * 1024;
 
+    /* 설정이 없으면 보수적인 기본 최대치로 생성한다. */
     if (cfg) {
         if (cfg->max_buffer_bytes > 0) {
             max_buf = cfg->max_buffer_bytes;
@@ -546,6 +717,11 @@ http_stream_t *http_stream_create(const http_stream_cfg_t *cfg) {
     return s;
 }
 
+/**
+ * @brief HTTP 메시지 내부 동적 메모리를 해제한다.
+ *
+ * @param m 해제할 메시지
+ */
 void http_message_free(http_message_t *m) {
     if (!m) {
         return;
@@ -555,11 +731,18 @@ void http_message_free(http_message_t *m) {
     memset(m, 0, sizeof(*m));
 }
 
+/**
+ * @brief 스트림 버퍼와 메시지 큐를 초기 상태로 되돌린다.
+ *
+ * @param s HTTP 스트림 컨텍스트
+ */
 void http_stream_reset(http_stream_t *s) {
     msg_node_t *p;
     if (!s) {
         return;
     }
+
+    /* 누적 버퍼는 비우고, 대기 중인 메시지 큐도 전부 해제한다. */
     s->len = 0;
     while (s->q_head) {
         p         = s->q_head;
@@ -571,6 +754,11 @@ void http_stream_reset(http_stream_t *s) {
     s->last_err[0] = '\0';
 }
 
+/**
+ * @brief HTTP 스트림 컨텍스트를 완전히 해제한다.
+ *
+ * @param s HTTP 스트림 컨텍스트
+ */
 void http_stream_destroy(http_stream_t *s) {
     if (!s) {
         return;
@@ -580,11 +768,20 @@ void http_stream_destroy(http_stream_t *s) {
     free(s);
 }
 
+/**
+ * @brief 새 TCP payload를 스트림 버퍼에 추가하고 가능한 메시지를 파싱한다.
+ *
+ * @param s HTTP 스트림 컨텍스트
+ * @param data 추가할 payload
+ * @param len payload 길이
+ * @return http_stream_rc_t 처리 결과 코드
+ */
 http_stream_rc_t http_stream_feed(http_stream_t *s, const uint8_t *data,
                                   size_t len) {
     int              produced;
     http_stream_rc_t rc;
 
+    /* 입력 검증과 빈 payload 처리부터 빠르게 끝낸다. */
     if (!s || (!data && len > 0)) {
         return HTTP_STREAM_EINVAL;
     }
@@ -592,6 +789,7 @@ http_stream_rc_t http_stream_feed(http_stream_t *s, const uint8_t *data,
         return HTTP_STREAM_OK;
     }
 
+    /* 내부 버퍼 상한을 넘는 입력은 parse 전에 바로 막는다. */
     if (s->len + len > s->max_buffer_bytes) {
         set_err(s, "buffer overflow");
         return HTTP_STREAM_EOVERFLOW;
@@ -601,6 +799,7 @@ http_stream_rc_t http_stream_feed(http_stream_t *s, const uint8_t *data,
         return HTTP_STREAM_ENOMEM;
     }
 
+    /* 새 payload를 이어 붙인 뒤, 더 이상 완전한 메시지가 안 나올 때까지 파싱한다. */
     memcpy(s->buf + s->len, data, len);
     s->len += len;
 
@@ -621,6 +820,13 @@ http_stream_rc_t http_stream_feed(http_stream_t *s, const uint8_t *data,
     return HTTP_STREAM_OK;
 }
 
+/**
+ * @brief 파싱 완료된 메시지 큐에서 메시지 하나를 꺼낸다.
+ *
+ * @param s HTTP 스트림 컨텍스트
+ * @param out 꺼낸 메시지를 받을 구조체
+ * @return http_stream_rc_t 메시지 존재 여부 및 처리 결과
+ */
 http_stream_rc_t http_stream_poll_message(http_stream_t  *s,
                                           http_message_t *out) {
     msg_node_t *n;

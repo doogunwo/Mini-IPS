@@ -21,6 +21,9 @@
 #define STRESS_ITERATIONS 1000000U
 #define STRESS_SLOT_COUNT 64U
 
+/**
+ * @brief stress 벤치 스레드가 공유하는 실행 인자와 측정값
+ */
 typedef struct stress_thread_arg {
     packet_ring_t *ring;
     uint32_t       iterations;
@@ -79,6 +82,13 @@ static void table_row_f64(const char *metric, double value,
     table_row_str(metric, buf);
 }
 
+/**
+ * @brief producer 스레드 진입점
+ * 지정한 횟수만큼 동일 크기 payload를 enqueue 해 stress 상황을 만든다.
+ *
+ * @param arg stress_thread_arg_t*
+ * @return void*
+ */
 static void *stress_producer_thread(void *arg) {
     stress_thread_arg_t *ctx = (stress_thread_arg_t *)arg;
 
@@ -103,6 +113,13 @@ static void *stress_producer_thread(void *arg) {
     return NULL;
 }
 
+/**
+ * @brief consumer 스레드 진입점
+ * enqueue 순서를 유지하는지 확인하면서 payload를 dequeue 한다.
+ *
+ * @param arg stress_thread_arg_t*
+ * @return void*
+ */
 static void *stress_consumer_thread(void *arg) {
     stress_thread_arg_t *ctx = (stress_thread_arg_t *)arg;
 
@@ -147,6 +164,11 @@ static void *stress_consumer_thread(void *arg) {
     return NULL;
 }
 
+/**
+ * @brief packet ring 장시간 반복 처리량 stress 벤치마크 메인 함수
+ *
+ * @return int
+ */
 int main(void) {
     packet_ring_t     ring;
     pthread_t         producer_tid;

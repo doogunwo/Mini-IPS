@@ -52,6 +52,13 @@ struct engine_runtime {
 
 static regex_backend_t g_selected_backend = REGEX_BACKEND_PCRE2;
 
+/**
+ * @brief backend/runtime 계층에서 사용할 오류 문자열을 기록한다.
+ *
+ * @param errbuf 오류 버퍼
+ * @param errbuf_size 오류 버퍼 크기
+ * @param msg 기록할 오류 메시지
+ */
 static void set_err(char *errbuf, size_t errbuf_size, const char *msg) {
     if (errbuf == NULL || errbuf_size == 0) {
         return;
@@ -59,6 +66,17 @@ static void set_err(char *errbuf, size_t errbuf_size, const char *msg) {
     snprintf(errbuf, errbuf_size, "%s", msg != NULL ? msg : "unknown error");
 }
 
+/**
+ * @brief detect_match_list에 로컬 match 항목 하나를 추가한다.
+ *
+ * @param matches 매치 결과 리스트
+ * @param rule 매칭된 룰
+ * @param ctx 매칭된 context
+ * @param matched_text 매칭된 텍스트
+ * @param matched_len 매칭 길이
+ * @param elapsed_us 해당 매칭 탐지 시간
+ * @return int 0이면 성공, -1이면 실패
+ */
 static int detect_match_list_append_local(
     detect_match_list_t *matches, const IPS_Signature *rule, ips_context_t ctx,
     const char *matched_text, size_t matched_len, uint64_t elapsed_us) {
@@ -98,6 +116,13 @@ static int detect_match_list_append_local(
     return 0;
 }
 
+/**
+ * @brief 현재 검사 context와 룰 context가 호환되는지 검사한다.
+ *
+ * @param rule 검사할 룰
+ * @param ctx 현재 검사 context
+ * @return int 호환되면 1, 아니면 0
+ */
 static int rule_context_matches(const IPS_Signature *rule, ips_context_t ctx) {
     if (rule == NULL) {
         return 0;
@@ -108,6 +133,14 @@ static int rule_context_matches(const IPS_Signature *rule, ips_context_t ctx) {
     return rule->context == ctx;
 }
 
+/**
+ * @brief 전역 regex backend 선택값을 변경한다.
+ *
+ * @param name backend 이름 문자열
+ * @param errbuf 오류 버퍼
+ * @param errbuf_size 오류 버퍼 크기
+ * @return int 0이면 성공, -1이면 실패
+ */
 int engine_set_backend_name(const char *name, char *errbuf,
                             size_t errbuf_size) {
     if (strcmp(name, "pcre2") == 0) {
@@ -122,6 +155,11 @@ int engine_set_backend_name(const char *name, char *errbuf,
     return -1;
 }
 
+/**
+ * @brief PCRE2 backend가 확보한 코드와 JIT 자원을 해제한다.
+ *
+ * @param runtime engine runtime
+ */
 static void pcre2_release(engine_runtime_t *runtime) {
     unsigned int i;
 
@@ -150,6 +188,11 @@ static void pcre2_release(engine_runtime_t *runtime) {
     }
 }
 
+/**
+ * @brief Hyperscan backend가 확보한 DB/scratch 자원을 해제한다.
+ *
+ * @param runtime engine runtime
+ */
 static void hs_release(engine_runtime_t *runtime) {
     unsigned int i;
     unsigned int ctx;
@@ -183,6 +226,16 @@ static void hs_release(engine_runtime_t *runtime) {
     }
 }
 
+/**
+ * @brief Hyperscan match callback으로 매칭 결과를 수집한다.
+ *
+ * @param id 매칭된 pattern id
+ * @param from 매칭 시작 offset
+ * @param to 매칭 끝 offset
+ * @param flags Hyperscan flags
+ * @param ctx hs scan context
+ * @return int 계속 스캔이면 0, 조기 종료면 1
+ */
 static int hs_on_match(unsigned int id, unsigned long long from,
                        unsigned long long to, unsigned int flags, void *ctx) {
     hs_scan_ctx_t         *scan_ctx = (hs_scan_ctx_t *)ctx;
@@ -242,6 +295,17 @@ static int hs_on_match(unsigned int id, unsigned long long from,
     return scan_ctx->stop_after_first ? 1 : 0;
 }
 
+/**
+ * @brief PCRE2 룰 1개를 컴파일하고 필요 시 JIT까지 준비한다.
+ *
+ * @param runtime engine runtime
+ * @param slot 컴파일 결과를 저장할 슬롯
+ * @param rule 컴파일할 룰
+ * @param jit_mode JIT 사용 정책
+ * @param errbuf 오류 버퍼
+ * @param errbuf_size 오류 버퍼 크기
+ * @return int 0이면 성공, -1이면 실패
+ */
 static int compile_pcre2_rule(engine_runtime_t *runtime, compiled_rule_t *slot,
                               const IPS_Signature *rule,
                               detect_jit_mode_t jit_mode, char *errbuf,
@@ -321,6 +385,18 @@ static int compile_pcre2_rule(engine_runtime_t *runtime, compiled_rule_t *slot,
     return 0;
 }
 
+/**
+ * @brief context별 Hyperscan database를 구성한다.
+ *
+ * RX operator를 가진 룰만 골라 multi-pattern database를 만든다.
+ *
+ * @param runtime engine runtime
+ * @param group context별 hs 그룹
+ * @param ctx 대상 context
+ * @param errbuf 오류 버퍼
+ * @param errbuf_size 오류 버퍼 크기
+ * @return int 0이면 성공, -1이면 실패
+ */
 static int compile_hs_group(engine_runtime_t *runtime, hs_group_t *group,
                             unsigned int ctx, char *errbuf,
                             size_t errbuf_size) {
@@ -416,6 +492,18 @@ static int compile_hs_group(engine_runtime_t *runtime, hs_group_t *group,
     return 0;
 }
 
+/**
+ * @brief 룰 집합을 기준으로 regex runtime을 생성한다.
+ *
+ * 선택된 backend에 따라 PCRE2 code 또는 Hyperscan database를 준비한다.
+ *
+ * @param rules 컴파일할 룰 배열
+ * @param rule_count 룰 개수
+ * @param jit_mode JIT 사용 정책
+ * @param errbuf 오류 버퍼
+ * @param errbuf_size 오류 버퍼 크기
+ * @return engine_runtime_t* 생성된 runtime, 실패 시 NULL
+ */
 engine_runtime_t *engine_runtime_create(const IPS_Signature *const *rules,
                                         unsigned int                rule_count,
                                         detect_jit_mode_t           jit_mode,
@@ -491,6 +579,11 @@ engine_runtime_t *engine_runtime_create(const IPS_Signature *const *rules,
     return runtime;
 }
 
+/**
+ * @brief regex runtime이 보유한 backend 자원과 메모리를 해제한다.
+ *
+ * @param runtime 해제할 runtime
+ */
 void engine_runtime_destroy(engine_runtime_t *runtime) {
     if (runtime == NULL) {
         return;
@@ -506,11 +599,21 @@ void engine_runtime_destroy(engine_runtime_t *runtime) {
     free(runtime);
 }
 
+/**
+ * @brief regex profiling 기능 활성화 여부를 환경 변수에서 읽는다.
+ *
+ * @return int 활성화면 1, 아니면 0
+ */
 static int regex_profile_enabled(void) {
     const char *v = getenv("IPS_PROFILE_REGEX");
     return v != NULL && strcmp(v, "0") != 0 && strcmp(v, "false") != 0;
 }
 
+/**
+ * @brief regex profiling 로그 기준 임계시간(us)을 읽는다.
+ *
+ * @return long 임계시간 마이크로초
+ */
 static long regex_profile_threshold_us(void) {
     const char *v   = getenv("IPS_PROFILE_THRESHOLD_US");
     char       *end = NULL;
@@ -526,6 +629,11 @@ static long regex_profile_threshold_us(void) {
     return n;
 }
 
+/**
+ * @brief monotonic clock 기준 현재 시각을 us 단위로 구한다.
+ *
+ * @return unsigned long long 현재 시각(us)
+ */
 static unsigned long long mono_us_now(void) {
     struct timespec ts;
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
@@ -535,6 +643,18 @@ static unsigned long long mono_us_now(void) {
            (unsigned long long)(ts.tv_nsec / 1000ULL);
 }
 
+/**
+ * @brief regex profiling 로그 조건을 만족하면 룰 실행 시간을 기록한다.
+ *
+ * 현재는 fprintf가 주석 처리되어 있어 실제 출력은 하지 않지만, profiling
+ * 포인트는 유지해 두었다.
+ *
+ * @param compiled_rule 컴파일된 룰
+ * @param ctx 검사 context
+ * @param len 입력 길이
+ * @param elapsed_us 수행 시간
+ * @param rc 실행 결과 코드
+ */
 static void maybe_log_rule_profile(const compiled_rule_t *compiled_rule,
                                    ips_context_t ctx, size_t len,
                                    unsigned long long elapsed_us, int rc) {
@@ -560,6 +680,19 @@ static void maybe_log_rule_profile(const compiled_rule_t *compiled_rule,
     */
 }
 
+/**
+ * @brief PCRE2 backend로 룰 1개를 실행한다.
+ *
+ * @param runtime engine runtime
+ * @param compiled_rule 실행할 컴파일 룰
+ * @param data 입력 데이터
+ * @param len 입력 길이
+ * @param match_off 첫 매칭 시작 offset
+ * @param match_len 첫 매칭 길이
+ * @param errbuf 오류 버퍼
+ * @param errbuf_size 오류 버퍼 크기
+ * @return int 1이면 매칭, 0이면 미매칭, -1이면 오류
+ */
 static int engine_match_pcre2(engine_runtime_t      *runtime,
                               const compiled_rule_t *compiled_rule,
                               const uint8_t *data, size_t len,
@@ -586,6 +719,20 @@ static int engine_match_pcre2(engine_runtime_t      *runtime,
     return -1;
 }
 
+/**
+ * @brief Hyperscan backend로 지정 context에 대한 첫 매칭을 찾는다.
+ *
+ * @param runtime engine runtime
+ * @param ctx 검사 context
+ * @param data 입력 데이터
+ * @param len 입력 길이
+ * @param match_off 첫 매칭 시작 offset
+ * @param match_len 첫 매칭 길이
+ * @param matched_rule 첫 매칭 룰 포인터
+ * @param errbuf 오류 버퍼
+ * @param errbuf_size 오류 버퍼 크기
+ * @return int 1이면 매칭, 0이면 미매칭, -1이면 오류
+ */
 static int engine_match_hs(engine_runtime_t *runtime, ips_context_t ctx,
                            const uint8_t *data, size_t len, size_t *match_off,
                            size_t               *match_len,
@@ -628,6 +775,20 @@ static int engine_match_hs(engine_runtime_t *runtime, ips_context_t ctx,
     return 1;
 }
 
+/**
+ * @brief runtime backend 종류에 따라 적절한 단일 룰 매칭 함수를 호출한다.
+ *
+ * @param runtime engine runtime
+ * @param compiled_rule 컴파일된 룰
+ * @param data 입력 데이터
+ * @param len 입력 길이
+ * @param match_off 매칭 시작 offset
+ * @param match_len 매칭 길이
+ * @param matched_rule 첫 매칭 룰 포인터
+ * @param errbuf 오류 버퍼
+ * @param errbuf_size 오류 버퍼 크기
+ * @return int 1이면 매칭, 0이면 미매칭, -1이면 오류
+ */
 static int engine_match_one(engine_runtime_t      *runtime,
                             const compiled_rule_t *compiled_rule,
                             const uint8_t *data, size_t len, size_t *match_off,
@@ -645,6 +806,18 @@ static int engine_match_one(engine_runtime_t      *runtime,
                               match_len, errbuf, errbuf_size);
 }
 
+/**
+ * @brief 지정 context에서 첫 번째 매칭 룰 하나를 찾는다.
+ *
+ * @param runtime engine runtime
+ * @param data 입력 데이터
+ * @param len 입력 길이
+ * @param ctx 검사 context
+ * @param matched_rule 첫 매칭 룰을 받을 포인터
+ * @param errbuf 오류 버퍼
+ * @param errbuf_size 오류 버퍼 크기
+ * @return int 1이면 매칭, 0이면 미매칭, -1이면 오류
+ */
 int engine_runtime_match_first(engine_runtime_t *runtime, const uint8_t *data,
                                size_t len, ips_context_t ctx,
                                const IPS_Signature **matched_rule, char *errbuf,
@@ -708,6 +881,18 @@ int engine_runtime_match_first(engine_runtime_t *runtime, const uint8_t *data,
     return 0;
 }
 
+/**
+ * @brief 지정 context에서 매칭된 모든 룰을 수집한다.
+ *
+ * @param runtime engine runtime
+ * @param data 입력 데이터
+ * @param len 입력 길이
+ * @param ctx 검사 context
+ * @param matches 매치 결과 리스트
+ * @param errbuf 오류 버퍼
+ * @param errbuf_size 오류 버퍼 크기
+ * @return int 1이면 매칭 존재, 0이면 미매칭, -1이면 오류
+ */
 int engine_runtime_collect_matches(engine_runtime_t *runtime,
                                    const uint8_t *data, size_t len,
                                    ips_context_t        ctx,
@@ -858,6 +1043,12 @@ int engine_runtime_collect_matches_timed(engine_runtime_t *runtime,
     return matched_any ? 1 : 0;
 }
 
+/**
+ * @brief runtime이 사용하는 backend 이름을 반환한다.
+ *
+ * @param runtime engine runtime
+ * @return const char* backend 이름
+ */
 const char *engine_runtime_backend_name(const engine_runtime_t *runtime) {
     if (runtime == NULL) {
         return "-";
@@ -865,6 +1056,12 @@ const char *engine_runtime_backend_name(const engine_runtime_t *runtime) {
     return runtime->backend == REGEX_BACKEND_HS ? "hs" : "pcre2";
 }
 
+/**
+ * @brief runtime의 JIT 활성화 여부를 반환한다.
+ *
+ * @param runtime engine runtime
+ * @return int 활성화면 1, 아니면 0
+ */
 int engine_runtime_jit_enabled(const engine_runtime_t *runtime) {
     if (runtime == NULL) {
         return 0;

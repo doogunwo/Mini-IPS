@@ -5,6 +5,7 @@ IFACE="${IFACE:-eth0}"
 BPF="${BPF:-tcp and host 172.31.0.60 and port 8080}"
 MODE="${MODE:-sniffing}"
 LOG_FILE="${LOG_FILE:-/logs/ips.log}"
+MONITOR_LOG_FILE="${MONITOR_LOG_FILE:-/logs/monitor.log}"
 DB_FILE="${DB_FILE:-/app/DB/ips_events.db}"
 WEB_HOST="${WEB_HOST:-0.0.0.0}"
 WEB_PORT="${WEB_PORT:-8090}"
@@ -18,6 +19,7 @@ export IFACE
 export BPF
 export MODE
 export LOG_FILE
+export MONITOR_LOG_FILE
 export DB_FILE
 export WEB_HOST
 export WEB_PORT

@@ -1,3 +1,7 @@
+/**
+ * @file test_httgw_reasm_sizes.c
+ * @brief URI 크기와 세그먼트 크기 변화에 따른 재조립 단위 테스트
+ */
 #include <arpa/inet.h>
 #include <net/ethernet.h>
 #include <stdint.h>
@@ -17,6 +21,9 @@
         }                                         \
     } while (0)
 
+/**
+ * @brief 요청 수와 에러 수를 기록하는 테스트 컨텍스트
+ */
 typedef struct {
     int    req_count;
     int    err_count;
@@ -24,6 +31,9 @@ typedef struct {
     char   first_method[16];
 } test_ctx_t;
 
+/**
+ * @brief synthetic TCP 세그먼트 생성용 입력 필드 묶음
+ */
 typedef struct {
     uint32_t       sip;
     uint16_t       sport;
@@ -47,6 +57,16 @@ static uint64_t now_ns(void) {
     return ((uint64_t)ts.tv_sec * 1000000000ULL) + (uint64_t)ts.tv_nsec;
 }
 
+/**
+ * @brief HTTP 요청 완성 시 호출되는 테스트 콜백
+ *
+ * @param flow
+ * @param dir
+ * @param msg
+ * @param query
+ * @param query_len
+ * @param user test_ctx_t*
+ */
 static void on_request_cb(const flow_key_t *flow, tcp_dir_t dir,
                           const http_message_t *msg, const char *query,
                           size_t query_len, void *user) {
@@ -62,6 +82,13 @@ static void on_request_cb(const flow_key_t *flow, tcp_dir_t dir,
              msg->method);
 }
 
+/**
+ * @brief 재조립 또는 파싱 오류를 기록하는 테스트 콜백
+ *
+ * @param stage
+ * @param detail
+ * @param user test_ctx_t*
+ */
 static void on_error_cb(const char *stage, const char *detail, void *user) {
     test_ctx_t *ctx = (test_ctx_t *)user;
     (void)stage;

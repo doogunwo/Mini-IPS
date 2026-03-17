@@ -1,3 +1,7 @@
+/**
+ * @file test_engine_detect.c
+ * @brief 탐지 엔진 단독 처리량 및 URI 크기별 탐지 성능 벤치마크
+ */
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,8 +18,19 @@
 #define TEST_ITERATIONS 5U
 #define ERRBUF_SIZE 256U
 
+/**
+ * @brief URI 길이 변화에 따른 탐지 성능을 보기 위한 테스트 케이스 모음
+ */
 static const size_t g_uri_sizes[] = {900U, 1800U, 3600U, 7200U, 131072U};
 
+/**
+ * @brief 문자열을 새 버퍼에 복사해 http_message_t 필드로 넘길 준비를 한다.
+ *
+ * @param dst 복사 결과 버퍼 주소를 돌려받을 포인터
+ * @param dst_len 복사한 문자열 길이를 돌려받을 포인터
+ * @param src 복사할 원본 문자열
+ * @return int 0=성공, 음수=실패
+ */
 static int alloc_copy(uint8_t **dst, size_t *dst_len, const char *src) {
     size_t len;
 
@@ -34,6 +49,14 @@ static int alloc_copy(uint8_t **dst, size_t *dst_len, const char *src) {
     return 0;
 }
 
+/**
+ * @brief 목표 길이에 맞는 테스트용 URI를 생성한다.
+ *
+ * @param uri 결과 URI를 기록할 버퍼
+ * @param uri_size 결과 버퍼 크기
+ * @param target_len 생성할 URI 문자열 길이
+ * @return int 0=성공, 음수=실패
+ */
 static int build_test_uri(char *uri, size_t uri_size, size_t target_len) {
     const char *prefix  = "/bench?x=";
     const char *payload = "%27%20union%20select%201,2,3%20from%20dual--";
@@ -59,6 +82,13 @@ static int build_test_uri(char *uri, size_t uri_size, size_t target_len) {
     return 0;
 }
 
+/**
+ * @brief 탐지 엔진에 넣을 HTTP 요청 메시지를 구성한다.
+ *
+ * @param msg 초기화할 HTTP 메시지 구조체
+ * @param uri_len 생성할 URI 길이
+ * @return int 0=성공, 음수=실패
+ */
 static int prepare_message(http_message_t *msg, size_t uri_len) {
     const char *headers =
         "Host: localhost\r\n"
@@ -92,6 +122,15 @@ static int prepare_message(http_message_t *msg, size_t uri_len) {
     return 0;
 }
 
+/**
+ * @brief 선택한 backend로 동일 메시지를 반복 탐지해 평균 탐지 시간을 측정한다.
+ *
+ * @param backend_name 사용할 탐지 backend 이름
+ * @param msg 탐지 대상 HTTP 메시지
+ * @param iterations 반복 횟수
+ * @param uri_len 출력용 URI 길이
+ * @return int 0=성공, 음수=실패
+ */
 static int run_backend(const char *backend_name, const http_message_t *msg,
                        unsigned int iterations, size_t uri_len) {
     char                 errbuf[ERRBUF_SIZE];
@@ -160,6 +199,13 @@ static int run_backend(const char *backend_name, const http_message_t *msg,
     return 0;
 }
 
+/**
+ * @brief backend별 탐지 처리량 비교 벤치마크 메인 함수
+ *
+ * @param argc
+ * @param argv argv[1]=iterations
+ * @return int
+ */
 int main(int argc, char **argv) {
     unsigned int iterations = TEST_ITERATIONS;
     size_t       i;
