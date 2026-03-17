@@ -561,6 +561,7 @@ ips_operator_t ips_operator_from_string(const char *name) {
     return IPS_OP_UNKNOWN;
 }
 
+
 /**
  * @brief operator enum을 사람이 읽을 문자열로 변환한다.
  *

@@ -475,14 +475,6 @@ void request_rst_both(app_ctx_t *app, const flow_key_t *flow,
     if (httgw_get_session_snapshot(app->gw, flow, &snap) != 0) {
         return;
     }
-    if (!snap.seen_ab || !snap.seen_ba) {
-        app_log_write(app->shared, "INFO",
-                      "event=rst_skip event_id=%s reason=waiting_bidir "
-                      "seen_ab=%u seen_ba=%u",
-                      (event_id && event_id[0] != '\0') ? event_id : "-",
-                      snap.seen_ab, snap.seen_ba);
-        return;
-    }
 
     /* 실제 RST가 관측될 때 relative seq 로그를 복원할 수 있도록 보관한다. */
     rst_log_cache_put(app, flow, &snap, 0);
@@ -528,10 +520,11 @@ void request_block_action_v2(app_ctx_t *app, const flow_key_t *flow,
     }
     if (!snap.seen_ab || !snap.seen_ba) {
         app_log_write(app->shared, "INFO",
-                      "event=block_inject_skip event_id=%s "
+                      "event=block_inject_fallback event_id=%s "
                       "reason=waiting_bidir seen_ab=%u seen_ba=%u",
                       (event_id && event_id[0] != '\0') ? event_id : "-",
                       snap.seen_ab, snap.seen_ba);
+        request_rst_both(app, flow, event_id);
         return;
     }
 

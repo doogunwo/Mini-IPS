@@ -243,7 +243,7 @@ static int test_rst_seq_ack_bidir(void) {
     return 0;
 }
 
-static int test_rst_fallback_uses_other_direction(void) {
+static int test_rst_best_effort_when_single_direction_seen(void) {
     httgw_t      *gw;
     httgw_cfg_t   cfg;
     tx_ctx_t      tx;
@@ -280,13 +280,17 @@ static int test_rst_fallback_uses_other_direction(void) {
     flow.dst_port = 8080;
     flow.proto    = 6;
 
-    CHECK(httgw_request_rst(gw, &flow, DIR_BA) == -3,
-          "httgw_request_rst BA fallback failed");
-    CHECK(cap.calls == 0, "fallback RST should not send");
+    cap.calls = 0;
+    CHECK(httgw_request_rst(gw, &flow, DIR_BA) == 0,
+          "httgw_request_rst BA best-effort fallback failed");
+    CHECK(assert_rst_pkt(&cap, 0x0A000002, 8080, 0x0A000001, 3333,
+                         50U + HTTGW_SERVER_NEXT_BIAS + 4095U, 104U) == 0,
+          "BA best-effort RST packet assert failed");
 
     fprintf(stderr,
-            "[test_httgw_rst] case=fallback_missing_direction rc=-3 calls=%d\n",
-            cap.calls);
+            "[test_httgw_rst] case=single_direction_ba calls=%d len=%zu seq=%u "
+            "ack=%u\n",
+            cap.calls, cap.len, 50U + HTTGW_SERVER_NEXT_BIAS + 4095U, 104U);
 
     httgw_destroy(gw);
     return 0;
@@ -296,7 +300,7 @@ int main(void) {
     if (test_rst_seq_ack_bidir() != 0) {
         return 1;
     }
-    if (test_rst_fallback_uses_other_direction() != 0) {
+    if (test_rst_best_effort_when_single_direction_seen() != 0) {
         return 1;
     }
     printf("ok: test_httgw_rst\n");

@@ -946,6 +946,17 @@ int httgw_get_session_snapshot(const httgw_t *gw, const flow_key_t *flow,
     out->seen_ba      = sess->seen_ba;
     return 0;
 }
+
+/**
+ * @brief 광고된 TCP window 값에 window scale을 적용한다.
+ *
+ * @param win 16비트 TCP window 값
+ * @param win_scale SYN 옵션으로 학습한 window scale
+ * @return uint32_t scale이 적용된 window 크기
+ */
+static uint32_t scaled_window_value(uint16_t win, uint8_t win_scale) {
+    return ((uint32_t)win) << (win_scale > 14 ? 14 : win_scale);
+}
 /**
  * @brief 헤더 이름 대소문자 무시 비교함
  * a[0..an-1],
@@ -1378,6 +1389,73 @@ int tx_send_rst(void *tx_ctx, const flow_key_t *flow, tcp_dir_t dir,
 }
 
 /**
+ * @brief snapshot에서 RST burst용 seq/ack/window 기준값을 계산한다.
+ *
+ * 양방향 세션을 모두 본 경우에는 기존 계산식을 유지한다. 아직 반대 방향
+ * 패킷을 보지 못한 초기 단계에서는, 관측한 방향의 마지막 ACK 값을 반대 방향
+ * seq의 근사치로 사용해 best-effort unilateral RST를 허용한다.
+ *
+ * @param snap 현재 세션 상태 snapshot
+ * @param dir RST를 보낼 방향
+ * @param seq_base 계산된 seq 기준값
+ * @param ack 계산된 ack 값
+ * @param win 계산된 수신 window
+ * @return int 계산 성공 시 0, 상태 부족 시 -1
+ */
+static int calc_rst_params_from_snapshot(const httgw_sess_snapshot_t *snap,
+                                         tcp_dir_t                    dir,
+                                         uint32_t                    *seq_base,
+                                         uint32_t                    *ack,
+                                         uint32_t                    *win) {
+    if (NULL == snap || NULL == seq_base || NULL == ack || NULL == win) {
+        return -1;
+    }
+
+    if (DIR_AB == dir) {
+        if (0 != snap->seen_ab && 0 != snap->seen_ba) {
+            if (0 == snap->next_seq_ab || 0 == snap->next_seq_ba) {
+                return -1;
+            }
+
+            *seq_base = snap->next_seq_ab;
+            *ack      = snap->next_seq_ba + HTTGW_SERVER_NEXT_BIAS;
+            *win      = scaled_window_value(snap->win_ba, snap->win_scale_ba);
+            return (0 == *win) ? -1 : 0;
+        }
+
+        if (0 == snap->seen_ba || 0 == snap->next_seq_ba ||
+            0 == snap->last_ack_ba) {
+            return -1;
+        }
+
+        *seq_base = snap->last_ack_ba;
+        *ack      = snap->next_seq_ba + HTTGW_SERVER_NEXT_BIAS;
+        *win      = scaled_window_value(snap->win_ba, snap->win_scale_ba);
+        return (0 == *win) ? -1 : 0;
+    }
+
+    if (0 != snap->seen_ab && 0 != snap->seen_ba) {
+        if (0 == snap->next_seq_ab || 0 == snap->next_seq_ba) {
+            return -1;
+        }
+
+        *seq_base = snap->next_seq_ba + HTTGW_SERVER_NEXT_BIAS;
+        *ack      = snap->next_seq_ab;
+        *win      = scaled_window_value(snap->win_ab, snap->win_scale_ab);
+        return (0 == *win) ? -1 : 0;
+    }
+
+    if (0 == snap->seen_ab || 0 == snap->next_seq_ab || 0 == snap->last_ack_ab) {
+        return -1;
+    }
+
+    *seq_base = snap->last_ack_ab + HTTGW_SERVER_NEXT_BIAS;
+    *ack      = snap->next_seq_ab;
+    *win      = scaled_window_value(snap->win_ab, snap->win_scale_ab);
+    return (0 == *win) ? -1 : 0;
+}
+
+/**
  * @brief 세션 상태 또는 snapshot을 기준으로 RST 패킷 버스트를 전송한다.
  *
  * 지정한 flow와 방향(dir)에 대해 현재 TCP 상태를 계산하고,
@@ -1397,6 +1475,8 @@ int httgw_request_rst_with_snapshot(httgw_t *gw, const flow_key_t *flow,
                                     tcp_dir_t                    dir,
                                     const httgw_sess_snapshot_t *snap) {
     httgw_session_t *sess;
+    httgw_sess_snapshot_t live_snap;
+    const httgw_sess_snapshot_t *rst_snap;
     uint32_t         seq_base = 0;
     uint32_t         ack      = 0;
     uint32_t         win      = 0;
@@ -1434,60 +1514,32 @@ int httgw_request_rst_with_snapshot(httgw_t *gw, const flow_key_t *flow,
     }
 
     /*
-     * snapshot이 주어지면 그 값을 우선 사용하고,
-     * 없으면 현재 세션 상태에서 seq/ack/window 기준값을 계산한다.
+     * snapshot이 없으면 live session을 동일한 snapshot 형태로 복사해 같은 계산
+     * 경로를 사용한다. 이렇게 하면 양방향 세션이 아직 완성되지 않아도, 마지막
+     * ACK를 기반으로 best-effort unilateral RST를 계산할 수 있다.
      */
     if (NULL != snap) {
-        if (0 == snap->seen_ab || 0 == snap->seen_ba) {
-            return -3;
-        }
-
-        /* AB 방향 RST는 AB의 다음 seq와 BA가 광고한 window를 기준으로 잡는다.
-         */
-        if (dir == DIR_AB) {
-            if (snap->next_seq_ab == 0 || snap->next_seq_ba == 0) {
-                return -3;
-            }
-            seq_base = snap->next_seq_ab;
-            ack      = snap->next_seq_ba + HTTGW_SERVER_NEXT_BIAS;
-            win      = ((uint32_t)snap->win_ba)
-                  << (snap->win_scale_ba > 14 ? 14 : snap->win_scale_ba);
-        } else {
-            /* BA 방향 RST는 BA의 다음 seq와 AB가 광고한 window를 기준으로
-             * 잡는다. */
-            if (snap->next_seq_ab == 0 || snap->next_seq_ba == 0) {
-                return -3;
-            }
-            seq_base = snap->next_seq_ba + HTTGW_SERVER_NEXT_BIAS;
-            ack      = snap->next_seq_ab;
-            win      = ((uint32_t)snap->win_ab)
-                  << (snap->win_scale_ab > 14 ? 14 : snap->win_scale_ab);
-        }
+        rst_snap = snap;
     } else {
-        if (0 == sess->seen_ab || 0 == sess->seen_ba) {
-            return -3;
-        }
+        memset(&live_snap, 0, sizeof(live_snap));
+        live_snap.base_seq_ab  = sess->base_seq_ab;
+        live_snap.base_seq_ba  = sess->base_seq_ba;
+        live_snap.last_ack_ab  = sess->last_ack_ab;
+        live_snap.next_seq_ab  = sess->next_seq_ab;
+        live_snap.last_ack_ba  = sess->last_ack_ba;
+        live_snap.next_seq_ba  = sess->next_seq_ba;
+        live_snap.win_ab       = sess->win_ab;
+        live_snap.win_ba       = sess->win_ba;
+        live_snap.win_scale_ab = sess->win_scale_ab;
+        live_snap.win_scale_ba = sess->win_scale_ba;
+        live_snap.seen_ab      = sess->seen_ab;
+        live_snap.seen_ba      = sess->seen_ba;
+        rst_snap               = &live_snap;
+    }
 
-        /* snapshot이 없으면 live session의 마지막 관측값으로 계산한다. */
-        if (dir == DIR_AB)  // Client -> Server
-        {
-            if (sess->next_seq_ab == 0 || sess->next_seq_ba == 0) {
-                return -3;
-            }
-            seq_base = sess->next_seq_ab;
-            ack      = sess->next_seq_ba + HTTGW_SERVER_NEXT_BIAS;
-            win      = ((uint32_t)sess->win_ba)
-                  << (sess->win_scale_ba > 14 ? 14 : sess->win_scale_ba);
-        } else  // Server -> Client
-        {
-            if (sess->next_seq_ab == 0 || sess->next_seq_ba == 0) {
-                return -3;
-            }
-            seq_base = sess->next_seq_ba + HTTGW_SERVER_NEXT_BIAS;
-            ack      = sess->next_seq_ab;
-            win      = ((uint32_t)sess->win_ab)
-                  << (sess->win_scale_ab > 14 ? 14 : sess->win_scale_ab);
-        }
+    if (0 != calc_rst_params_from_snapshot(rst_snap, dir, &seq_base, &ack,
+                                           &win)) {
+        return -3;
     }
 
     /* 수신 윈도우가 0이면 유효한 burst 분산 범위를 만들 수 없다. */

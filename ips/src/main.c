@@ -19,6 +19,7 @@
 #include <signal.h>
 #include <stdatomic.h>
 #include <stdint.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,6 +46,9 @@ static void on_packet(const uint8_t *data, uint32_t len, uint64_t ts_ns,
                       void *user);
 static void maybe_emit_monitor_stats(app_ctx_t *app, uint64_t ts_ms);
 static void destroy_workers(app_ctx_t *workers, int count);
+static int set_resolved_path(char *dst, size_t dst_len, const char *base,
+                             const char *suffix);
+static const char *resolve_block_page_template_path(void);
 static void usage(const char *prog);
 
 /**
@@ -111,6 +115,8 @@ int main(int argc, char **argv) {
         usage(argv[0]);
         return 1;
     }
+
+    g_block_page_template_path = resolve_block_page_template_path();
 
     if (engine_name != NULL) {
         char errbuf[64];
@@ -354,6 +360,97 @@ int main(int argc, char **argv) {
 static void on_sigint(int signo) {
     (void)signo;
     g_stop = 1;
+}
+
+/**
+ * @brief 기준 경로와 suffix를 안전하게 이어 붙여 출력 버퍼에 저장한다.
+ *
+ * @param dst 결과를 저장할 버퍼
+ * @param dst_len 결과 버퍼 크기
+ * @param base 기준 디렉터리 경로
+ * @param suffix 뒤에 붙일 상대 suffix
+ * @return int 성공 시 0, 버퍼 부족 또는 잘못된 입력이면 -1
+ */
+static int set_resolved_path(char *dst, size_t dst_len, const char *base,
+                             const char *suffix) {
+    size_t base_len;
+    size_t suffix_len;
+
+    if (NULL == dst || 0U == dst_len || NULL == base || NULL == suffix) {
+        return -1;
+    }
+
+    base_len   = strlen(base);
+    suffix_len = strlen(suffix);
+    if (base_len + suffix_len + 1U > dst_len) {
+        return -1;
+    }
+
+    memcpy(dst, base, base_len);
+    memcpy(dst + base_len, suffix, suffix_len + 1U);
+    return 0;
+}
+
+/**
+ * @brief 차단 페이지 템플릿 경로를 실행 위치와 무관하게 해석한다.
+ *
+ * 개발 환경에서는 `ips/` 루트 또는 `ips/build/`에서 바이너리를 실행하는
+ * 경우가 많다. 상대 경로 `DB/index.html`만 고정하면 `build/DB/index.html`
+ * 을 찾게 되어 차단 페이지 렌더링이 실패할 수 있으므로, 먼저 환경변수와
+ * 현재 작업 디렉터리 후보를 확인하고 마지막으로 실행 파일 위치 기준 후보를
+ * 순서대로 탐색한다.
+ *
+ * @return const char * 읽을 수 있는 템플릿 경로, 없으면 기본 상대 경로
+ */
+static const char *resolve_block_page_template_path(void) {
+    static char resolved[PATH_MAX];
+    static const char *const cwd_candidates[] = {
+        "DB/index.html",
+        "../DB/index.html",
+        "../../DB/index.html",
+        NULL,
+    };
+    const char *env_path;
+    size_t      i;
+    char        exe_path[PATH_MAX];
+    ssize_t     exe_len;
+
+    env_path = getenv("IPS_BLOCK_PAGE_TEMPLATE");
+    if (NULL != env_path && '\0' != env_path[0] && 0 == access(env_path, R_OK)) {
+        return env_path;
+    }
+
+    for (i = 0; NULL != cwd_candidates[i]; i++) {
+        if (0 == access(cwd_candidates[i], R_OK)) {
+            snprintf(resolved, sizeof(resolved), "%s", cwd_candidates[i]);
+            return resolved;
+        }
+    }
+
+    exe_len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+    if (exe_len > 0) {
+        char *slash;
+
+        exe_path[exe_len] = '\0';
+        slash             = strrchr(exe_path, '/');
+        if (NULL != slash) {
+            *slash = '\0';
+
+            if (0 == set_resolved_path(resolved, sizeof(resolved), exe_path,
+                                       "/../DB/index.html") &&
+                0 == access(resolved, R_OK)) {
+                return resolved;
+            }
+
+            if (0 == set_resolved_path(resolved, sizeof(resolved), exe_path,
+                                       "/DB/index.html") &&
+                0 == access(resolved, R_OK)) {
+                return resolved;
+            }
+        }
+    }
+
+    return "DB/index.html";
 }
 
 /**

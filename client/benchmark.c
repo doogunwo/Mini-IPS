@@ -312,8 +312,7 @@ static payload_variant_t choose_variant(payload_kind_t kind, unsigned int *varia
     size_t idx = 0;
     payload_variant_t empty = {"", ""};
 
-    if (variants == NULL || count == 0)
-    {
+    if (variants == NULL || count == 0) {
         if (variant_index != NULL)
         {
             *variant_index = 0;
