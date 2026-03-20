@@ -6,6 +6,8 @@ REPO_DIR=$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)
 
 if [ -n "${MONITOR_LOG_FILE:-}" ]; then
   MONITOR_LOG_PATH="${MONITOR_LOG_FILE}"
+elif [ -f "${REPO_DIR}/logs/monitor.log" ]; then
+  MONITOR_LOG_PATH="${REPO_DIR}/logs/monitor.log"
 elif [ -f "/logs/monitor.log" ]; then
   MONITOR_LOG_PATH="/logs/monitor.log"
 else

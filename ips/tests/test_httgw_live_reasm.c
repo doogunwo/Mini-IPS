@@ -233,12 +233,12 @@ static void test_large_request_two_segments(void) {
     sp.seq         = 1;
     sp.payload     = (const uint8_t *)req;
     sp.payload_len = (uint32_t)cut;
-    assert(feed_segment(gw, &sp, 1000) == 1);
+    assert(feed_segment(gw, &sp, 1000) == 0);
 
     sp.seq         = 1U + (uint32_t)cut;
     sp.payload     = (const uint8_t *)req + cut;
     sp.payload_len = (uint32_t)(req_len - cut);
-    assert(feed_segment(gw, &sp, 1001) == 1);
+    assert(feed_segment(gw, &sp, 1001) == 0);
 
     assert(ctx.err_count == 0);
    assert(ctx.req_count == 1);
@@ -293,25 +293,25 @@ static void test_keepalive_two_large_requests(void) {
     sp.seq         = seq;
     sp.payload     = (const uint8_t *)req1;
     sp.payload_len = (uint32_t)cut1;
-    assert(feed_segment(gw, &sp, 1000) == 1);
+    assert(feed_segment(gw, &sp, 1000) == 0);
     seq += (uint32_t)cut1;
 
     sp.seq         = seq;
     sp.payload     = (const uint8_t *)req1 + cut1;
     sp.payload_len = (uint32_t)(len1 - cut1);
-    assert(feed_segment(gw, &sp, 1001) == 1);
+    assert(feed_segment(gw, &sp, 1001) == 0);
     seq += (uint32_t)(len1 - cut1);
 
     sp.seq         = seq;
     sp.payload     = (const uint8_t *)req2;
     sp.payload_len = (uint32_t)cut2;
-    assert(feed_segment(gw, &sp, 1002) == 1);
+    assert(feed_segment(gw, &sp, 1002) == 0);
     seq += (uint32_t)cut2;
 
     sp.seq         = seq;
     sp.payload     = (const uint8_t *)req2 + cut2;
     sp.payload_len = (uint32_t)(len2 - cut2);
-    assert(feed_segment(gw, &sp, 1003) == 1);
+    assert(feed_segment(gw, &sp, 1003) == 0);
 
     assert(ctx.err_count == 0);
     assert(ctx.req_count == 2);
@@ -357,19 +357,19 @@ static void test_duplicate_segments_single_request(void) {
     sp.seq         = 1;
     sp.payload     = (const uint8_t *)req;
     sp.payload_len = (uint32_t)cut;
-    assert(feed_segment(gw, &sp, 2000) == 1);
+    assert(feed_segment(gw, &sp, 2000) == 0);
 
     /* duplicate first segment */
-    assert(feed_segment(gw, &sp, 2001) == 1);
+    assert(feed_segment(gw, &sp, 2001) == 0);
 
     /* second segment */
     sp.seq         = 1U + (uint32_t)cut;
     sp.payload     = (const uint8_t *)req + cut;
     sp.payload_len = (uint32_t)(req_len - cut);
-    assert(feed_segment(gw, &sp, 2002) == 1);
+    assert(feed_segment(gw, &sp, 2002) == 0);
 
     /* duplicate second segment */
-    assert(feed_segment(gw, &sp, 2003) == 1);
+    assert(feed_segment(gw, &sp, 2003) == 0);
 
     assert(ctx.err_count == 0);
     assert(ctx.req_count == 1);
@@ -417,13 +417,13 @@ static void test_out_of_order_segments_single_request(void) {
     sp.seq         = 1U + (uint32_t)cut;
     sp.payload     = (const uint8_t *)req + cut;
     sp.payload_len = (uint32_t)(req_len - cut);
-    assert(feed_segment(gw, &sp, 3000) == 1);
+    assert(feed_segment(gw, &sp, 3000) == 0);
 
     /* then first segment */
     sp.seq         = 1;
     sp.payload     = (const uint8_t *)req;
     sp.payload_len = (uint32_t)cut;
-    assert(feed_segment(gw, &sp, 3001) == 1);
+    assert(feed_segment(gw, &sp, 3001) == 0);
 
     assert(ctx.err_count == 0);
     assert(ctx.req_count == 1);
@@ -477,7 +477,7 @@ static void test_interleaved_server_reply_between_request_segments(void) {
     sp.flags       = TCP_ACK | TCP_PSH;
     sp.payload     = (const uint8_t *)req;
     sp.payload_len = (uint32_t)cut;
-    assert(feed_segment(gw, &sp, 4000) == 1);
+    assert(feed_segment(gw, &sp, 4000) == 0);
 
     /* 2) server response payload */
     sp.sip         = 0xAC1F003C;
@@ -489,7 +489,7 @@ static void test_interleaved_server_reply_between_request_segments(void) {
     sp.flags       = TCP_ACK | TCP_PSH;
     sp.payload     = (const uint8_t *)resp;
     sp.payload_len = (uint32_t)strlen(resp);
-    assert(feed_segment(gw, &sp, 4001) == 1);
+    assert(feed_segment(gw, &sp, 4001) == 0);
 
     /* 3) client ACK */
     sp.sip         = 0xAC1F003A;
@@ -501,7 +501,7 @@ static void test_interleaved_server_reply_between_request_segments(void) {
     sp.flags       = TCP_ACK;
     sp.payload     = NULL;
     sp.payload_len = 0;
-    assert(feed_segment(gw, &sp, 4002) == 1);
+    assert(feed_segment(gw, &sp, 4002) == 0);
 
     /* 4) client request seg2 */
     sp.seq         = 1U + (uint32_t)cut;
@@ -509,7 +509,7 @@ static void test_interleaved_server_reply_between_request_segments(void) {
     sp.flags       = TCP_ACK | TCP_PSH;
     sp.payload     = (const uint8_t *)req + cut;
     sp.payload_len = (uint32_t)(req_len - cut);
-    assert(feed_segment(gw, &sp, 4003) == 1);
+    assert(feed_segment(gw, &sp, 4003) == 0);
 
     assert(ctx.err_count == 0);
     assert(ctx.req_count == 1);

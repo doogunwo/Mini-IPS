@@ -60,7 +60,7 @@ static regex_backend_t g_selected_backend = REGEX_BACKEND_PCRE2;
  * @param msg 기록할 오류 메시지
  */
 static void set_err(char *errbuf, size_t errbuf_size, const char *msg) {
-    if (errbuf == NULL || errbuf_size == 0) {
+    if (NULL == errbuf || 0U == errbuf_size) {
         return;
     }
     snprintf(errbuf, errbuf_size, "%s", msg != NULL ? msg : "unknown error");
@@ -84,7 +84,7 @@ static int detect_match_list_append_local(
     char           *copy;
     size_t          next_cap;
 
-    if (matches == NULL) {
+    if (NULL == matches) {
         return -1;
     }
 
@@ -92,7 +92,7 @@ static int detect_match_list_append_local(
         next_cap   = matches->capacity != 0 ? matches->capacity * 2U : 8U;
         next_items = (detect_match_t *)realloc(matches->items,
                                                next_cap * sizeof(*next_items));
-        if (next_items == NULL) {
+        if (NULL == next_items) {
             return -1;
         }
         matches->items    = next_items;
@@ -100,10 +100,10 @@ static int detect_match_list_append_local(
     }
 
     copy = (char *)malloc(matched_len + 1U);
-    if (copy == NULL) {
+    if (NULL == copy) {
         return -1;
     }
-    if (matched_len > 0) {
+    if (0U < matched_len) {
         memcpy(copy, matched_text, matched_len);
     }
     copy[matched_len] = '\0';
@@ -124,10 +124,10 @@ static int detect_match_list_append_local(
  * @return int 호환되면 1, 아니면 0
  */
 static int rule_context_matches(const IPS_Signature *rule, ips_context_t ctx) {
-    if (rule == NULL) {
+    if (NULL == rule) {
         return 0;
     }
-    if (ctx == IPS_CTX_ALL || rule->context == IPS_CTX_ALL) {
+    if (IPS_CTX_ALL == ctx || IPS_CTX_ALL == rule->context) {
         return 1;
     }
     return rule->context == ctx;
@@ -143,11 +143,15 @@ static int rule_context_matches(const IPS_Signature *rule, ips_context_t ctx) {
  */
 int engine_set_backend_name(const char *name, char *errbuf,
                             size_t errbuf_size) {
-    if (strcmp(name, "pcre2") == 0) {
+    int ret;
+
+    ret = strcmp(name, "pcre2");
+    if (0 == ret) {
         g_selected_backend = REGEX_BACKEND_PCRE2;
         return 0;
     }
-    if (strcmp(name, "hs") == 0) {
+    ret = strcmp(name, "hs");
+    if (0 == ret) {
         g_selected_backend = REGEX_BACKEND_HS;
         return 0;
     }
@@ -163,25 +167,25 @@ int engine_set_backend_name(const char *name, char *errbuf,
 static void pcre2_release(engine_runtime_t *runtime) {
     unsigned int i;
 
-    if (runtime == NULL || runtime->compiled_rules == NULL) {
+    if (NULL == runtime || NULL == runtime->compiled_rules) {
         return;
     }
 
-    if (runtime->jit_stack != NULL) {
+    if (NULL != runtime->jit_stack) {
         pcre2_jit_stack_free(runtime->jit_stack);
         runtime->jit_stack = NULL;
     }
-    if (runtime->match_ctx != NULL) {
+    if (NULL != runtime->match_ctx) {
         pcre2_match_context_free(runtime->match_ctx);
         runtime->match_ctx = NULL;
     }
 
     for (i = 0; i < runtime->compiled_count; i++) {
-        if (runtime->compiled_rules[i].match_data != NULL) {
+        if (NULL != runtime->compiled_rules[i].match_data) {
             pcre2_match_data_free(runtime->compiled_rules[i].match_data);
             runtime->compiled_rules[i].match_data = NULL;
         }
-        if (runtime->compiled_rules[i].re != NULL) {
+        if (NULL != runtime->compiled_rules[i].re) {
             pcre2_code_free(runtime->compiled_rules[i].re);
             runtime->compiled_rules[i].re = NULL;
         }
@@ -197,17 +201,17 @@ static void hs_release(engine_runtime_t *runtime) {
     unsigned int i;
     unsigned int ctx;
 
-    if (runtime == NULL) {
+    if (NULL == runtime) {
         return;
     }
 
-    if (runtime->hs_scratch != NULL) {
+    if (NULL != runtime->hs_scratch) {
         hs_free_scratch(runtime->hs_scratch);
         runtime->hs_scratch = NULL;
     }
 
     for (ctx = 0; ctx <= (unsigned int)IPS_CTX_RESPONSE_BODY; ctx++) {
-        if (runtime->hs_groups[ctx].db != NULL) {
+        if (NULL != runtime->hs_groups[ctx].db) {
             hs_free_database(runtime->hs_groups[ctx].db);
             runtime->hs_groups[ctx].db = NULL;
         }
@@ -217,10 +221,10 @@ static void hs_release(engine_runtime_t *runtime) {
     }
 
     for (i = 0; i < runtime->compiled_count; i++) {
-        if (runtime->compiled_rules[i].re != NULL) {
+        if (NULL != runtime->compiled_rules[i].re) {
             runtime->compiled_rules[i].re = NULL;
         }
-        if (runtime->compiled_rules[i].match_data != NULL) {
+        if (NULL != runtime->compiled_rules[i].match_data) {
             runtime->compiled_rules[i].match_data = NULL;
         }
     }
@@ -244,10 +248,11 @@ static int hs_on_match(unsigned int id, unsigned long long from,
     unsigned int           rule_index;
     size_t                 match_off;
     size_t                 match_len;
+    int                    ret;
 
     (void)flags;
 
-    if (scan_ctx == NULL || scan_ctx->runtime == NULL) {
+    if (NULL == scan_ctx || NULL == scan_ctx->runtime) {
         return 1;
     }
 
@@ -256,38 +261,39 @@ static int hs_on_match(unsigned int id, unsigned long long from,
     }
 
     rule_index = id;
-    if (scan_ctx->seen != NULL && scan_ctx->seen[rule_index]) {
+    if (NULL != scan_ctx->seen && 0 != scan_ctx->seen[rule_index]) {
         return 0;
     }
 
     compiled_rule = &scan_ctx->runtime->compiled_rules[rule_index];
     rule          = compiled_rule->rule;
-    if (rule == NULL) {
+    if (NULL == rule) {
         return 0;
     }
 
     scan_ctx->matched_any = 1;
-    if (scan_ctx->seen != NULL) {
+    if (NULL != scan_ctx->seen) {
         scan_ctx->seen[rule_index] = 1;
     }
 
-    if (scan_ctx->first_rule != NULL && *scan_ctx->first_rule == NULL) {
+    if (NULL != scan_ctx->first_rule && NULL == *scan_ctx->first_rule) {
         *scan_ctx->first_rule = rule;
     }
 
-    if (scan_ctx->matches != NULL) {
+    if (NULL != scan_ctx->matches) {
         match_off = (size_t)from;
         match_len = (size_t)(to >= from ? (to - from) : 0);
-        if (match_off > scan_ctx->data_len) {
+        if (scan_ctx->data_len < match_off) {
             match_off = scan_ctx->data_len;
             match_len = 0;
         }
-        if (match_off + match_len > scan_ctx->data_len) {
+        if (scan_ctx->data_len < match_off + match_len) {
             match_len = scan_ctx->data_len - match_off;
         }
-        if (detect_match_list_append_local(
-                scan_ctx->matches, rule, scan_ctx->ctx,
-                (const char *)scan_ctx->data + match_off, match_len, 0) != 0) {
+        ret = detect_match_list_append_local(
+            scan_ctx->matches, rule, scan_ctx->ctx,
+            (const char *)scan_ctx->data + match_off, match_len, 0);
+        if (0 != ret) {
             return 1;
         }
     }
@@ -315,26 +321,27 @@ static int compile_pcre2_rule(engine_runtime_t *runtime, compiled_rule_t *slot,
     uint32_t    jit_cfg   = 0;
     int         rc_cfg;
     int         jit_rc;
+    int         jit_info_rc;
     size_t      jit_size = 0;
     PCRE2_UCHAR errstr[256];
 
     rc_cfg = pcre2_config(PCRE2_CONFIG_JIT, &jit_cfg);
-    if (jit_mode == DETECT_JIT_OFF) {
+    if (DETECT_JIT_OFF == jit_mode) {
         runtime->jit_enabled = 0;
-    } else if (jit_mode == DETECT_JIT_ON) {
-        if (!(rc_cfg == 0 && jit_cfg == 1)) {
+    } else if (DETECT_JIT_ON == jit_mode) {
+        if (!(0 == rc_cfg && 1U == jit_cfg)) {
             set_err(errbuf, errbuf_size,
                     "requested -jit=on but PCRE2 JIT is unavailable");
             return -1;
         }
         runtime->jit_enabled = 1;
     } else {
-        runtime->jit_enabled = (rc_cfg == 0 && jit_cfg == 1) ? 1 : 0;
+        runtime->jit_enabled = (0 == rc_cfg && 1U == jit_cfg) ? 1 : 0;
     }
 
     slot->re = pcre2_compile((PCRE2_SPTR)rule->pattern, PCRE2_ZERO_TERMINATED,
                              PCRE2_CASELESS, &errcode, &erroffset, NULL);
-    if (slot->re == NULL) {
+    if (NULL == slot->re) {
         char msg[256];
         pcre2_get_error_message(errcode, errstr, sizeof(errstr));
         snprintf(msg, sizeof(msg),
@@ -345,19 +352,19 @@ static int compile_pcre2_rule(engine_runtime_t *runtime, compiled_rule_t *slot,
     }
 
     slot->match_data = pcre2_match_data_create_from_pattern(slot->re, NULL);
-    if (slot->match_data == NULL) {
+    if (NULL == slot->match_data) {
         set_err(errbuf, errbuf_size,
                 "pcre2_match_data_create_from_pattern failed");
         return -1;
     }
 
-    if (!runtime->jit_enabled) {
+    if (0 == runtime->jit_enabled) {
         return 0;
     }
 
     jit_rc = pcre2_jit_compile(slot->re, PCRE2_JIT_COMPLETE);
-    if (jit_rc != 0) {
-        if (jit_mode == DETECT_JIT_ON) {
+    if (0 != jit_rc) {
+        if (DETECT_JIT_ON == jit_mode) {
             char msg[256];
             pcre2_get_error_message(jit_rc, errstr, sizeof(errstr));
             snprintf(msg, sizeof(msg),
@@ -370,9 +377,9 @@ static int compile_pcre2_rule(engine_runtime_t *runtime, compiled_rule_t *slot,
         return 0;
     }
 
-    if (pcre2_pattern_info(slot->re, PCRE2_INFO_JITSIZE, &jit_size) != 0 ||
-        jit_size == 0) {
-        if (jit_mode == DETECT_JIT_ON) {
+    jit_info_rc = pcre2_pattern_info(slot->re, PCRE2_INFO_JITSIZE, &jit_size);
+    if (0 != jit_info_rc || 0U == jit_size) {
+        if (DETECT_JIT_ON == jit_mode) {
             char msg[256];
             snprintf(msg, sizeof(msg),
                      "pcre2 JIT compile unavailable for rid=%d", rule->rule_id);
@@ -407,30 +414,32 @@ static int compile_hs_group(engine_runtime_t *runtime, hs_group_t *group,
     hs_error_t          rc;
     unsigned int        count = 0;
     unsigned int        i;
+    int                 rule_matches;
 
     for (i = 0; i < runtime->compiled_count; i++) {
-        if (!rule_context_matches(runtime->compiled_rules[i].rule,
-                                  (ips_context_t)ctx)) {
+        rule_matches = rule_context_matches(runtime->compiled_rules[i].rule,
+                                            (ips_context_t)ctx);
+        if (0 == rule_matches) {
             continue;
         }
-        if (runtime->compiled_rules[i].rule == NULL ||
-            runtime->compiled_rules[i].rule->op != IPS_OP_RX) {
+        if (NULL == runtime->compiled_rules[i].rule ||
+            IPS_OP_RX != runtime->compiled_rules[i].rule->op) {
             continue;
         }
         count++;
     }
 
-    if (count == 0) {
+    if (0U == count) {
         return 0;
     }
 
-    patterns = (const char **)calloc(count, sizeof(*patterns));
-    flags    = (unsigned int *)calloc(count, sizeof(*flags));
-    ids      = (unsigned int *)calloc(count, sizeof(*ids));
+    patterns = (const char **)malloc(count * sizeof(*patterns));
+    flags    = (unsigned int *)malloc(count * sizeof(*flags));
+    ids      = (unsigned int *)malloc(count * sizeof(*ids));
     group->rule_indexes =
-        (unsigned int *)calloc(count, sizeof(*group->rule_indexes));
-    if (patterns == NULL || flags == NULL || ids == NULL ||
-        group->rule_indexes == NULL) {
+        (unsigned int *)malloc(count * sizeof(*group->rule_indexes));
+    if (NULL == patterns || NULL == flags || NULL == ids ||
+        NULL == group->rule_indexes) {
         free(patterns);
         free(flags);
         free(ids);
@@ -442,12 +451,13 @@ static int compile_hs_group(engine_runtime_t *runtime, hs_group_t *group,
 
     count = 0;
     for (i = 0; i < runtime->compiled_count; i++) {
-        if (!rule_context_matches(runtime->compiled_rules[i].rule,
-                                  (ips_context_t)ctx)) {
+        rule_matches = rule_context_matches(runtime->compiled_rules[i].rule,
+                                            (ips_context_t)ctx);
+        if (0 == rule_matches) {
             continue;
         }
-        if (runtime->compiled_rules[i].rule == NULL ||
-            runtime->compiled_rules[i].rule->op != IPS_OP_RX) {
+        if (NULL == runtime->compiled_rules[i].rule ||
+            IPS_OP_RX != runtime->compiled_rules[i].rule->op) {
             continue;
         }
         patterns[count]            = runtime->compiled_rules[i].rule->pattern;
@@ -465,26 +475,26 @@ static int compile_hs_group(engine_runtime_t *runtime, hs_group_t *group,
     free(flags);
     free(ids);
 
-    if (rc != HS_SUCCESS) {
+    if (HS_SUCCESS != rc) {
         char msg[256];
         snprintf(msg, sizeof(msg), "hs_compile_multi failed: ctx=%u err=%s",
                  ctx,
-                 (compile_err != NULL && compile_err->message != NULL)
+                 (NULL != compile_err && NULL != compile_err->message)
                      ? compile_err->message
                      : "unknown");
         set_err(errbuf, errbuf_size, msg);
-        if (compile_err != NULL) {
+        if (NULL != compile_err) {
             hs_free_compile_error(compile_err);
         }
         return -1;
     }
 
-    if (compile_err != NULL) {
+    if (NULL != compile_err) {
         hs_free_compile_error(compile_err);
     }
 
     rc = hs_alloc_scratch(group->db, &runtime->hs_scratch);
-    if (rc != HS_SUCCESS) {
+    if (HS_SUCCESS != rc) {
         set_err(errbuf, errbuf_size, "hs_alloc_scratch failed");
         return -1;
     }
@@ -510,52 +520,59 @@ engine_runtime_t *engine_runtime_create(const IPS_Signature *const *rules,
                                         char *errbuf, size_t errbuf_size) {
     engine_runtime_t *runtime;
     unsigned int      i;
+    int               ret;
 
-    runtime = (engine_runtime_t *)calloc(1, sizeof(*runtime));
-    if (runtime == NULL) {
+    runtime = (engine_runtime_t *)malloc(sizeof(*runtime));
+    if (NULL == runtime) {
         set_err(errbuf, errbuf_size, "engine alloc failed");
         return NULL;
     }
+    memset(runtime, 0, sizeof(*runtime));
 
     runtime->backend = g_selected_backend;
-    runtime->compiled_rules =
-        (compiled_rule_t *)calloc(rule_count, sizeof(*runtime->compiled_rules));
-    if (runtime->compiled_rules == NULL) {
-        set_err(errbuf, errbuf_size, "engine compile alloc failed");
-        engine_runtime_destroy(runtime);
-        return NULL;
+    if (0U != rule_count) {
+        runtime->compiled_rules = (compiled_rule_t *)malloc(
+            rule_count * sizeof(*runtime->compiled_rules));
+        if (NULL == runtime->compiled_rules) {
+            set_err(errbuf, errbuf_size, "engine compile alloc failed");
+            engine_runtime_destroy(runtime);
+            return NULL;
+        }
+        memset(runtime->compiled_rules, 0,
+               rule_count * sizeof(*runtime->compiled_rules));
     }
     runtime->compiled_count = rule_count;
 
     for (i = 0; i < rule_count; i++) {
         runtime->compiled_rules[i].rule = rules[i];
-        if (rules[i] == NULL || rules[i]->op != IPS_OP_RX) {
+        if (NULL == rules[i] || IPS_OP_RX != rules[i]->op) {
             continue;
         }
 
-        if (runtime->backend != REGEX_BACKEND_HS) {
-            if (compile_pcre2_rule(runtime, &runtime->compiled_rules[i],
-                                   rules[i], jit_mode, errbuf,
-                                   errbuf_size) != 0) {
+        if (REGEX_BACKEND_HS != runtime->backend) {
+            ret = compile_pcre2_rule(runtime, &runtime->compiled_rules[i],
+                                     rules[i], jit_mode, errbuf, errbuf_size);
+            if (0 != ret) {
                 engine_runtime_destroy(runtime);
                 return NULL;
             }
         }
     }
 
-    if (runtime->backend == REGEX_BACKEND_HS) {
+    if (REGEX_BACKEND_HS == runtime->backend) {
         for (i = 0; i <= (unsigned int)IPS_CTX_RESPONSE_BODY; i++) {
-            if (compile_hs_group(runtime, &runtime->hs_groups[i], i, errbuf,
-                                 errbuf_size) != 0) {
+            ret = compile_hs_group(runtime, &runtime->hs_groups[i], i, errbuf,
+                                   errbuf_size);
+            if (0 != ret) {
                 engine_runtime_destroy(runtime);
                 return NULL;
             }
         }
     }
 
-    if (runtime->backend == REGEX_BACKEND_PCRE2 && runtime->jit_enabled) {
+    if (REGEX_BACKEND_PCRE2 == runtime->backend && 0 != runtime->jit_enabled) {
         runtime->match_ctx = pcre2_match_context_create(NULL);
-        if (runtime->match_ctx == NULL) {
+        if (NULL == runtime->match_ctx) {
             set_err(errbuf, errbuf_size, "pcre2_match_context_create failed");
             engine_runtime_destroy(runtime);
             return NULL;
@@ -563,8 +580,8 @@ engine_runtime_t *engine_runtime_create(const IPS_Signature *const *rules,
 
         runtime->jit_stack =
             pcre2_jit_stack_create(32 * 1024, 512 * 1024, NULL);
-        if (runtime->jit_stack == NULL) {
-            if (jit_mode == DETECT_JIT_ON) {
+        if (NULL == runtime->jit_stack) {
+            if (DETECT_JIT_ON == jit_mode) {
                 set_err(errbuf, errbuf_size, "pcre2_jit_stack_create failed");
                 engine_runtime_destroy(runtime);
                 return NULL;
@@ -585,11 +602,11 @@ engine_runtime_t *engine_runtime_create(const IPS_Signature *const *rules,
  * @param runtime 해제할 runtime
  */
 void engine_runtime_destroy(engine_runtime_t *runtime) {
-    if (runtime == NULL) {
+    if (NULL == runtime) {
         return;
     }
 
-    if (runtime->backend == REGEX_BACKEND_HS) {
+    if (REGEX_BACKEND_HS == runtime->backend) {
         hs_release(runtime);
     } else {
         pcre2_release(runtime);
@@ -606,7 +623,23 @@ void engine_runtime_destroy(engine_runtime_t *runtime) {
  */
 static int regex_profile_enabled(void) {
     const char *v = getenv("IPS_PROFILE_REGEX");
-    return v != NULL && strcmp(v, "0") != 0 && strcmp(v, "false") != 0;
+    int         ret;
+
+    if (NULL == v) {
+        return 0;
+    }
+
+    ret = strcmp(v, "0");
+    if (0 == ret) {
+        return 0;
+    }
+
+    ret = strcmp(v, "false");
+    if (0 == ret) {
+        return 0;
+    }
+
+    return 1;
 }
 
 /**
@@ -619,11 +652,11 @@ static long regex_profile_threshold_us(void) {
     char       *end = NULL;
     long        n;
 
-    if (v == NULL || *v == '\0') {
+    if (NULL == v || '\0' == *v) {
         return 50000;
     }
     n = strtol(v, &end, 10);
-    if (end == v || n < 0) {
+    if (end == v || 0 > n) {
         return 50000;
     }
     return n;
@@ -636,7 +669,10 @@ static long regex_profile_threshold_us(void) {
  */
 static unsigned long long mono_us_now(void) {
     struct timespec ts;
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+    int             rc;
+
+    rc = clock_gettime(CLOCK_MONOTONIC, &ts);
+    if (0 != rc) {
         return 0;
     }
     return (unsigned long long)ts.tv_sec * 1000000ULL +
@@ -658,10 +694,16 @@ static unsigned long long mono_us_now(void) {
 static void maybe_log_rule_profile(const compiled_rule_t *compiled_rule,
                                    ips_context_t ctx, size_t len,
                                    unsigned long long elapsed_us, int rc) {
-    if (!regex_profile_enabled()) {
+    int  enabled;
+    long threshold_us;
+
+    enabled = regex_profile_enabled();
+    if (0 == enabled) {
         return;
     }
-    if ((long)elapsed_us < regex_profile_threshold_us()) {
+
+    threshold_us = regex_profile_threshold_us();
+    if (threshold_us > (long)elapsed_us) {
         return;
     }
 
@@ -691,7 +733,7 @@ static void maybe_log_rule_profile(const compiled_rule_t *compiled_rule,
  * @param match_len 첫 매칭 길이
  * @param errbuf 오류 버퍼
  * @param errbuf_size 오류 버퍼 크기
- * @return int 1이면 매칭, 0이면 미매칭, -1이면 오류
+ * @return int 0이면 정상 완료, -1이면 오류
  */
 static int engine_match_pcre2(engine_runtime_t      *runtime,
                               const compiled_rule_t *compiled_rule,
@@ -703,15 +745,15 @@ static int engine_match_pcre2(engine_runtime_t      *runtime,
 
     rc = pcre2_match(compiled_rule->re, (PCRE2_SPTR)data, len, 0, 0,
                      compiled_rule->match_data,
-                     runtime != NULL ? runtime->match_ctx : NULL);
+                     NULL != runtime ? runtime->match_ctx : NULL);
 
-    if (rc >= 0) {
+    if (0 <= rc) {
         ovector    = pcre2_get_ovector_pointer(compiled_rule->match_data);
         *match_off = (size_t)ovector[0];
         *match_len = (size_t)(ovector[1] - ovector[0]);
         return 1;
     }
-    if (rc == PCRE2_ERROR_NOMATCH) {
+    if (PCRE2_ERROR_NOMATCH == rc) {
         return 0;
     }
 
@@ -742,13 +784,13 @@ static int engine_match_hs(engine_runtime_t *runtime, ips_context_t ctx,
     hs_group_t   *group;
     hs_error_t    rc;
 
-    if (ctx < IPS_CTX_ALL || ctx > IPS_CTX_RESPONSE_BODY) {
+    if (IPS_CTX_ALL > ctx || IPS_CTX_RESPONSE_BODY < ctx) {
         set_err(errbuf, errbuf_size, "invalid hs ctx");
         return -1;
     }
 
     group = &runtime->hs_groups[ctx];
-    if (group->db == NULL) {
+    if (NULL == group->db) {
         return 0;
     }
 
@@ -762,11 +804,11 @@ static int engine_match_hs(engine_runtime_t *runtime, ips_context_t ctx,
 
     rc = hs_scan(group->db, (const char *)data, (unsigned int)len, 0,
                  runtime->hs_scratch, hs_on_match, &scan_ctx);
-    if (rc != HS_SUCCESS && rc != HS_SCAN_TERMINATED) {
+    if (HS_SUCCESS != rc && HS_SCAN_TERMINATED != rc) {
         set_err(errbuf, errbuf_size, "hs_scan error");
         return -1;
     }
-    if (!scan_ctx.matched_any) {
+    if (0 == scan_ctx.matched_any) {
         return 0;
     }
 
@@ -795,10 +837,10 @@ static int engine_match_one(engine_runtime_t      *runtime,
                             size_t               *match_len,
                             const IPS_Signature **matched_rule, char *errbuf,
                             size_t errbuf_size) {
-    if (runtime->backend == REGEX_BACKEND_HS) {
+    if (REGEX_BACKEND_HS == runtime->backend) {
         return engine_match_hs(
             runtime,
-            compiled_rule->rule != NULL ? compiled_rule->rule->context
+            NULL != compiled_rule->rule ? compiled_rule->rule->context
                                         : IPS_CTX_ALL,
             data, len, match_off, match_len, matched_rule, errbuf, errbuf_size);
     }
@@ -823,19 +865,20 @@ int engine_runtime_match_first(engine_runtime_t *runtime, const uint8_t *data,
                                const IPS_Signature **matched_rule, char *errbuf,
                                size_t errbuf_size) {
     unsigned int i;
+    int          rule_matches;
 
-    if (matched_rule != NULL) {
+    if (NULL != matched_rule) {
         *matched_rule = NULL;
     }
-    if (runtime == NULL || data == NULL || len == 0) {
+    if (NULL == runtime || NULL == data || 0U == len) {
         return 0;
     }
-    if (len > (size_t)INT_MAX) {
+    if ((size_t)INT_MAX < len) {
         set_err(errbuf, errbuf_size, "payload too large");
         return -1;
     }
 
-    if (runtime->backend == REGEX_BACKEND_HS) {
+    if (REGEX_BACKEND_HS == runtime->backend) {
         size_t             match_off = 0;
         size_t             match_len = 0;
         unsigned long long t0        = mono_us_now();
@@ -843,7 +886,7 @@ int engine_runtime_match_first(engine_runtime_t *runtime, const uint8_t *data,
                                  &match_len, matched_rule, errbuf, errbuf_size);
 
         maybe_log_rule_profile(NULL, ctx, len, mono_us_now() - t0, rc);
-        return rc;
+        return (rc < 0) ? -1 : 0;
     }
 
     for (i = 0; i < runtime->compiled_count; i++) {
@@ -851,11 +894,13 @@ int engine_runtime_match_first(engine_runtime_t *runtime, const uint8_t *data,
         size_t match_len = 0;
         int    rc;
 
-        if (!rule_context_matches(runtime->compiled_rules[i].rule, ctx)) {
+        rule_matches =
+            rule_context_matches(runtime->compiled_rules[i].rule, ctx);
+        if (0 == rule_matches) {
             continue;
         }
-        if (runtime->compiled_rules[i].rule == NULL ||
-            runtime->compiled_rules[i].rule->op != IPS_OP_RX) {
+        if (NULL == runtime->compiled_rules[i].rule ||
+            IPS_OP_RX != runtime->compiled_rules[i].rule->op) {
             continue;
         }
 
@@ -867,14 +912,14 @@ int engine_runtime_match_first(engine_runtime_t *runtime, const uint8_t *data,
             maybe_log_rule_profile(&runtime->compiled_rules[i], ctx, len,
                                    mono_us_now() - t0, rc);
         }
-        if (rc < 0) {
+        if (0 > rc) {
             return -1;
         }
-        if (rc > 0) {
-            if (matched_rule != NULL) {
+        if (0 < rc) {
+            if (NULL != matched_rule) {
                 *matched_rule = runtime->compiled_rules[i].rule;
             }
-            return 1;
+            return 0;
         }
     }
 
@@ -891,7 +936,7 @@ int engine_runtime_match_first(engine_runtime_t *runtime, const uint8_t *data,
  * @param matches 매치 결과 리스트
  * @param errbuf 오류 버퍼
  * @param errbuf_size 오류 버퍼 크기
- * @return int 1이면 매칭 존재, 0이면 미매칭, -1이면 오류
+ * @return int 0이면 정상 완료, -1이면 오류
  */
 int engine_runtime_collect_matches(engine_runtime_t *runtime,
                                    const uint8_t *data, size_t len,
@@ -914,7 +959,7 @@ int engine_runtime_collect_matches(engine_runtime_t *runtime,
  * @param elapsed_us_sum  걸린 시간을 누적하여
  * @param errbuf 에러가 나면 errbuf에 메시지를 채우는 함수이다.
  * @param errbuf_size 에러 버퍼 크기
- * @return int
+ * @return int 0이면 정상 완료, -1이면 오류
  */
 int engine_runtime_collect_matches_timed(engine_runtime_t *runtime,
                                          const uint8_t *data, size_t len,
@@ -923,25 +968,24 @@ int engine_runtime_collect_matches_timed(engine_runtime_t *runtime,
                                          uint64_t *elapsed_us_sum, char *errbuf,
                                          size_t errbuf_size) {
     unsigned int i;
-    int          matched_any = 0;
-
-    if (elapsed_us_sum != NULL) {
+    int          rule_matches;
+    if (NULL != elapsed_us_sum) {
         *elapsed_us_sum = 0;
     }
 
-    if (matches == NULL) {
+    if (NULL == matches) {
         set_err(errbuf, errbuf_size, "null matches");
         return -1;
     }
-    if (runtime == NULL || data == NULL || len == 0) {
+    if (NULL == runtime || NULL == data || 0U == len) {
         return 0;
     }
-    if (len > (size_t)INT_MAX) {
+    if ((size_t)INT_MAX < len) {
         set_err(errbuf, errbuf_size, "payload too large");
         return -1;
     }
-
-    if (runtime->backend == REGEX_BACKEND_HS) {
+    /* hs가 백엔드 인 경우 */
+    if (REGEX_BACKEND_HS == runtime->backend) {
         hs_group_t        *group;
         hs_scan_ctx_t      scan_ctx;
         uint64_t           elapsed_us = 0;
@@ -949,20 +993,21 @@ int engine_runtime_collect_matches_timed(engine_runtime_t *runtime,
         uint8_t           *seen;
         hs_error_t         rc_hs;
 
-        if (ctx < IPS_CTX_ALL || ctx > IPS_CTX_RESPONSE_BODY) {
+        if (IPS_CTX_ALL > ctx || IPS_CTX_RESPONSE_BODY < ctx) {
             set_err(errbuf, errbuf_size, "invalid hs ctx");
             return -1;
         }
         group = &runtime->hs_groups[ctx];
-        if (group->db == NULL) {
+        if (NULL == group->db) {
             return 0;
         }
 
-        seen = (uint8_t *)calloc(runtime->compiled_count, 1);
-        if (seen == NULL) {
+        seen = (uint8_t *)malloc(runtime->compiled_count * sizeof(*seen));
+        if (NULL == seen) {
             set_err(errbuf, errbuf_size, "hs seen alloc failed");
             return -1;
         }
+        memset(seen, 0, runtime->compiled_count * sizeof(*seen));
 
         memset(&scan_ctx, 0, sizeof(scan_ctx));
         scan_ctx.runtime  = runtime;
@@ -978,36 +1023,46 @@ int engine_runtime_collect_matches_timed(engine_runtime_t *runtime,
         elapsed_us = (uint64_t)(mono_us_now() - t0);
         free(seen);
 
-        if (elapsed_us_sum != NULL) {
+        if (NULL != elapsed_us_sum) {
             *elapsed_us_sum += elapsed_us;
         }
-        if (rc_hs != HS_SUCCESS && rc_hs != HS_SCAN_TERMINATED) {
+
+        if (HS_SUCCESS != rc_hs && HS_SCAN_TERMINATED != rc_hs) {
             set_err(errbuf, errbuf_size, "hs_scan error");
             return -1;
         }
-        if (!scan_ctx.matched_any) {
-            return 0;
-        }
-        for (i = 0; i < matches->count; i++) {
-            if (matches->items[i].elapsed_us == 0 &&
-                matches->items[i].context == ctx) {
-                matches->items[i].elapsed_us = elapsed_us;
+        /* PCRE2는 이 룰 검사하는데 몇초 걸렸음 을 알 수 있지만 */
+        /* HS는 여러 룰을 한번에 검사하기 때문에 어떤 룰이 몇초 걸렸는지 정확히
+         * 알기 어렵다. */
+        if (0 != scan_ctx.matched_any) {
+            /* 그래서 스캔된 항목들 중 0이면서 컨텍스트인 것*/
+            /* 해당 컨텍스트의 전체 스캔 시간을 구한 뒤 */
+            for (i = 0; i < matches->count; i++) {
+                if (0 == matches->items[i].elapsed_us &&
+                    ctx == matches->items[i].context) {
+                    /* 방금 생성된 매치 항목들에 일괄 기록(Post-processing)하는
+                     * 방식 */
+                    matches->items[i].elapsed_us = elapsed_us;
+                }
             }
         }
-        return 1;
+        return 0;  // 끝
     }
-
+    /* 백엔드가 pcre인 경우 */
     for (i = 0; i < runtime->compiled_count; i++) {
         size_t   match_off  = 0;
         size_t   match_len  = 0;
         uint64_t elapsed_us = 0;
         int      rc;
+        int      append_rc;
 
-        if (!rule_context_matches(runtime->compiled_rules[i].rule, ctx)) {
+        rule_matches =
+            rule_context_matches(runtime->compiled_rules[i].rule, ctx);
+        if (0 == rule_matches) {
             continue;
         }
-        if (runtime->compiled_rules[i].rule == NULL ||
-            runtime->compiled_rules[i].rule->op != IPS_OP_RX) {
+        if (NULL == runtime->compiled_rules[i].rule ||
+            IPS_OP_RX != runtime->compiled_rules[i].rule->op) {
             continue;
         }
 
@@ -1019,28 +1074,28 @@ int engine_runtime_collect_matches_timed(engine_runtime_t *runtime,
             elapsed_us = (uint64_t)(mono_us_now() - t0);
             maybe_log_rule_profile(&runtime->compiled_rules[i], ctx, len,
                                    elapsed_us, rc);
-            if (elapsed_us_sum != NULL) {
+            if (NULL != elapsed_us_sum) {
                 *elapsed_us_sum += elapsed_us;
             }
         }
-        if (rc < 0) {
+        if (0 > rc) {
             return -1;
         }
-        if (rc == 0) {
+        if (0 == rc) {
             continue;
         }
 
-        if (detect_match_list_append_local(
-                matches, runtime->compiled_rules[i].rule, ctx,
-                match_len != 0 ? (const char *)data + match_off : "", match_len,
-                elapsed_us) != 0) {
+        append_rc = detect_match_list_append_local(
+            matches, runtime->compiled_rules[i].rule, ctx,
+            0U != match_len ? (const char *)data + match_off : "", match_len,
+            elapsed_us);
+        if (0 != append_rc) {
             set_err(errbuf, errbuf_size, "append match failed");
             return -1;
         }
-        matched_any = 1;
     }
 
-    return matched_any ? 1 : 0;
+    return 0;
 }
 
 /**
@@ -1050,10 +1105,10 @@ int engine_runtime_collect_matches_timed(engine_runtime_t *runtime,
  * @return const char* backend 이름
  */
 const char *engine_runtime_backend_name(const engine_runtime_t *runtime) {
-    if (runtime == NULL) {
+    if (NULL == runtime) {
         return "-";
     }
-    return runtime->backend == REGEX_BACKEND_HS ? "hs" : "pcre2";
+    return REGEX_BACKEND_HS == runtime->backend ? "hs" : "pcre2";
 }
 
 /**
@@ -1063,7 +1118,7 @@ const char *engine_runtime_backend_name(const engine_runtime_t *runtime) {
  * @return int 활성화면 1, 아니면 0
  */
 int engine_runtime_jit_enabled(const engine_runtime_t *runtime) {
-    if (runtime == NULL) {
+    if (NULL == runtime) {
         return 0;
     }
     return runtime->jit_enabled;

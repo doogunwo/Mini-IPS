@@ -110,7 +110,7 @@ static void normalize_flow(uint32_t sip, uint16_t sport, uint32_t dip,
     int c = endpoint_cmp(sip, sport, dip, dport);
     memset(key, 0, sizeof(*key));
     key->proto = 6;
-    if (c <= 0) {
+    if (0 >= c) {
         key->src_ip   = sip;
         key->src_port = sport;
         key->dst_ip   = dip;
@@ -150,7 +150,7 @@ int parse_flow_dir_and_flags(const uint8_t *data, uint32_t len,
     uint16_t       sport;
     uint16_t       dport;
 
-    if (!data || len < 14 + 20 + 20) {
+    if (NULL == data || (14 + 20 + 20) > len) {
         return 0;
     }
 
@@ -159,23 +159,23 @@ int parse_flow_dir_and_flags(const uint8_t *data, uint32_t len,
     p += 14;
     n = len - 14;
 
-    if (eth_type == 0x8100 || eth_type == 0x88A8) {
-        if (n < 4) {
+    if (0x8100 == eth_type || 0x88A8 == eth_type) {
+        if (4 > n) {
             return 0;
         }
         eth_type = be16(p + 2);
         p += 4;
         n -= 4;
     }
-    if (eth_type != 0x0800 || n < 20) {
+    if (0x0800 != eth_type || 20 > n) {
         return 0;
     }
-    if ((p[0] >> 4) != 4) {
+    if (4 != (p[0] >> 4)) {
         return 0;
     }
 
     ihl = (uint32_t)(p[0] & 0x0F) * 4U;
-    if (ihl < 20 || n < ihl) {
+    if (20 > ihl || ihl > n) {
         return 0;
     }
     total_len = be16(p + 2);
@@ -190,7 +190,7 @@ int parse_flow_dir_and_flags(const uint8_t *data, uint32_t len,
     sip = be32(p + 12);
     dip = be32(p + 16);
     p += ihl;
-    if ((uint32_t)(total_len - ihl) < 20) {
+    if (20 > (uint32_t)(total_len - ihl)) {
         return 0;
     }
 
@@ -249,14 +249,17 @@ void rst_log_cache_put(app_ctx_t *app, const flow_key_t *flow,
 const httgw_sess_snapshot_t *rst_log_cache_get(app_ctx_t        *app,
                                                const flow_key_t *flow,
                                                uint64_t          now_ms) {
-    if (!app || !app->rst_cache.valid) {
+    int eq;
+
+    if (NULL == app || 0 == app->rst_cache.valid) {
         return NULL;
     }
     if (app->rst_cache.expires_ms <= now_ms) {
         app->rst_cache.valid = 0;
         return NULL;
     }
-    if (!flow_eq(&app->rst_cache.flow, flow)) {
+    eq = flow_eq(&app->rst_cache.flow, flow);
+    if (0 == eq) {
         return NULL;
     }
     return &app->rst_cache.snap;
@@ -276,10 +279,10 @@ static int parse_ts_option(const uint8_t *opts, uint32_t opt_len,
     uint32_t i = 0;
     while (i < opt_len) {
         uint8_t kind = opts[i];
-        if (kind == 0) {
+        if (0 == kind) {
             break;
         }
-        if (kind == 1) {
+        if (1 == kind) {
             i++;
             continue;
         }
@@ -287,10 +290,10 @@ static int parse_ts_option(const uint8_t *opts, uint32_t opt_len,
             break;
         }
         uint8_t len = opts[i + 1];
-        if (len < 2 || i + len > opt_len) {
+        if (2 > len || i + len > opt_len) {
             break;
         }
-        if (kind == 8 && len == 10) {
+        if (8 == kind && 10 == len) {
             *tsval = be32(opts + i + 2);
             *tsecr = be32(opts + i + 6);
             return 1;
@@ -342,11 +345,13 @@ void log_tcp_packet_line(const app_ctx_t *app, const uint8_t *data,
     char                  src_ip[32];
     char                  dst_ip[32];
     char                  opts[96];
+    int                   ret;
 
-    if (!app || !app->shared || !app->shared->debug_log_enabled) {
+    if (NULL == app || NULL == app->shared ||
+        0 == app->shared->debug_log_enabled) {
         return;
     }
-    if (!data || len < 14 + 20 + 20) {
+    if (NULL == data || (14 + 20 + 20) > len) {
         return;
     }
 
@@ -356,23 +361,23 @@ void log_tcp_packet_line(const app_ctx_t *app, const uint8_t *data,
     p += 14;
     n = len - 14;
 
-    if (eth_type == 0x8100 || eth_type == 0x88A8) {
-        if (n < 4) {
+    if (0x8100 == eth_type || 0x88A8 == eth_type) {
+        if (4 > n) {
             return;
         }
         eth_type = be16(p + 2);
         p += 4;
         n -= 4;
     }
-    if (eth_type != 0x0800 || n < 20) {
+    if (0x0800 != eth_type || 20 > n) {
         return;
     }
-    if ((p[0] >> 4) != 4) {
+    if (4 != (p[0] >> 4)) {
         return;
     }
 
     ihl = (uint32_t)(p[0] & 0x0F) * 4U;
-    if (ihl < 20 || n < ihl) {
+    if (20 > ihl || ihl > n) {
         return;
     }
     total_len = be16(p + 2);
@@ -387,7 +392,7 @@ void log_tcp_packet_line(const app_ctx_t *app, const uint8_t *data,
     dip            = be32(p + 16);
     tcp            = p + ihl;
     ip_payload_len = (uint32_t)total_len - ihl;
-    if (ip_payload_len < 20) {
+    if (20 > ip_payload_len) {
         return;
     }
 
@@ -396,7 +401,7 @@ void log_tcp_packet_line(const app_ctx_t *app, const uint8_t *data,
     seq   = be32(tcp + 4);
     ack   = be32(tcp + 8);
     thl   = (uint32_t)((tcp[12] >> 4) & 0x0F) * 4U;
-    if (thl < 20 || ip_payload_len < thl) {
+    if (20 > thl || thl > ip_payload_len) {
         return;
     }
     payload_len = ip_payload_len - thl;
@@ -404,7 +409,7 @@ void log_tcp_packet_line(const app_ctx_t *app, const uint8_t *data,
     rel_ack     = ack;
     rel_end     = seq + payload_len;
 
-    if (thl > 20) {
+    if (20 < thl) {
         has_ts = parse_ts_option(tcp + 20, thl - 20, &tsval, &tsecr);
     }
 
@@ -413,9 +418,13 @@ void log_tcp_packet_line(const app_ctx_t *app, const uint8_t *data,
 
     /* live session 또는 fallback snapshot을 기준으로 상대 seq/ack를 계산한다. */
     normalize_flow(sip, sport, dip, dport, &flow, &dir);
-    if (app->gw && httgw_get_session_snapshot(app->gw, &flow, &snap) == 0) {
+    ret = -1;
+    if (NULL != app->gw) {
+        ret = httgw_get_session_snapshot(app->gw, &flow, &snap);
+    }
+    if (0 == ret) {
         have_snap = 1;
-    } else if (fallback_snap) {
+    } else if (NULL != fallback_snap) {
         snap      = *fallback_snap;
         have_snap = 1;
     }
@@ -424,13 +433,13 @@ void log_tcp_packet_line(const app_ctx_t *app, const uint8_t *data,
         if (dir == DIR_AB) {
             rel_seq = seq - snap.base_seq_ab;
             rel_end = rel_seq + payload_len;
-            if (ack != 0 && snap.seen_ba) {
+            if (0 != ack && 0 != snap.seen_ba) {
                 rel_ack = ack - snap.base_seq_ba;
             }
         } else {
             rel_seq = seq - snap.base_seq_ba;
             rel_end = rel_seq + payload_len;
-            if (ack != 0 && snap.seen_ab) {
+            if (0 != ack && 0 != snap.seen_ab) {
                 rel_ack = ack - snap.base_seq_ab;
             }
         }
@@ -467,12 +476,14 @@ void request_rst_both(app_ctx_t *app, const flow_key_t *flow,
     httgw_sess_snapshot_t snap;
     int                   rc_ab;
     int                   rc_ba;
+    int                   ret;
 
-    if (!app || !flow) {
+    if (NULL == app || NULL == flow) {
         return;
     }
 
-    if (httgw_get_session_snapshot(app->gw, flow, &snap) != 0) {
+    ret = httgw_get_session_snapshot(app->gw, flow, &snap);
+    if (0 != ret) {
         return;
     }
 
@@ -511,14 +522,16 @@ void request_block_action_v2(app_ctx_t *app, const flow_key_t *flow,
     size_t                response_len = 0;
     int                   rc_ab;
     int                   rc_ba;
+    int                   ret;
 
-    if (!app || !flow) {
+    if (NULL == app || NULL == flow) {
         return;
     }
-    if (httgw_get_session_snapshot(app->gw, flow, &snap) != 0) {
+    ret = httgw_get_session_snapshot(app->gw, flow, &snap);
+    if (0 != ret) {
         return;
     }
-    if (!snap.seen_ab || !snap.seen_ba) {
+    if (0 == snap.seen_ab || 0 == snap.seen_ba) {
         app_log_write(app->shared, "INFO",
                       "event=block_inject_fallback event_id=%s "
                       "reason=waiting_bidir seen_ab=%u seen_ba=%u",
@@ -561,6 +574,17 @@ void request_block_action_v2(app_ctx_t *app, const flow_key_t *flow,
         (flow->dst_ip >> 24) & 0xFF, (flow->dst_ip >> 16) & 0xFF,
         (flow->dst_ip >> 8) & 0xFF, flow->dst_ip & 0xFF, flow->dst_port,
         response_len, rc_ab, rc_ba);
+    app_log_write(
+        app->shared, (0 == rc_ba) ? "WARN" : "ERROR",
+        "event=block_page_send event_id=%s status=%s http_status=403 "
+        "src_ip=%u.%u.%u.%u src_port=%u dst_ip=%u.%u.%u.%u dst_port=%u "
+        "bytes=%zu rc=%d",
+        (event_id && event_id[0] != '\0') ? event_id : "-",
+        (0 == rc_ba) ? "sent" : "failed", (flow->src_ip >> 24) & 0xFF,
+        (flow->src_ip >> 16) & 0xFF, (flow->src_ip >> 8) & 0xFF,
+        flow->src_ip & 0xFF, flow->src_port, (flow->dst_ip >> 24) & 0xFF,
+        (flow->dst_ip >> 16) & 0xFF, (flow->dst_ip >> 8) & 0xFF,
+        flow->dst_ip & 0xFF, flow->dst_port, response_len, rc_ba);
 
     free(response);
 }
@@ -572,13 +596,13 @@ void request_block_action_v2(app_ctx_t *app, const flow_key_t *flow,
  * @return int 유효한 hex면 0~15, 아니면 -1
  */
 static int hex_val(int c) {
-    if (c >= '0' && c <= '9') {
+    if ('0' <= c && '9' >= c) {
         return c - '0';
     }
-    if (c >= 'a' && c <= 'f') {
+    if ('a' <= c && 'f' >= c) {
         return 10 + (c - 'a');
     }
-    if (c >= 'A' && c <= 'F') {
+    if ('A' <= c && 'F' >= c) {
         return 10 + (c - 'A');
     }
     return -1;
@@ -604,17 +628,17 @@ static int url_decode(const char *in, size_t in_len, uint8_t *out,
 
     for (i = 0; i < in_len; i++) {
         unsigned char c = (unsigned char)in[i];
-        if (c == '%' && i + 2 < in_len) {
+        if ('%' == c && in_len > i + 2) {
             int hi = hex_val((unsigned char)in[i + 1]);
             int lo = hex_val((unsigned char)in[i + 2]);
-            if (hi < 0 || lo < 0 || oi >= out_cap) {
+            if (0 > hi || 0 > lo || oi >= out_cap) {
                 return -1;
             }
             out[oi++] = (uint8_t)((hi << 4) | lo);
             i += 2;
             continue;
         }
-        if (c == '+') {
+        if ('+' == c) {
             c = ' ';
         }
         if (oi >= out_cap) {
@@ -655,15 +679,15 @@ static int detect_match_decoded(detect_engine_t *det, const uint8_t *data,
     /* 항상 원문을 먼저 검사하고, 필요할 때만 decode된 변형을 추가로 본다. */
     rc = detect_engine_collect_matches_ctx_timed(det, data, len, ctx, matches,
                                                  &regex_elapsed_us);
-    if (elapsed_us) {
+    if (NULL != elapsed_us) {
         *elapsed_us += regex_elapsed_us;
     }
-    if (rc != 0 || len == 0) {
+    if (0 != rc || 0 == len) {
         return rc;
     }
 
     for (i = 0; i < len; i++) {
-        if (data[i] == '%' || data[i] == '+') {
+        if ('%' == data[i] || '+' == data[i]) {
             need_decode = 1;
             break;
         }
@@ -673,16 +697,16 @@ static int detect_match_decoded(detect_engine_t *det, const uint8_t *data,
     }
 
     buf = (uint8_t *)malloc(len);
-    if (!buf) {
+    if (NULL == buf) {
         return 0;
     }
 
-    if (url_decode((const char *)data, len, buf, len, &out_len) == 0 &&
-        out_len > 0) {
+    rc = url_decode((const char *)data, len, buf, len, &out_len);
+    if (0 == rc && 0U < out_len) {
         regex_elapsed_us = 0;
         rc               = detect_engine_collect_matches_ctx_timed(
             det, buf, out_len, ctx, matches, &regex_elapsed_us);
-        if (elapsed_us) {
+        if (NULL != elapsed_us) {
             *elapsed_us += regex_elapsed_us;
         }
     }
@@ -703,7 +727,7 @@ static int add_new_match_score(detect_match_list_t *matches, size_t prev_count,
                                int *score) {
     size_t i;
 
-    if (!matches || !score) {
+    if (NULL == matches || NULL == score) {
         return 0;
     }
     for (i = prev_count; i < matches->count; i++) {
@@ -728,7 +752,7 @@ static int add_new_match_score(detect_match_list_t *matches, size_t prev_count,
  * @param detect_elapsed_us 탐지 시간 누적값
  * @param decode_before_match URL decode 후 재검사 여부
  * @param score 누적 점수
- * @return int 0 이상이면 성공, 음수면 탐지 엔진 오류
+ * @return int 0이면 성공, -1이면 탐지 엔진 오류
  */
 static int collect_matches_for_slice(detect_engine_t *det, const uint8_t *data,
                                      size_t len, ips_context_t ctx,
@@ -739,7 +763,7 @@ static int collect_matches_for_slice(detect_engine_t *det, const uint8_t *data,
     uint64_t regex_elapsed_us = 0;
     size_t   prev_count       = matches ? matches->count : 0;
 
-    if (!data || len == 0) {
+    if (NULL == data || 0 == len) {
         return 0;
     }
 
@@ -753,7 +777,7 @@ static int collect_matches_for_slice(detect_engine_t *det, const uint8_t *data,
             *detect_elapsed_us += regex_elapsed_us;
         }
     }
-    if (rc < 0) {
+    if (0 > rc) {
         return rc;
     }
     return add_new_match_score(matches, prev_count, score);
@@ -770,7 +794,7 @@ static int collect_matches_for_slice(detect_engine_t *det, const uint8_t *data,
  * @param matches 누적 매치 리스트
  * @param detect_elapsed_us 탐지 시간 누적값
  * @param score 누적 점수
- * @return int 0 이상이면 성공, 음수면 탐지 엔진 오류
+ * @return int 0이면 성공, -1이면 탐지 엔진 오류
  */
 static int collect_query_pairs(detect_engine_t *det, const char *data,
                                size_t len, detect_match_list_t *matches,
@@ -791,20 +815,20 @@ static int collect_query_pairs(detect_engine_t *det, const char *data,
             rc = collect_matches_for_slice(det, (const uint8_t *)p, name_len,
                                            IPS_CTX_ARGS_NAMES, matches,
                                            detect_elapsed_us, 1, score);
-            if (rc < 0) {
+            if (0 > rc) {
                 return rc;
             }
             rc = collect_matches_for_slice(det, (const uint8_t *)(eq + 1),
                                            val_len, IPS_CTX_ARGS, matches,
                                            detect_elapsed_us, 1, score);
-            if (rc < 0) {
+            if (0 > rc) {
                 return rc;
             }
         } else if (seg_end > p) {
             rc = collect_matches_for_slice(
                 det, (const uint8_t *)p, (size_t)(seg_end - p),
                 IPS_CTX_ARGS_NAMES, matches, detect_elapsed_us, 1, score);
-            if (rc < 0) {
+            if (0 > rc) {
                 return rc;
             }
         }
@@ -840,7 +864,7 @@ static const IPS_Signature *select_representative_rule(
     size_t          i;
     int             best_idx = -1;
 
-    if (!matches || matches->count == 0) {
+    if (NULL == matches || 0 == matches->count) {
         return NULL;
     }
 
@@ -873,7 +897,7 @@ static const IPS_Signature *select_representative_rule(
             continue;
         }
 
-        if (best_idx < 0 ||
+        if (0 > best_idx ||
             buckets[i].best_prio > buckets[best_idx].best_prio ||
             (buckets[i].best_prio == buckets[best_idx].best_prio &&
              buckets[i].total_prio > buckets[best_idx].total_prio) ||
@@ -884,7 +908,7 @@ static const IPS_Signature *select_representative_rule(
         }
     }
 
-    if (best_idx >= 0) {
+    if (0 <= best_idx) {
         return buckets[best_idx].best_rule;
     }
 
@@ -904,7 +928,7 @@ static const IPS_Signature *select_representative_rule(
  * @param matched_rule 대표 룰 출력
  * @param matches 세부 매치 리스트 출력
  * @param detect_elapsed_us 탐지에 걸린 시간(us) 누적 출력
- * @return int 1이면 차단, 0이면 통과, 음수면 탐지 엔진 오류
+ * @return int 0이면 정상 완료, -1이면 탐지 엔진 오류
  */
 int run_detect(detect_engine_t *det, const http_message_t *msg, int *out_score,
                const IPS_Signature **matched_rule, detect_match_list_t *matches,
@@ -929,30 +953,30 @@ int run_detect(detect_engine_t *det, const http_message_t *msg, int *out_score,
                                    (const uint8_t *)msg->uri, strlen(msg->uri),
                                    IPS_CTX_REQUEST_URI, matches,
                                    detect_elapsed_us, 1, &score);
-    if (rc < 0) {
+    if (0 > rc) {
         return rc;
     }
     /* URI에 query string이 있으면 `key=value` 단위로 분해해 별도 검사한다. */
-    if (msg->uri[0] != '\0') {
+    if ('\0' != msg->uri[0]) {
         const char *qm = strchr(msg->uri, '?');
-        if (qm && *(qm + 1) != '\0') {
+        if (NULL != qm && '\0' != *(qm + 1)) {
             const char *hash = strchr(qm + 1, '#');
             size_t qlen = hash ? (size_t)(hash - (qm + 1)) : strlen(qm + 1);
 
             rc = collect_query_pairs(det, qm + 1, qlen, matches,
                                      detect_elapsed_us, &score);
-            if (rc < 0) {
+            if (0 > rc) {
                 return rc;
             }
         }
     }
     /* form-urlencoded body는 query string과 동일한 규칙으로 재검사한다. */
-    if (msg->body && msg->body_len > 0 && msg->content_type[0] != '\0' &&
+    if (NULL != msg->body && 0 < msg->body_len && '\0' != msg->content_type[0] &&
         strstr(msg->content_type, "application/x-www-form-urlencoded") !=
             NULL) {
         rc = collect_query_pairs(det, (const char *)msg->body, msg->body_len,
                                  matches, detect_elapsed_us, &score);
-        if (rc < 0) {
+        if (0 > rc) {
             return rc;
         }
     }
@@ -961,7 +985,7 @@ int run_detect(detect_engine_t *det, const http_message_t *msg, int *out_score,
     rc = collect_matches_for_slice(det, msg->headers_raw, msg->headers_raw_len,
                                    IPS_CTX_REQUEST_HEADERS, matches,
                                    detect_elapsed_us, 0, &score);
-    if (rc < 0) {
+    if (0 > rc) {
         return rc;
     }
 
@@ -969,7 +993,7 @@ int run_detect(detect_engine_t *det, const http_message_t *msg, int *out_score,
     rc = collect_matches_for_slice(det, msg->body, msg->body_len,
                                    IPS_CTX_REQUEST_BODY, matches,
                                    detect_elapsed_us, 0, &score);
-    if (rc < 0) {
+    if (0 > rc) {
         return rc;
     }
     /* 첫 매치 하나만 쓰면 범용 SQLi 룰이 대표 정책을 덮는 경우가 많다.
@@ -982,5 +1006,5 @@ int run_detect(detect_engine_t *det, const http_message_t *msg, int *out_score,
     if (out_score) {
         *out_score = score;
     }
-    return score >= APP_DETECT_THRESHOLD ? 1 : 0;
+    return 0;
 }

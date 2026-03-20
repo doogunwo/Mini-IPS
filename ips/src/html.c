@@ -16,15 +16,15 @@ typedef struct html_buf {
     size_t cap;
 } html_buf_t;
 
-static int   html_buf_reserve(html_buf_t *sb, size_t need);
-static int   html_buf_append_char(html_buf_t *sb, char c);
-static int   html_buf_append_str(html_buf_t *sb, const char *s);
-static int   html_buf_append_html_escaped(html_buf_t *sb, const char *s);
-static char *read_text_file(const char *path);
-static char *read_binary_file(const char *path, size_t *out_len);
-static char *base64_encode(const unsigned char *data, size_t len);
+static int         html_buf_reserve(html_buf_t *sb, size_t need);
+static int         html_buf_append_char(html_buf_t *sb, char c);
+static int         html_buf_append_str(html_buf_t *sb, const char *s);
+static int         html_buf_append_html_escaped(html_buf_t *sb, const char *s);
+static char       *read_text_file(const char *path);
+static char       *read_binary_file(const char *path, size_t *out_len);
+static char       *base64_encode(const unsigned char *data, size_t len);
 static const char *resolve_block_logo_path(void);
-static void  init_logo_image_html_once(void);
+static void        init_logo_image_html_once(void);
 static const char *get_logo_image_html(void);
 
 static pthread_once_t g_logo_image_once = PTHREAD_ONCE_INIT;
@@ -47,6 +47,7 @@ char *app_render_block_page(const char *template_path, const char *event_id,
     const char *p;
     char       *template_text;
     html_buf_t  out = {0};
+    int         ret;
 
     /* 템플릿 경로가 없으면 렌더링 자체를 진행할 수 없다. */
     if (!template_path) {
@@ -63,9 +64,10 @@ char *app_render_block_page(const char *template_path, const char *event_id,
     p = template_text;
     while (*p != '\0') {
         /* 이벤트 ID는 HTML escape 후 삽입해 XSS 가능성을 줄인다. */
-        if (strncmp(p, "{{EVENT_ID}}", 12) == 0) {
-            if (html_buf_append_html_escaped(&out, event_id ? event_id : "-") !=
-                0) {
+        ret = strncmp(p, "{{EVENT_ID}}", 12);
+        if (0 == ret) {
+            ret = html_buf_append_html_escaped(&out, event_id ? event_id : "-");
+            if (0 != ret) {
                 free(template_text);
                 free(out.buf);
                 return NULL;
@@ -75,9 +77,11 @@ char *app_render_block_page(const char *template_path, const char *event_id,
         }
 
         /* 차단 시각도 템플릿 토큰과 매칭되면 escape 후 삽입한다. */
-        if (strncmp(p, "{{TIMESTAMP}}", 13) == 0) {
-            if (html_buf_append_html_escaped(
-                    &out, timestamp ? timestamp : "-") != 0) {
+        ret = strncmp(p, "{{TIMESTAMP}}", 13);
+        if (0 == ret) {
+            ret =
+                html_buf_append_html_escaped(&out, timestamp ? timestamp : "-");
+            if (0 != ret) {
                 free(template_text);
                 free(out.buf);
                 return NULL;
@@ -87,9 +91,11 @@ char *app_render_block_page(const char *template_path, const char *event_id,
         }
 
         /* 클라이언트 IP 역시 그대로 출력하지 않고 escape 후 삽입한다. */
-        if (strncmp(p, "{{CLIENT_IP}}", 13) == 0) {
-            if (html_buf_append_html_escaped(
-                    &out, client_ip ? client_ip : "-") != 0) {
+        ret = strncmp(p, "{{CLIENT_IP}}", 13);
+        if (0 == ret) {
+            ret =
+                html_buf_append_html_escaped(&out, client_ip ? client_ip : "-");
+            if (0 != ret) {
                 free(template_text);
                 free(out.buf);
                 return NULL;
@@ -103,8 +109,10 @@ char *app_render_block_page(const char *template_path, const char *event_id,
          * 이미지 파일을 찾지 못한 경우엔 빈 문자열로 대체해 깨진 아이콘을
          * 노출하지 않는다.
          */
-        if (strncmp(p, "{{LOGO_IMAGE}}", 14) == 0) {
-            if (html_buf_append_str(&out, get_logo_image_html()) != 0) {
+        ret = strncmp(p, "{{LOGO_IMAGE}}", 14);
+        if (0 == ret) {
+            ret = html_buf_append_str(&out, get_logo_image_html());
+            if (0 != ret) {
                 free(template_text);
                 free(out.buf);
                 return NULL;
@@ -114,7 +122,8 @@ char *app_render_block_page(const char *template_path, const char *event_id,
         }
 
         /* 치환 대상이 아닌 일반 텍스트는 그대로 출력 버퍼에 복사한다. */
-        if (html_buf_append_char(&out, *p) != 0) {
+        ret = html_buf_append_char(&out, *p);
+        if (0 != ret) {
             free(template_text);
             free(out.buf);
             return NULL;
@@ -124,7 +133,8 @@ char *app_render_block_page(const char *template_path, const char *event_id,
 
     free(template_text);
 
-    /* 빈 템플릿이어도 호출자는 NUL 종료 문자열을 기대하므로 빈 문자열을 만든다. */
+    /* 빈 템플릿이어도 호출자는 NUL 종료 문자열을 기대하므로 빈 문자열을 만든다.
+     */
     if (!out.buf) {
         char *empty = (char *)malloc(1U);
         if (!empty) {
@@ -169,7 +179,7 @@ char *app_build_block_http_response(const char *html_body, size_t *out_len) {
     /* 응답 본문의 길이를 기준으로 최종 HTTP 응답 길이를 먼저 계산한다. */
     body_len = strlen(html_body);
     n        = snprintf(NULL, 0, response_fmt, body_len, html_body);
-    if (n < 0) {
+    if (0 > n) {
         return NULL;
     }
 
@@ -231,7 +241,10 @@ static int html_buf_reserve(html_buf_t *sb, size_t need) {
  * @return int 0이면 성공, -1이면 실패
  */
 static int html_buf_append_char(html_buf_t *sb, char c) {
-    if (html_buf_reserve(sb, sb->len + 2U) != 0) {
+    int ret;
+
+    ret = html_buf_reserve(sb, sb->len + 2U);
+    if (0 != ret) {
         return -1;
     }
 
@@ -250,14 +263,16 @@ static int html_buf_append_char(html_buf_t *sb, char c) {
  */
 static int html_buf_append_str(html_buf_t *sb, const char *s) {
     size_t n;
+    int    ret;
 
     /* NULL 입력은 빈 문자열로 취급해 호출자 분기를 줄인다. */
     if (!s) {
         s = "";
     }
 
-    n = strlen(s);
-    if (html_buf_reserve(sb, sb->len + n + 1U) != 0) {
+    n   = strlen(s);
+    ret = html_buf_reserve(sb, sb->len + n + 1U);
+    if (0 != ret) {
         return -1;
     }
 
@@ -279,6 +294,7 @@ static int html_buf_append_str(html_buf_t *sb, const char *s) {
  */
 static int html_buf_append_html_escaped(html_buf_t *sb, const char *s) {
     size_t i;
+    int    ret;
 
     if (!s) {
         return html_buf_append_str(sb, "");
@@ -288,32 +304,38 @@ static int html_buf_append_html_escaped(html_buf_t *sb, const char *s) {
     for (i = 0; s[i] != '\0'; i++) {
         switch (s[i]) {
         case '&':
-            if (html_buf_append_str(sb, "&amp;") != 0) {
+            ret = html_buf_append_str(sb, "&amp;");
+            if (0 != ret) {
                 return -1;
             }
             break;
         case '<':
-            if (html_buf_append_str(sb, "&lt;") != 0) {
+            ret = html_buf_append_str(sb, "&lt;");
+            if (0 != ret) {
                 return -1;
             }
             break;
         case '>':
-            if (html_buf_append_str(sb, "&gt;") != 0) {
+            ret = html_buf_append_str(sb, "&gt;");
+            if (0 != ret) {
                 return -1;
             }
             break;
         case '"':
-            if (html_buf_append_str(sb, "&quot;") != 0) {
+            ret = html_buf_append_str(sb, "&quot;");
+            if (0 != ret) {
                 return -1;
             }
             break;
         case '\'':
-            if (html_buf_append_str(sb, "&#39;") != 0) {
+            ret = html_buf_append_str(sb, "&#39;");
+            if (0 != ret) {
                 return -1;
             }
             break;
         default:
-            if (html_buf_append_char(sb, s[i]) != 0) {
+            ret = html_buf_append_char(sb, s[i]);
+            if (0 != ret) {
                 return -1;
             }
             break;
@@ -337,6 +359,7 @@ static char *read_text_file(const char *path) {
     long   sz;
     size_t nread;
     char  *buf;
+    int    ret;
 
     /* 파일 경로가 없으면 열 수 없으므로 바로 실패한다. */
     if (!path) {
@@ -350,18 +373,20 @@ static char *read_text_file(const char *path) {
     }
 
     /* 파일 끝으로 이동해 전체 길이를 먼저 구한다. */
-    if (fseek(fp, 0, SEEK_END) != 0) {
+    ret = fseek(fp, 0, SEEK_END);
+    if (0 != ret) {
         fclose(fp);
         return NULL;
     }
 
     sz = ftell(fp);
-    if (sz < 0) {
+    if (0 > sz) {
         fclose(fp);
         return NULL;
     }
 
-    if (fseek(fp, 0, SEEK_SET) != 0) {
+    ret = fseek(fp, 0, SEEK_SET);
+    if (0 != ret) {
         fclose(fp);
         return NULL;
     }
@@ -400,6 +425,7 @@ static char *read_binary_file(const char *path, size_t *out_len) {
     long   sz;
     size_t nread;
     char  *buf;
+    int    ret;
 
     if (!path || !out_len) {
         return NULL;
@@ -410,18 +436,20 @@ static char *read_binary_file(const char *path, size_t *out_len) {
         return NULL;
     }
 
-    if (fseek(fp, 0, SEEK_END) != 0) {
+    ret = fseek(fp, 0, SEEK_END);
+    if (0 != ret) {
         fclose(fp);
         return NULL;
     }
 
     sz = ftell(fp);
-    if (sz < 0) {
+    if (0 > sz) {
         fclose(fp);
         return NULL;
     }
 
-    if (fseek(fp, 0, SEEK_SET) != 0) {
+    ret = fseek(fp, 0, SEEK_SET);
+    if (0 != ret) {
         fclose(fp);
         return NULL;
     }
@@ -476,7 +504,7 @@ static char *base64_encode(const unsigned char *data, size_t len) {
         unsigned int octet_a = data[i++];
         unsigned int octet_b = (i < len) ? data[i++] : 0U;
         unsigned int octet_c = (i < len) ? data[i++] : 0U;
-        unsigned int triple = (octet_a << 16) | (octet_b << 8) | octet_c;
+        unsigned int triple  = (octet_a << 16) | (octet_b << 8) | octet_c;
 
         out[j++] = table[(triple >> 18) & 0x3FU];
         out[j++] = table[(triple >> 12) & 0x3FU];
@@ -484,9 +512,9 @@ static char *base64_encode(const unsigned char *data, size_t len) {
         out[j++] = table[triple & 0x3FU];
     }
 
-    if ((len % 3U) != 0U) {
+    if (0U != (len % 3U)) {
         out[out_len - 1U] = '=';
-        if ((len % 3U) == 1U) {
+        if (1U == (len % 3U)) {
             out[out_len - 2U] = '=';
         }
     }
@@ -510,9 +538,11 @@ static const char *resolve_block_logo_path(void) {
         "../../image/image.png",
     };
     size_t i;
+    int    ret;
 
     for (i = 0U; i < (sizeof(candidates) / sizeof(candidates[0])); i++) {
-        if (access(candidates[i], R_OK) == 0) {
+        ret = access(candidates[i], R_OK);
+        if (0 == ret) {
             return candidates[i];
         }
     }
@@ -540,27 +570,39 @@ static void init_logo_image_html_once(void) {
 
     logo_path = resolve_block_logo_path();
     if (!logo_path) {
-        g_logo_image_html = strdup("");
+        g_logo_image_html = (char *)malloc(1U);
+        if (NULL != g_logo_image_html) {
+            g_logo_image_html[0] = '\0';
+        }
         return;
     }
 
     logo_raw = read_binary_file(logo_path, &logo_len);
     if (!logo_raw) {
-        g_logo_image_html = strdup("");
+        g_logo_image_html = (char *)malloc(1U);
+        if (NULL != g_logo_image_html) {
+            g_logo_image_html[0] = '\0';
+        }
         return;
     }
 
     logo_b64 = base64_encode((const unsigned char *)logo_raw, logo_len);
     free(logo_raw);
     if (!logo_b64) {
-        g_logo_image_html = strdup("");
+        g_logo_image_html = (char *)malloc(1U);
+        if (NULL != g_logo_image_html) {
+            g_logo_image_html[0] = '\0';
+        }
         return;
     }
 
     n = snprintf(NULL, 0, img_fmt, logo_b64);
-    if (n < 0) {
+    if (0 > n) {
         free(logo_b64);
-        g_logo_image_html = strdup("");
+        g_logo_image_html = (char *)malloc(1U);
+        if (NULL != g_logo_image_html) {
+            g_logo_image_html[0] = '\0';
+        }
         return;
     }
 

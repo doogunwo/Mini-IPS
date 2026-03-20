@@ -202,14 +202,14 @@ static int test_rst_seq_ack_bidir(void) {
                            100, 700, TCP_ACK | TCP_PSH, p1, sizeof(p1) - 1,
                            &pkt_len) == 0,
           "build AB packet failed");
-    CHECK(httgw_ingest_packet(gw, pkt, pkt_len, 1) == 1,
+    CHECK(httgw_ingest_packet(gw, pkt, pkt_len, 1) == 0,
           "ingest AB packet failed");
 
     CHECK(build_tcp_packet(pkt, sizeof(pkt), 0x0A000002, 80, 0x0A000001, 1111,
                            700, 110, TCP_ACK | TCP_PSH, p2, sizeof(p2) - 1,
                            &pkt_len) == 0,
           "build BA packet failed");
-    CHECK(httgw_ingest_packet(gw, pkt, pkt_len, 2) == 1,
+    CHECK(httgw_ingest_packet(gw, pkt, pkt_len, 2) == 0,
           "ingest BA packet failed");
 
     memset(&flow, 0, sizeof(flow));
@@ -270,7 +270,7 @@ static int test_rst_best_effort_when_single_direction_seen(void) {
                            100, 50, TCP_ACK | TCP_PSH, payload,
                            sizeof(payload) - 1, &pkt_len) == 0,
           "build AB packet failed");
-    CHECK(httgw_ingest_packet(gw, pkt, pkt_len, 5) == 1,
+    CHECK(httgw_ingest_packet(gw, pkt, pkt_len, 5) == 0,
           "ingest AB packet failed");
 
     memset(&flow, 0, sizeof(flow));

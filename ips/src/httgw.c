@@ -160,7 +160,10 @@ static uint32_t HTTGW_UNUSED ip_hash_fn(uint32_t ip) {
 static httgw_session_t *sess_find(const httgw_t *gw, const flow_key_t *flow) {
     uint32_t idx = sess_flow_hash(flow) % gw->sess_bucket_count;
     for (httgw_session_t *s = gw->sess_buckets[idx]; s; s = s->next) {
-        if (sess_flow_eq(&s->flow, flow)) {
+        int eq;
+
+        eq = sess_flow_eq(&s->flow, flow);
+        if (0 != eq) {
             return s;
         }
     }
@@ -171,18 +174,20 @@ static httgw_session_t *sess_remove_internal(httgw_t          *gw,
                                              const flow_key_t *flow) {
     uint32_t          idx;
     httgw_session_t **pp;
+    int               eq;
 
-    if (!gw || !flow) {
+    if (NULL == gw || NULL == flow) {
         return NULL;
     }
 
     idx = sess_flow_hash(flow) % gw->sess_bucket_count;
     pp  = &gw->sess_buckets[idx];
     while (*pp) {
-        if (sess_flow_eq(&(*pp)->flow, flow)) {
+        eq = sess_flow_eq(&(*pp)->flow, flow);
+        if (0 != eq) {
             httgw_session_t *s = *pp;
             *pp                = s->next;
-            if (gw->sess_count > 0) {
+            if (0 < gw->sess_count) {
                 gw->sess_count--;
             }
             s->next = NULL;
@@ -197,21 +202,25 @@ static httgw_session_t *sess_get_or_create_internal(httgw_t          *gw,
                                                     const flow_key_t *flow,
                                                     uint64_t          ts_ms) {
     uint32_t idx = sess_flow_hash(flow) % gw->sess_bucket_count;
+    int      eq;
+
     for (httgw_session_t *s = gw->sess_buckets[idx]; s; s = s->next) {
-        if (sess_flow_eq(&s->flow, flow)) {
+        eq = sess_flow_eq(&s->flow, flow);
+        if (0 != eq) {
             s->last_ts_ms = ts_ms;
             return s;
         }
     }
 
-    httgw_session_t *s = (httgw_session_t *)calloc(1, sizeof(*s));
-    if (!s) {
+    httgw_session_t *s = (httgw_session_t *)malloc(sizeof(*s));
+    if (NULL == s) {
         return NULL;
     }
+    memset(s, 0, sizeof(*s));
 
     s->streams[DIR_AB] = http_stream_create(&gw->stream_cfg);
     s->streams[DIR_BA] = http_stream_create(&gw->stream_cfg);
-    if (!s->streams[DIR_AB] || !s->streams[DIR_BA]) {
+    if (NULL == s->streams[DIR_AB] || NULL == s->streams[DIR_BA]) {
         sess_destroy(s);
         return NULL;
     }
@@ -246,7 +255,7 @@ static void normalize_flow(uint32_t sip, uint16_t sport, uint32_t dip,
     int c = endpoint_cmp(sip, sport, dip, dport);
     memset(key, 0, sizeof(*key));
     key->proto = 6;
-    if (c <= 0) {
+    if (0 >= c) {
         key->src_ip   = sip;
         key->src_port = sport;
         key->dst_ip   = dip;
@@ -280,15 +289,15 @@ static int parse_ipv4_tcp_payload(const uint8_t *pkt, uint32_t caplen,
     uint16_t       sport;
     uint16_t       dport;
 
-    if (n < 14) {
+    if (14 > n) {
         return 0;
     }
     eth_type = (uint16_t)((p[12] << 8) | p[13]);
     p += 14;
     n -= 14;
 
-    if (eth_type == 0x8100 || eth_type == 0x88A8) {
-        if (n < 4) {
+    if (0x8100 == eth_type || 0x88A8 == eth_type) {
+        if (4 > n) {
             return 0;
         }
         eth_type = (uint16_t)((p[2] << 8) | p[3]);
@@ -296,18 +305,18 @@ static int parse_ipv4_tcp_payload(const uint8_t *pkt, uint32_t caplen,
         n -= 4;
     }
 
-    if (eth_type != 0x0800) {
+    if (0x0800 != eth_type) {
         return 0;
     }
-    if (n < 20) {
+    if (20 > n) {
         return 0;
     }
-    if ((p[0] >> 4) != 4) {
+    if (4 != (p[0] >> 4)) {
         return 0;
     }
 
     ip_hl = (uint32_t)(p[0] & 0x0F) * 4U;
-    if (ip_hl < 20 || n < ip_hl) {
+    if (20 > ip_hl || ip_hl > n) {
         return 0;
     }
 
@@ -317,7 +326,7 @@ static int parse_ipv4_tcp_payload(const uint8_t *pkt, uint32_t caplen,
     }
 
     proto = p[9];
-    if (proto != 6) {
+    if (6 != proto) {
         return 0;
     }
 
@@ -326,7 +335,7 @@ static int parse_ipv4_tcp_payload(const uint8_t *pkt, uint32_t caplen,
 
     p += ip_hl;
     n = total_len - ip_hl;
-    if (n < 20) {
+    if (20 > n) {
         return 0;
     }
 
@@ -335,7 +344,7 @@ static int parse_ipv4_tcp_payload(const uint8_t *pkt, uint32_t caplen,
     *seq   = (uint32_t)((p[4] << 24) | (p[5] << 16) | (p[6] << 8) | p[7]);
     *ack   = (uint32_t)((p[8] << 24) | (p[9] << 16) | (p[10] << 8) | p[11]);
     tcp_hl = (uint32_t)((p[12] >> 4) & 0x0F) * 4U;
-    if (tcp_hl < 20 || n < tcp_hl) {
+    if (20 > tcp_hl || tcp_hl > n) {
         return 0;
     }
     *flags = p[13];
@@ -354,16 +363,16 @@ static int parse_ipv4_tcp_payload(const uint8_t *pkt, uint32_t caplen,
     *payload_len = ip_len - ip_hl - tcp_hl;
     *payload     = p + tcp_hl;
 
-    if (win_scale && (p[13] & TCP_SYN) && tcp_hl > 20) {
+    if (NULL != win_scale && 0 != (p[13] & TCP_SYN) && 20 < tcp_hl) {
         uint32_t       opt_len = tcp_hl - 20;
         const uint8_t *opt     = p + 20;
         uint32_t       i       = 0;
         while (i < opt_len) {
             uint8_t kind = opt[i];
-            if (kind == 0) {
+            if (0 == kind) {
                 break;
             }
-            if (kind == 1) {
+            if (1 == kind) {
                 i++;
                 continue;
             }
@@ -371,10 +380,10 @@ static int parse_ipv4_tcp_payload(const uint8_t *pkt, uint32_t caplen,
                 break;
             }
             uint8_t len = opt[i + 1];
-            if (len < 2 || i + len > opt_len) {
+            if (2 > len || i + len > opt_len) {
                 break;
             }
-            if (kind == 3 && len == 3) {
+            if (3 == kind && 3 == len) {
                 *win_scale = opt[i + 2];
                 break;
             }
@@ -412,16 +421,18 @@ static void drain_http(httgw_t *gw, const flow_key_t *flow, tcp_dir_t dir) {
     httgw_session_t *sess = sess_find(gw, flow);
     http_stream_t   *s;
     http_message_t   msg;
+    http_stream_rc_t rc;
 
-    if (!sess) {
+    if (NULL == sess) {
         return;
     }
     s = sess->streams[dir];
-    if (!s) {
+    if (NULL == s) {
         return;
     }
 
-    while (http_stream_poll_message(s, &msg) == HTTP_STREAM_OK) {
+    rc = http_stream_poll_message(s, &msg);
+    while (HTTP_STREAM_OK == rc) {
         gw->stats.http_msgs++;
         if (msg.is_request) {
             gw->stats.reqs++;
@@ -433,7 +444,47 @@ static void drain_http(httgw_t *gw, const flow_key_t *flow, tcp_dir_t dir) {
             }
         }
         http_message_free(&msg);
+        rc = http_stream_poll_message(s, &msg);
     }
+}
+
+static char *httgw_build_stream_error_detail(http_stream_t *stream) {
+    const char  *err;
+    const uint8_t *buf;
+    size_t       len;
+    size_t       prefix_len;
+    size_t       i;
+    char        *detail;
+
+    if (NULL == stream) {
+        return NULL;
+    }
+
+    err = http_stream_last_error(stream);
+    if (0 != http_stream_peek_buffer(stream, &buf, &len)) {
+        return NULL;
+    }
+
+    prefix_len = strlen(NULL != err ? err : "unknown error");
+    detail = (char *)malloc(prefix_len + 2U + len + 1U);
+    if (NULL == detail) {
+        return NULL;
+    }
+
+    memcpy(detail, NULL != err ? err : "unknown error", prefix_len);
+    detail[prefix_len]     = ':';
+    detail[prefix_len + 1] = ' ';
+    for (i = 0; i < len; i++) {
+        unsigned char c = buf[i];
+
+        if (('\r' == c) || ('\n' == c) || ('\t' == c) || 0 != isprint(c)) {
+            detail[prefix_len + 2U + i] = (char)c;
+        } else {
+            detail[prefix_len + 2U + i] = '.';
+        }
+    }
+    detail[prefix_len + 2U + len] = '\0';
+    return detail;
 }
 
 /**
@@ -463,15 +514,16 @@ static void on_stream_data(const flow_key_t *flow, tcp_dir_t dir,
 
     /*
      * reasm callback 계약상 seq_start를 전달받지만,
-     * 현재 HTTP 스트림 공급 경로에서는 시작 sequence 번호를 직접 참조하지 않는다.
-     * 인터페이스는 유지하되, 현재 구현에서 의도적으로 미사용임을 명시한다.
+     * 현재 HTTP 스트림 공급 경로에서는 시작 sequence 번호를 직접 참조하지
+     * 않는다. 인터페이스는 유지하되, 현재 구현에서 의도적으로 미사용임을
+     * 명시한다.
      */
     (void)seq_start;
 
     /*
      * user는 httgw_create()에서 넘긴 gw 컨텍스트여야 한다.
-     * 여기서 NULL이면 이후 sess_find(), stats 갱신, on_error 호출 모두 불가능하므로
-     * 더 진행하지 않고 즉시 중단한다.
+     * 여기서 NULL이면 이후 sess_find(), stats 갱신, on_error 호출 모두
+     * 불가능하므로 더 진행하지 않고 즉시 중단한다.
      */
     if (NULL == gw) {
         return;
@@ -479,7 +531,8 @@ static void on_stream_data(const flow_key_t *flow, tcp_dir_t dir,
 
     /*
      * flow는 어떤 TCP 세션의 재조립 결과인지 식별하는 키다.
-     * flow가 없으면 세션 lookup 자체가 성립하지 않으므로 상위에 오류를 알리고 반환한다.
+     * flow가 없으면 세션 lookup 자체가 성립하지 않으므로 상위에 오류를 알리고
+     * 반환한다.
      */
     if (NULL == flow) {
         if (NULL != gw->cbs.on_error) {
@@ -490,8 +543,8 @@ static void on_stream_data(const flow_key_t *flow, tcp_dir_t dir,
 
     /*
      * dir은 반드시 DIR_AB 또는 DIR_BA여야 한다.
-     * 범위를 벗어난 값은 sess->streams[dir] 접근 시 잘못된 인덱스로 이어질 수 있으므로
-     * 방어적으로 차단한다.
+     * 범위를 벗어난 값은 sess->streams[dir] 접근 시 잘못된 인덱스로 이어질 수
+     * 있으므로 방어적으로 차단한다.
      */
     if (dir != DIR_AB && dir != DIR_BA) {
         if (NULL != gw->cbs.on_error) {
@@ -506,15 +559,14 @@ static void on_stream_data(const flow_key_t *flow, tcp_dir_t dir,
      */
     if (NULL == data) {
         if (NULL != gw->cbs.on_error) {
-            gw->cbs.on_error("on_stream_data", "missing stream data",
-                             gw->user);
+            gw->cbs.on_error("on_stream_data", "missing stream data", gw->user);
         }
         return;
     }
 
     /*
-     * 길이가 0인 payload는 현재 HTTP 스트림 파서에 공급할 실데이터가 없다는 뜻이다.
-     * 오류로 보지는 않고, 조용히 무시한다.
+     * 길이가 0인 payload는 현재 HTTP 스트림 파서에 공급할 실데이터가 없다는
+     * 뜻이다. 오류로 보지는 않고, 조용히 무시한다.
      */
     if (0 == len) {
         return;
@@ -523,7 +575,8 @@ static void on_stream_data(const flow_key_t *flow, tcp_dir_t dir,
     /*
      * 재조립 결과가 들어온 flow에 대응하는 live session을 찾는다.
      * 세션이 없다는 것은 reasm 계층과 session table의 lifecycle이 어긋났거나
-     * 이미 세션이 정리된 뒤 callback이 들어왔다는 뜻일 수 있으므로 오류로 남긴다.
+     * 이미 세션이 정리된 뒤 callback이 들어왔다는 뜻일 수 있으므로 오류로
+     * 남긴다.
      */
     sess = sess_find(gw, flow);
     if (NULL == sess) {
@@ -536,7 +589,8 @@ static void on_stream_data(const flow_key_t *flow, tcp_dir_t dir,
 
     /*
      * 한 세션은 방향별로 HTTP 스트림 파서를 하나씩 가진다.
-     * 현재 payload가 속한 방향의 스트림 핸들을 가져와 그쪽에만 데이터를 공급한다.
+     * 현재 payload가 속한 방향의 스트림 핸들을 가져와 그쪽에만 데이터를
+     * 공급한다.
      */
     stream = sess->streams[dir];
     if (NULL == stream) {
@@ -552,6 +606,8 @@ static void on_stream_data(const flow_key_t *flow, tcp_dir_t dir,
      */
     rc = http_stream_feed(stream, data, len);
     if (rc != HTTP_STREAM_OK) {
+        char *detail = NULL;
+
         gw->stats.parse_errs++;
 
         /*
@@ -560,9 +616,13 @@ static void on_stream_data(const flow_key_t *flow, tcp_dir_t dir,
          * 이후 데이터가 새 메시지처럼 다시 파싱될 수 있게 한다.
          */
         if (NULL != gw->cbs.on_error) {
-            gw->cbs.on_error("http_stream_feed", http_stream_last_error(stream),
+            detail = httgw_build_stream_error_detail(stream);
+            gw->cbs.on_error("http_stream_feed",
+                             NULL != detail ? detail
+                                            : http_stream_last_error(stream),
                              gw->user);
         }
+        free(detail);
         http_stream_reset(stream);
         return;
     }
@@ -591,10 +651,11 @@ httgw_t *httgw_create(const httgw_cfg_t *cfg, const httgw_callbacks_t *cbs,
     httgw_t *gw = NULL;
 
     /* 게이트웨이 본체를 zero-init 상태로 생성한다. */
-    gw = (httgw_t *)calloc(1, sizeof(*gw));
+    gw = (httgw_t *)malloc(sizeof(*gw));
     if (!gw) {
         return NULL;
     }
+    memset(gw, 0, sizeof(*gw));
 
     /* 콜백과 사용자 컨텍스트를 먼저 고정한다. */
     gw->user = user;
@@ -635,12 +696,14 @@ httgw_t *httgw_create(const httgw_cfg_t *cfg, const httgw_callbacks_t *cbs,
 
     /* flow 기반 세션 조회를 위한 해시 버킷 배열을 준비한다. */
     gw->sess_bucket_count = HTTGW_SESS_BUCKETS;
-    gw->sess_buckets      = (httgw_session_t **)calloc(gw->sess_bucket_count,
-                                                       sizeof(*gw->sess_buckets));
+    gw->sess_buckets      = (httgw_session_t **)malloc(
+        (size_t)gw->sess_bucket_count * sizeof(*gw->sess_buckets));
     if (!gw->sess_buckets) {
         httgw_destroy(gw);
         return NULL;
     }
+    memset(gw->sess_buckets, 0,
+           (size_t)gw->sess_bucket_count * sizeof(*gw->sess_buckets));
 
     /* 재조립 시작 정책은 설정값을 우선하고, 없으면 late-start를 기본으로 쓴다.
      */
@@ -705,7 +768,7 @@ void httgw_destroy(httgw_t *gw) {
  * @param pkt 입력패킷 이더넷 프레임 시작 주소
  * @param caplen 길이
  * @param ts_ms 타임스탬프 ms 단위
- * @return int 1: 패킷이 정상적으로 처리됨, 0: 패킷이 무시됨, 음수: 오류 발생
+ * @return int 0이면 정상 완료, -1이면 오류
  */
 int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen,
                         uint64_t ts_ms) {
@@ -731,9 +794,9 @@ int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen,
      * Ethernet/IPv4/TCP 패킷에서 flow, 방향, seq/ack, payload를 추출한다.
      * HTTP 처리 대상이 아닌 패킷이면 조용히 무시한다.
      */
-    if (0 == parse_ipv4_tcp_payload(pkt, caplen, &flow, &dir, &seq, &ack,
-                                    &flags, &payload, &payload_len, &window,
-                                    &win_scale)) {
+    rc = parse_ipv4_tcp_payload(pkt, caplen, &flow, &dir, &seq, &ack, &flags,
+                                &payload, &payload_len, &window, &win_scale);
+    if (0 == rc) {
         return 0;
     }
 
@@ -752,7 +815,7 @@ int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen,
 
         rc = reasm_ingest(gw->reasm, &flow, dir, seq, flags, payload,
                           payload_len, ts_ms);
-        if (rc != 0) {
+        if (0 != rc) {
             gw->stats.reasm_errs++;
             if (NULL != gw->cbs.on_error) {
                 char buf[64];
@@ -760,15 +823,15 @@ int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen,
                 snprintf(buf, sizeof(buf), "rc=%d", rc);
                 gw->cbs.on_error("reasm_ingest", buf, gw->user);
             }
-            return -2;
+            return -1;
         }
-        return 1;
+        return 0;
     }
 
     /* 일반 패킷이면 세션을 찾거나 새로 생성한다. */
     sess = sess_get_or_create_internal(gw, &flow, ts_ms);
     if (NULL == sess) {
-        return -3;
+        return -1;
     }
 
     /*
@@ -776,6 +839,8 @@ int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen,
      * SYN/FIN 관측 여부를 세션에 기록한다.
      */
     if (DIR_AB == dir) {
+        int ack_ok;
+
         if (0 == sess->seen_ab) {
             sess->base_seq_ab = seq;
         }
@@ -783,7 +848,8 @@ int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen,
         sess->last_seq_ab = seq;
         sess->next_seq_ab = next_seq;
 
-        if (0 == sess->seen_ab || SEQ_GEQ(ack, sess->last_ack_ab)) {
+        ack_ok = SEQ_GEQ(ack, sess->last_ack_ab);
+        if (0 == sess->seen_ab || 0 != ack_ok) {
             sess->last_ack_ab = ack;
             sess->win_ab      = window;
         }
@@ -797,6 +863,8 @@ int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen,
             sess->fin_seen_ab = 1;
         }
     } else {
+        int ack_ok;
+
         if (0 == sess->seen_ba) {
             sess->base_seq_ba = seq;
         }
@@ -804,7 +872,8 @@ int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen,
         sess->last_seq_ba = seq;
         sess->next_seq_ba = next_seq;
 
-        if (0 == sess->seen_ba || SEQ_GEQ(ack, sess->last_ack_ba)) {
+        ack_ok = SEQ_GEQ(ack, sess->last_ack_ba);
+        if (0 == sess->seen_ba || 0 != ack_ok) {
             sess->last_ack_ba = ack;
             sess->win_ba      = window;
         }
@@ -825,7 +894,7 @@ int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen,
     /* 갱신된 상태를 기준으로 TCP 재조립 엔진에 payload를 투입한다. */
     rc = reasm_ingest(gw->reasm, &flow, dir, seq, flags, payload, payload_len,
                       ts_ms);
-    if (rc != 0) {
+    if (0 != rc) {
         httgw_session_t *stale = sess_remove_internal(gw, &flow);
 
         gw->stats.reasm_errs++;
@@ -838,10 +907,10 @@ int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen,
             snprintf(buf, sizeof(buf), "rc=%d", rc);
             gw->cbs.on_error("reasm_ingest", buf, gw->user);
         }
-        return -2;
+        return -1;
     }
 
-    return 1;
+    return 0;
 }
 
 /**
@@ -866,7 +935,7 @@ void httgw_gc(httgw_t *gw, uint64_t now_ms) {
             {
                 *pp = s->next;
                 sess_destroy(s);
-                if (gw->sess_count > 0) {
+                if (0 < gw->sess_count) {
                     gw->sess_count--;
                 }
                 /* 삭제 후 *pp는 이미 다음 노드를 가르키고 있다.*/
@@ -929,7 +998,7 @@ int httgw_get_session_snapshot(const httgw_t *gw, const flow_key_t *flow,
 
     httgw_session_t *sess = sess_find(gw, flow);
     if (!sess) {
-        return -2;
+        return -1;
     }
     memset(out, 0, sizeof(*out));
     out->base_seq_ab  = sess->base_seq_ab;
@@ -975,8 +1044,12 @@ static int ci_eq(const uint8_t *a, size_t an, const char *b) {
     for (i = 0; i < an; i++) {
         unsigned char ca = (unsigned char)a[i];
         unsigned char cb = (unsigned char)b[i];
+        int           fa;
+        int           fb;
 
-        if (tolower(ca) != tolower(cb)) {
+        fa = tolower(ca);
+        fb = tolower(cb);
+        if (fa != fb) {
             return 0;
         }
     }
@@ -996,7 +1069,7 @@ static int ci_eq(const uint8_t *a, size_t an, const char *b) {
  * @param name 찾을 헤더 이름. 예: "Host", "User-Agent"
  * @param value 조회된 헤더 값 시작 주소를 돌려받을 출력 포인터
  * @param value_len 조회된 헤더 값 길이를 돌려받을 출력 포인터
- * @return int 1=헤더 찾음, 0=헤더 없음 또는 입력 오류
+ * @return int 성공 시 0, 실패 시 -1
  */
 int httgw_header_get(const http_message_t *msg, const char *name,
                      const uint8_t **value, size_t *value_len) {
@@ -1006,13 +1079,19 @@ int httgw_header_get(const http_message_t *msg, const char *name,
     size_t         line_end;
 
     /* 입력 포인터와 출력 버퍼가 유효한지 먼저 확인한다. */
+    if (NULL != value) {
+        *value = NULL;
+    }
+    if (NULL != value_len) {
+        *value_len = 0;
+    }
     if (NULL == msg || NULL == name || NULL == value || NULL == value_len) {
-        return 0;
+        return -1;
     }
 
     /* raw header 블록이 없으면 조회할 대상이 없다. */
     if (NULL == msg->headers_raw || 0 == msg->headers_raw_len) {
-        return 0;
+        return -1;
     }
 
     p   = msg->headers_raw;
@@ -1020,7 +1099,7 @@ int httgw_header_get(const http_message_t *msg, const char *name,
 
     /* start-line을 건너뛰고 첫 번째 header line 시작 위치를 찾는다. */
     while (pos + 1 < len) {
-        if (p[pos] == '\r' && p[pos + 1] == '\n') {
+        if ('\r' == p[pos] && '\n' == p[pos + 1]) {
             pos += 2;
             break;
         }
@@ -1038,13 +1117,13 @@ int httgw_header_get(const http_message_t *msg, const char *name,
 
         /* 현재 header line의 끝(CRLF)을 찾는다. */
         for (i = pos; i + 1 < len; i++) {
-            if (p[i] == '\r' && p[i + 1] == '\n') {
+            if ('\r' == p[i] && '\n' == p[i + 1]) {
                 line_end = i;
                 line_len = line_end - pos;
                 break;
             }
         }
-        if (line_len == 0) {
+        if (0 == line_len) {
             break;
         }
 
@@ -1052,8 +1131,10 @@ int httgw_header_get(const http_message_t *msg, const char *name,
         colon = (const uint8_t *)memchr(line, ':', line_len);
         if (NULL != colon) {
             size_t name_len = (size_t)(colon - line);
+            int    eq;
 
-            if (ci_eq(line, name_len, name)) {
+            eq = ci_eq(line, name_len, name);
+            if (0 != eq) {
                 /* ':' 뒤 공백을 건너뛰고 값 시작 위치를 맞춘다. */
                 val = colon + 1;
                 while (val < line + line_len && (*val == ' ' || *val == '\t')) {
@@ -1070,7 +1151,7 @@ int httgw_header_get(const http_message_t *msg, const char *name,
                 /* 값 slice를 그대로 반환한다. 복사본은 만들지 않는다. */
                 *value     = val;
                 *value_len = (size_t)(val_end - val);
-                return 1;
+                return 0;
             }
         }
 
@@ -1078,7 +1159,7 @@ int httgw_header_get(const http_message_t *msg, const char *name,
         pos = line_end + 2;
     }
 
-    return 0;
+    return -1;
 }
 
 /**
@@ -1087,7 +1168,7 @@ int httgw_header_get(const http_message_t *msg, const char *name,
  * @param msg 입력 http메시지
  * @param q 출력용 포인터
  * @param q_len 출력용 길이 값
- * @return int
+ * @return int 성공 시 0, 실패 시 -1
  */
 int httgw_extract_query(const http_message_t *msg, const char **q,
                         size_t *q_len) {
@@ -1096,21 +1177,27 @@ int httgw_extract_query(const http_message_t *msg, const char **q,
     const char *hash;
     size_t      len;
 
+    if (NULL != q) {
+        *q = NULL;
+    }
+    if (NULL != q_len) {
+        *q_len = 0;
+    }
     if (NULL == msg || NULL == q || NULL == q_len) {
-        return 0;
+        return -1;
     }
     if (0 == msg->is_request) {
-        return 0;
+        return -1;
     }
 
     uri = msg->uri;
     if (NULL == uri || '\0' == uri[0]) {
-        return 0;
+        return -1;
     }
 
     qm = strchr(uri, '?');
     if (NULL == qm || '\0' == *(qm + 1)) {
-        return 0;
+        return -1;
     }
 
     hash = strchr(qm + 1, '#');
@@ -1121,11 +1208,11 @@ int httgw_extract_query(const http_message_t *msg, const char **q,
     }
 
     if (0 == len) {
-        return 0;
+        return -1;
     }
     *q     = qm + 1;
     *q_len = len;
-    return 1;
+    return 0;
 }
 
 /* 헬퍼 체크섬*/
@@ -1188,9 +1275,9 @@ int tx_send_l3(void *ctx, const uint8_t *buf, size_t len) {
     tx_ctx_t          *tx = (tx_ctx_t *)ctx;
     struct sockaddr_in dst;
     const IPHDR       *ip;
-    ssize_t            n;  // signed size type, 부호있는 크기타입 음수 가능
+    ssize_t n;  // signed size type, 부호있는 크기타입 음수 가능
     // 유효성 검사 -> 송신 컨텍스트/버퍼/최소 IP 헤더 길이 확인
-    if (!tx || tx->fd < 0 || !buf || len < IP_HDR_SIZE) {
+    if (NULL == tx || 0 > tx->fd || NULL == buf || IP_HDR_SIZE > len) {
         return -1;
     }
     // Raw L3 버퍼의 시작은 IPv4 헤더
@@ -1204,7 +1291,7 @@ int tx_send_l3(void *ctx, const uint8_t *buf, size_t len) {
     // Raw 소켓으로 미리 구성된 IP/TCP 패킷을 그대로 전송
     n = sendto(tx->fd, buf, len, 0, (struct sockaddr *)&dst, sizeof(dst));
     // sendto는 소켓으로 데이터를 보내는 시스템 호출
-    if (n < 0)  // sendto 실패
+    if (0 > n)  // sendto 실패
     {
         return -1;
     }
@@ -1214,17 +1301,19 @@ int tx_send_l3(void *ctx, const uint8_t *buf, size_t len) {
 int tx_ctx_init(tx_ctx_t *tx) {
     int fd;
     int on = 1;
+    int ret;
 
-    if (!tx) {
+    if (NULL == tx) {
         return -1;
     }
     memset(tx, 0, sizeof(*tx));
 
     fd = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
-    if (fd < 0) {
+    if (0 > fd) {
         return -1;
     }
-    if (setsockopt(fd, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on)) != 0) {
+    ret = setsockopt(fd, IPPROTO_IP, IP_HDRINCL, &on, sizeof(on));
+    if (0 != ret) {
         close(fd);
         return -1;
     }
@@ -1239,7 +1328,7 @@ void tx_ctx_destroy(tx_ctx_t *tx) {
     if (!tx) {
         return;
     }
-    if (tx->fd >= 0) {
+    if (0 <= tx->fd) {
         close(tx->fd);
     }
     tx->fd      = -1;
@@ -1288,13 +1377,13 @@ static int tx_send_tcp_segment(void *tx_ctx, const flow_key_t *flow,
     }
 
     /* payload 길이가 있는데 payload 포인터가 없으면 잘못된 입력이다. */
-    if (payload_len > 0 && !payload) {
+    if (0 < payload_len && NULL == payload) {
         return -1;
     }
 
     /* IP + TCP + payload를 합친 전체 패킷 길이를 계산한다. */
     total_len = IP_HDR_SIZE + TCP_HDR_SIZE + payload_len;
-    if (total_len > 0xFFFFu) {
+    if (0xFFFFu < total_len) {
         return -1;
     }
 
@@ -1316,10 +1405,11 @@ static int tx_send_tcp_segment(void *tx_ctx, const flow_key_t *flow,
         dport = flow->src_port;
     }
     /* 전송할 raw IPv4/TCP 패킷 버퍼를 확보한다. */
-    buf = (uint8_t *)calloc(1, total_len);
+    buf = (uint8_t *)malloc(total_len);
     if (!buf) {
         return -1;
     }
+    memset(buf, 0, total_len);
 
     /* 버퍼 앞부분을 IPv4 헤더와 TCP 헤더로 해석한다. */
     ip  = (IPHDR *)buf;
@@ -1346,7 +1436,7 @@ static int tx_send_tcp_segment(void *tx_ctx, const flow_key_t *flow,
     TCP_WIN(tcp)   = htons(window);
     TCP_CHECK(tcp) = 0;
     /* payload가 있으면 TCP 헤더 뒤에 그대로 복사한다. */
-    if (payload_len > 0) {
+    if (0 < payload_len) {
         memcpy((uint8_t *)tcp + TCP_HDR_SIZE, payload, payload_len);
     }
     /* pseudo-header를 포함한 TCP 체크섬을 계산해 기록한다. */
@@ -1380,7 +1470,7 @@ int tx_send_rst(void *tx_ctx, const flow_key_t *flow, tcp_dir_t dir,
     uint8_t flags = TCP_RST;
 
     /* ACK 번호가 있으면 RST|ACK 형태로 보낸다. */
-    if (ack != 0) {
+    if (0 != ack) {
         flags |= TCP_ACK;
     }
 
@@ -1403,10 +1493,8 @@ int tx_send_rst(void *tx_ctx, const flow_key_t *flow, tcp_dir_t dir,
  * @return int 계산 성공 시 0, 상태 부족 시 -1
  */
 static int calc_rst_params_from_snapshot(const httgw_sess_snapshot_t *snap,
-                                         tcp_dir_t                    dir,
-                                         uint32_t                    *seq_base,
-                                         uint32_t                    *ack,
-                                         uint32_t                    *win) {
+                                         tcp_dir_t dir, uint32_t *seq_base,
+                                         uint32_t *ack, uint32_t *win) {
     if (NULL == snap || NULL == seq_base || NULL == ack || NULL == win) {
         return -1;
     }
@@ -1445,7 +1533,8 @@ static int calc_rst_params_from_snapshot(const httgw_sess_snapshot_t *snap,
         return (0 == *win) ? -1 : 0;
     }
 
-    if (0 == snap->seen_ab || 0 == snap->next_seq_ab || 0 == snap->last_ack_ab) {
+    if (0 == snap->seen_ab || 0 == snap->next_seq_ab ||
+        0 == snap->last_ack_ab) {
         return -1;
     }
 
@@ -1467,21 +1556,19 @@ static int calc_rst_params_from_snapshot(const httgw_sess_snapshot_t *snap,
  * @param flow RST를 보낼 대상 TCP flow key
  * @param dir RST를 보낼 방향 (DIR_AB 또는 DIR_BA)
  * @param snap 선택적 세션 snapshot. NULL이면 현재 세션 상태를 직접 사용한다.
- * @return int 0=전송 성공, 1=이미 해당 방향으로 RST 전송됨,
- *             -1=잘못된 인자, -2=세션 없음, -3=RST 계산에 필요한 상태 부족,
- *             -4=송신 함수 미설정, 그 외=하위 송신 함수 오류
+ * @return int 성공 시 0, 실패 시 -1
  */
 int httgw_request_rst_with_snapshot(httgw_t *gw, const flow_key_t *flow,
                                     tcp_dir_t                    dir,
                                     const httgw_sess_snapshot_t *snap) {
-    httgw_session_t *sess;
-    httgw_sess_snapshot_t live_snap;
+    httgw_session_t             *sess;
+    httgw_sess_snapshot_t        live_snap;
     const httgw_sess_snapshot_t *rst_snap;
-    uint32_t         seq_base = 0;
-    uint32_t         ack      = 0;
-    uint32_t         win      = 0;
-    int              sent_ok  = 0;
-    int              last_err = -1;
+    uint32_t                     seq_base = 0;
+    uint32_t                     ack      = 0;
+    uint32_t                     win      = 0;
+    int                          sent_ok  = 0;
+    int                          last_err = -1;
 
     /* 기본 인자와 방향값이 정상인지 먼저 확인한다. */
     if (NULL == gw || NULL == flow) {
@@ -1493,7 +1580,7 @@ int httgw_request_rst_with_snapshot(httgw_t *gw, const flow_key_t *flow,
 
     /* 실제 송신 함수가 연결되지 않았으면 RST를 만들 수 없다. */
     if (NULL == gw->tx_send_rst) {
-        return -4;
+        return -1;
     }
     /*
      * flow에 대응하는 live session을 찾는다.
@@ -1502,15 +1589,15 @@ int httgw_request_rst_with_snapshot(httgw_t *gw, const flow_key_t *flow,
      */
     sess = sess_find(gw, flow);
     if (NULL == sess) {
-        return -2;
+        return -1;
     }
 
     /* 같은 방향으로 이미 RST를 보낸 세션이면 재전송하지 않는다. */
     if (dir == DIR_AB && sess->rst_sent_ab) {
-        return 1;
+        return 0;
     }
     if (dir == DIR_BA && sess->rst_sent_ba) {
-        return 1;
+        return 0;
     }
 
     /*
@@ -1537,14 +1624,15 @@ int httgw_request_rst_with_snapshot(httgw_t *gw, const flow_key_t *flow,
         rst_snap               = &live_snap;
     }
 
-    if (0 != calc_rst_params_from_snapshot(rst_snap, dir, &seq_base, &ack,
-                                           &win)) {
-        return -3;
+    last_err =
+        calc_rst_params_from_snapshot(rst_snap, dir, &seq_base, &ack, &win);
+    if (0 != last_err) {
+        return -1;
     }
 
     /* 수신 윈도우가 0이면 유효한 burst 분산 범위를 만들 수 없다. */
-    if (win == 0) {
-        return -3;
+    if (0 == win) {
+        return -1;
     }
 
     /*
@@ -1555,7 +1643,7 @@ int httgw_request_rst_with_snapshot(httgw_t *gw, const flow_key_t *flow,
         uint32_t seq_off;
 
         /* burst 개수가 1이거나 window가 1이면 기준 seq 하나만 사용한다. */
-        if (HTTGW_RST_BURST_COUNT == 1 || win == 1) {
+        if (1 == HTTGW_RST_BURST_COUNT || 1 == win) {
             seq_off = 0;
         } else {
             /* seq_off는 seq_base에 더할 오프셋이다. */
@@ -1567,7 +1655,7 @@ int httgw_request_rst_with_snapshot(httgw_t *gw, const flow_key_t *flow,
 
         /* 계산된 seq/ack 조합으로 RST 1회를 전송한다. */
         int rc = gw->tx_send_rst(gw->tx_ctx, flow, dir, seq_try, ack);
-        if (rc == 0) {
+        if (0 == rc) {
             sent_ok++;
         } else {
             last_err = rc;
@@ -1575,7 +1663,7 @@ int httgw_request_rst_with_snapshot(httgw_t *gw, const flow_key_t *flow,
     }
 
     /* 모든 burst 전송이 성공했을 때만 해당 방향 RST 송신 완료로 기록한다. */
-    if (sent_ok == (int)HTTGW_RST_BURST_COUNT) {
+    if ((int)HTTGW_RST_BURST_COUNT == sent_ok) {
         if (dir == DIR_AB) {
             sess->rst_sent_ab = 1;
         } else {
@@ -1585,7 +1673,8 @@ int httgw_request_rst_with_snapshot(httgw_t *gw, const flow_key_t *flow,
     }
 
     /* 하나라도 실패했으면 마지막 송신 오류를 상위로 전달한다. */
-    return last_err;
+    (void)last_err;
+    return -1;
 }
 
 /**
@@ -1600,9 +1689,7 @@ int httgw_request_rst_with_snapshot(httgw_t *gw, const flow_key_t *flow,
  * @param snap 현재 세션의 seq/ack/window 정보를 담은 snapshot
  * @param payload 클라이언트에게 보낼 HTTP 응답 바디/헤더 데이터
  * @param payload_len payload 전체 길이
- * @return int 0=성공, -1=잘못된 인자, -2=세션 없음,
- *             -3=주입 계산에 필요한 상태 부족, -4=송신 컨텍스트 미설정,
- *             그 외=하위 송신 함수 오류
+ * @return int 성공 시 0, 실패 시 -1
  */
 int httgw_inject_block_response_with_snapshot(httgw_t                     *gw,
                                               const flow_key_t            *flow,
@@ -1623,7 +1710,7 @@ int httgw_inject_block_response_with_snapshot(httgw_t                     *gw,
 
     /* 실제 L3/TCP 송신 컨텍스트가 연결되지 않았으면 주입할 수 없다. */
     if (NULL == gw->tx_ctx) {
-        return -4;
+        return -1;
     }
 
     /*
@@ -1633,16 +1720,16 @@ int httgw_inject_block_response_with_snapshot(httgw_t                     *gw,
      */
     sess = sess_find(gw, flow);
     if (NULL == sess) {
-        return -2;
+        return -1;
     }
 
     /* 양방향 상태를 모두 본 세션이 아니면 정상적인 응답 주입 기준을 만들 수
      * 없다. */
     if (0 == snap->seen_ab || 0 == snap->seen_ba) {
-        return -3;
+        return -1;
     }
-    if (snap->next_seq_ab == 0 || snap->next_seq_ba == 0) {
-        return -3;
+    if (0 == snap->next_seq_ab || 0 == snap->next_seq_ba) {
+        return -1;
     }
 
     /* 서버 -> 클라이언트 방향(DIR_BA)으로 보낼 seq/ack 기준값을 snapshot에서
@@ -1673,8 +1760,8 @@ int httgw_inject_block_response_with_snapshot(httgw_t                     *gw,
         rc = tx_send_tcp_segment(gw->tx_ctx, flow, DIR_BA,
                                  seq_base + (uint32_t)sent, ack, flags,
                                  snap->win_ba, payload + sent, chunk);
-        if (rc != 0) {
-            return rc;
+        if (0 != rc) {
+            return -1;
         }
         sent += chunk;
     }
@@ -1685,7 +1772,7 @@ int httgw_inject_block_response_with_snapshot(httgw_t                     *gw,
         (uint8_t)(TCP_FIN | TCP_ACK), snap->win_ba, NULL, 0);
 
     /* 마지막 FIN 전송 결과를 상위로 반환한다. */
-    return last_err;
+    return (0 == last_err) ? 0 : -1;
 }
 
 /**************************** httgw를 바깥에서 쓰기 쉽게 감싼 wrapper AIP
@@ -1698,14 +1785,14 @@ int sess_get_or_create(httgw_t *gw, const flow_key_t flow, uint64_t ts_ms) {
     if (NULL == gw) {
         return -1;
     }
-    return sess_get_or_create_internal(gw, &flow, ts_ms) ? 1 : 0;
+    return sess_get_or_create_internal(gw, &flow, ts_ms) ? 0 : -1;
 }
 
 int sess_lookup(const httgw_t *gw, const flow_key_t flow) {
     if (NULL == gw) {
-        return 0;
+        return -1;
     }
-    return sess_find(gw, &flow) ? 1 : 0;
+    return sess_find(gw, &flow) ? 0 : -1;
 }
 
 void sess_gc(httgw_t *gw, uint64_t ts_ms) {

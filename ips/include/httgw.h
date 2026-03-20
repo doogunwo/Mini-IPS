@@ -34,7 +34,7 @@
  * DIR_AB, DIR_BA RST에서 seq,ack에 각각 64바이트를 더해준다.
  * 이 값을 통해 RST가 상대 수신 윈도우 안에 들어갈 확률을 높이는 것이다.
  */
-#define HTTGW_SERVER_NEXT_BIAS 64U
+#define HTTGW_SERVER_NEXT_BIAS 0U /* 64B */
 #endif
 
 /* TCP flags */
@@ -84,7 +84,6 @@ typedef struct {
 
 /** 파싱된 클라이언트 요청을 전달하는 콜백이다. */
 typedef void (*httgw_on_request_cb)(const flow_key_t *flow, tcp_dir_t dir,
-
                                     const http_message_t *msg,
                                     const char *query, size_t query_len,
                                     void *user);

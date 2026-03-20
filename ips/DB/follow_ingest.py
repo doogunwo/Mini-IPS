@@ -4,7 +4,7 @@ import pathlib
 import sqlite3
 import time
 
-from ingest_logs import init_db, parse_kv_line, should_store, to_int
+from ingest_logs import compact_raw_line, init_db, parse_kv_line, should_store, to_int
 
 
 def format_ingest_message(fields: dict[str, str]) -> str | None:
@@ -56,7 +56,7 @@ def insert_line(conn: sqlite3.Connection, line: str) -> int:
             to_int(fields.get("detect_us")),
             to_int(fields.get("detect_ms")),
             fields.get("detail"),
-            line,
+            compact_raw_line(line, fields),
         ),
     )
     conn.commit()

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import argparse
 import pathlib
-import shlex
 import sqlite3
 from typing import Dict, Optional
 
@@ -10,19 +9,128 @@ INTERESTING_EVENTS = {
     "detect",
     "rst_request",
     "block_inject",
+    "block_page_send",
     "stream_error",
     "detect_error",
 }
 
+PARSE_KEYS = {
+    "event_id",
+    "ts",
+    "level",
+    "event",
+    "action",
+    "attack",
+    "where",
+    "src_ip",
+    "src_port",
+    "dst_ip",
+    "dst_port",
+    "score",
+    "threshold",
+    "match_count",
+    "matched",
+    "matched_rules",
+    "matched_texts",
+    "detect_us",
+    "detect_ms",
+    "detail",
+}
+
+VALUE_LIMITS = {
+    "matched": 4096,
+    "matched_rules": 4096,
+    "matched_texts": 4096,
+    "detail": 4096,
+}
+
+DEFAULT_VALUE_LIMIT = 512
+RAW_LINE_LIMIT = 4096
+
 
 def parse_kv_line(line: str) -> Dict[str, str]:
     parsed: Dict[str, str] = {}
-    for token in shlex.split(line.strip()):
-        if "=" not in token:
+    n = len(line)
+    i = 0
+
+    while i < n:
+        while i < n and line[i].isspace():
+            i += 1
+        if i >= n:
+            break
+
+        key_start = i
+        while i < n and not line[i].isspace() and line[i] != "=":
+            i += 1
+        if i >= n or line[i] != "=":
+            while i < n and not line[i].isspace():
+                i += 1
             continue
-        key, value = token.split("=", 1)
-        parsed[key] = value
+
+        key = line[key_start:i]
+        i += 1
+
+        want_key = key in PARSE_KEYS
+        limit = VALUE_LIMITS.get(key, DEFAULT_VALUE_LIMIT)
+        truncated = False
+
+        if i < n and line[i] == "\"":
+            i += 1
+            if want_key:
+                chars = []
+            while i < n:
+                ch = line[i]
+                if ch == "\\" and i + 1 < n:
+                    next_ch = line[i + 1]
+                    if want_key:
+                        if len(chars) < limit:
+                            chars.append(next_ch)
+                        else:
+                            truncated = True
+                    i += 2
+                    continue
+                if ch == "\"":
+                    i += 1
+                    break
+                if want_key:
+                    if len(chars) < limit:
+                        chars.append(ch)
+                    else:
+                        truncated = True
+                i += 1
+
+            if want_key:
+                value = "".join(chars)
+                if truncated:
+                    value += " ... [truncated]"
+                parsed[key] = value
+            continue
+
+        value_start = i
+        while i < n and not line[i].isspace():
+            i += 1
+        if want_key:
+            value = line[value_start:i]
+            if len(value) > limit:
+                value = value[:limit] + " ... [truncated]"
+            parsed[key] = value
+
     return parsed
+
+
+def compact_raw_line(line: str, fields: Dict[str, str]) -> str:
+    event_id = fields.get("event_id")
+    prefix = f"event_id={event_id} " if event_id else ""
+    available = RAW_LINE_LIMIT - len(prefix)
+    if available < 0:
+        available = 0
+    if len(line) <= available:
+        return prefix + line
+    return (
+        prefix
+        + line[:available]
+        + f" ... [truncated len={len(line)}]"
+    )
 
 
 def init_db(conn: sqlite3.Connection) -> None:
@@ -135,7 +243,7 @@ def ingest_file(log_file: pathlib.Path, db_file: pathlib.Path) -> int:
                         to_int(fields.get("detect_us")),
                         to_int(fields.get("detect_ms")),
                         fields.get("detail"),
-                        line,
+                        compact_raw_line(line, fields),
                     ),
                 )
                 inserted += conn.total_changes - inserted

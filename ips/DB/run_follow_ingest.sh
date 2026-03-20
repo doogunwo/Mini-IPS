@@ -6,6 +6,8 @@ REPO_DIR=$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)
 
 if [ -n "${LOG_FILE:-}" ]; then
   FOLLOW_LOG_FILE="${LOG_FILE}"
+elif [ -f "${REPO_DIR}/logs/ips.log" ]; then
+  FOLLOW_LOG_FILE="${REPO_DIR}/logs/ips.log"
 elif [ -f "/logs/ips.log" ]; then
   FOLLOW_LOG_FILE="/logs/ips.log"
 else

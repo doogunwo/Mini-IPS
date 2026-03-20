@@ -45,7 +45,7 @@ static void *empty_wait_thread(void *arg) {
     return NULL;
 }
 
-static int test_nonblocking_empty_returns_eagain(void) {
+static int test_nonblocking_empty_returns_failure(void) {
     packet_ring_t ring;
     uint32_t      out_len = 0;
     uint64_t      out_ts_ns = 0;
@@ -55,13 +55,13 @@ static int test_nonblocking_empty_returns_eagain(void) {
 
     CHECK(0 == packet_ring_init(&ring, 4, 0), "packet_ring_init failed");
     start_ns = now_ns();
-    CHECK(EAGAIN == packet_ring_deq(&ring, NULL, 0, &out_len, &out_ts_ns),
-          "empty nonblocking dequeue should return EAGAIN");
+    CHECK(-1 == packet_ring_deq(&ring, NULL, 0, &out_len, &out_ts_ns),
+          "empty nonblocking dequeue should return -1");
     end_ns = now_ns();
     elapsed_ms = (double)(end_ns - start_ns) / 1000000.0;
     fprintf(stderr,
             "[test_packet_ring_empty] case=nonblocking_empty elapsed_ms=%.6f "
-            "rc=EAGAIN out_len=%u out_ts_ns=%llu\n",
+            "rc=-1 out_len=%u out_ts_ns=%llu\n",
             elapsed_ms, out_len, (unsigned long long)out_ts_ns);
     packet_ring_destroy(&ring);
     return 0;
@@ -88,7 +88,7 @@ static int test_blocking_empty_can_be_cancelled(void) {
     atomic_store_explicit(&ring.use_blocking, 0, memory_order_release);
 
     CHECK(0 == pthread_join(tid, NULL), "pthread_join failed");
-    CHECK(EAGAIN == arg.rc, "cancelled blocking dequeue should return EAGAIN");
+    CHECK(-1 == arg.rc, "cancelled blocking dequeue should return -1");
     end_ns = now_ns();
     elapsed_ms = (double)(end_ns - start_ns) / 1000000.0;
 
@@ -104,7 +104,7 @@ static int test_blocking_empty_can_be_cancelled(void) {
 }
 
 int main(void) {
-    if (0 != test_nonblocking_empty_returns_eagain()) {
+    if (0 != test_nonblocking_empty_returns_failure()) {
         return 1;
     }
     if (0 != test_blocking_empty_can_be_cancelled()) {

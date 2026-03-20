@@ -154,17 +154,22 @@ static const char *payload_name(payload_kind_t kind)
 
 static int parse_mode(const char *s, bot_mode_t *out)
 {
-    if (strcmp(s, "url") == 0)
+    int ret;
+
+    ret = strcmp(s, "url");
+    if (0 == ret)
     {
         *out = MODE_URL;
         return 0;
     }
-    if (strcmp(s, "body") == 0)
+    ret = strcmp(s, "body");
+    if (0 == ret)
     {
         *out = MODE_BODY;
         return 0;
     }
-    if (strcmp(s, "header") == 0)
+    ret = strcmp(s, "header");
+    if (0 == ret)
     {
         *out = MODE_HEADER;
         return 0;
@@ -174,22 +179,28 @@ static int parse_mode(const char *s, bot_mode_t *out)
 
 static int parse_payload(const char *s, payload_kind_t *out)
 {
-    if (strcmp(s, "sqli") == 0)
+    int ret;
+
+    ret = strcmp(s, "sqli");
+    if (0 == ret)
     {
         *out = PAYLOAD_SQLI;
         return 0;
     }
-    if (strcmp(s, "xss") == 0)
+    ret = strcmp(s, "xss");
+    if (0 == ret)
     {
         *out = PAYLOAD_XSS;
         return 0;
     }
-    if (strcmp(s, "redos") == 0)
+    ret = strcmp(s, "redos");
+    if (0 == ret)
     {
         *out = PAYLOAD_REDOS;
         return 0;
     }
-    if (strcmp(s, "rce") == 0)
+    ret = strcmp(s, "rce");
+    if (0 == ret)
     {
         *out = PAYLOAD_RCE;
         return 0;
@@ -212,7 +223,10 @@ static size_t parse_size_or_die(const char *arg, const char *name)
 static int connect_target(const char *ip, int port)
 {
     struct sockaddr_in addr;
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    int                fd;
+    int                ret;
+
+    fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0)
     {
         perror("socket");
@@ -222,14 +236,16 @@ static int connect_target(const char *ip, int port)
     memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = htons((uint16_t)port);
-    if (inet_pton(AF_INET, ip, &addr.sin_addr) != 1)
+    ret = inet_pton(AF_INET, ip, &addr.sin_addr);
+    if (1 != ret)
     {
         fprintf(stderr, "invalid ip: %s\n", ip);
         close(fd);
         return -1;
     }
 
-    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    ret = connect(fd, (struct sockaddr *)&addr, sizeof(addr));
+    if (0 > ret)
     {
         perror("connect");
         close(fd);
@@ -266,6 +282,7 @@ static void sleep_ms(unsigned int interval_ms)
 {
     struct timespec req;
     struct timespec rem;
+    int             ret;
 
     if (interval_ms == 0U)
     {
@@ -275,8 +292,13 @@ static void sleep_ms(unsigned int interval_ms)
     req.tv_sec = (time_t)(interval_ms / 1000U);
     req.tv_nsec = (long)(interval_ms % 1000U) * 1000000L;
 
-    while (nanosleep(&req, &rem) != 0)
+    while (1)
     {
+        ret = nanosleep(&req, &rem);
+        if (0 == ret)
+        {
+            break;
+        }
         if (errno != EINTR)
         {
             break;
@@ -288,8 +310,12 @@ static void sleep_ms(unsigned int interval_ms)
 static void print_tcp_info(int fd)
 {
     struct tcp_info info;
-    socklen_t len = sizeof(info);
-    if (getsockopt(fd, IPPROTO_TCP, TCP_INFO, &info, &len) == 0)
+    socklen_t       len;
+    int             ret;
+
+    len = sizeof(info);
+    ret = getsockopt(fd, IPPROTO_TCP, TCP_INFO, &info, &len);
+    if (0 == ret)
     {
         printf("[BOT][TCP] unacked=%u rcv_space=%u snd_cwnd=%u rtt_us=%u total_retrans=%u\n",
                info.tcpi_unacked,
@@ -382,7 +408,10 @@ static char *url_encode_component(const char *src)
     for (i = 0; i < len; i++)
     {
         unsigned char c = (unsigned char)src[i];
-        out_len += is_unreserved_uri_char(c) ? 1 : 3;
+        int           ret;
+
+        ret = is_unreserved_uri_char(c);
+        out_len += 0 != ret ? 1U : 3U;
     }
 
     out = (char *)malloc(out_len + 1);
@@ -395,7 +424,10 @@ static char *url_encode_component(const char *src)
     for (i = 0; i < len; i++)
     {
         unsigned char c = (unsigned char)src[i];
-        if (is_unreserved_uri_char(c))
+        int           ret;
+
+        ret = is_unreserved_uri_char(c);
+        if (0 != ret)
         {
             *p++ = (char)c;
         }
@@ -593,66 +625,111 @@ int main(int argc, char **argv)
 
     for (int i = 3; i < argc; i++)
     {
-        if (strcmp(argv[i], "-mode") == 0 && i + 1 < argc)
+        int ret;
+
+        ret = strcmp(argv[i], "-mode");
+        if (0 == ret && i + 1 < argc)
         {
-            if (parse_mode(argv[++i], &cfg.mode) != 0)
+            ret = parse_mode(argv[++i], &cfg.mode);
+            if (0 != ret)
             {
                 fprintf(stderr, "invalid mode\n");
                 return 1;
             }
             cfg.mode_set = true;
         }
-        else if (strcmp(argv[i], "-payload") == 0 && i + 1 < argc)
-        {
-            if (parse_payload(argv[++i], &cfg.payload) != 0)
-            {
-                fprintf(stderr, "invalid payload\n");
-                return 1;
-            }
-            cfg.payload_set = true;
-        }
-        else if (strcmp(argv[i], "-uri-size") == 0 && i + 1 < argc)
-        {
-            cfg.uri_size = parse_size_or_die(argv[++i], "uri-size");
-        }
-        else if (strcmp(argv[i], "-body-size") == 0 && i + 1 < argc)
-        {
-            cfg.body_size = parse_size_or_die(argv[++i], "body-size");
-        }
-        else if (strcmp(argv[i], "-header-size") == 0 && i + 1 < argc)
-        {
-            cfg.header_size = parse_size_or_die(argv[++i], "header-size");
-        }
-        else if (strcmp(argv[i], "-prefix") == 0 && i + 1 < argc)
-        {
-            cfg.prefix = argv[++i];
-            cfg.prefix_set = true;
-        }
-        else if (strcmp(argv[i], "-suffix") == 0 && i + 1 < argc)
-        {
-            cfg.suffix = argv[++i];
-            cfg.suffix_set = true;
-        }
-        else if (strcmp(argv[i], "-count") == 0 && i + 1 < argc)
-        {
-            cfg.count = (int)parse_size_or_die(argv[++i], "count");
-        }
-        else if (strcmp(argv[i], "-interval-ms") == 0 && i + 1 < argc)
-        {
-            cfg.interval_ms = (unsigned int)parse_size_or_die(argv[++i], "interval-ms");
-        }
-        else if (strcmp(argv[i], "-seed") == 0 && i + 1 < argc)
-        {
-            cfg.seed = (unsigned int)strtoul(argv[++i], NULL, 10);
-        }
-        else if (strcmp(argv[i], "-verbose") == 0)
-        {
-            cfg.verbose = 1;
-        }
         else
         {
-            usage(argv[0]);
-            return 1;
+            ret = strcmp(argv[i], "-payload");
+            if (0 == ret && i + 1 < argc)
+            {
+                ret = parse_payload(argv[++i], &cfg.payload);
+                if (0 != ret)
+                {
+                    fprintf(stderr, "invalid payload\n");
+                    return 1;
+                }
+                cfg.payload_set = true;
+            }
+            else
+            {
+                ret = strcmp(argv[i], "-uri-size");
+                if (0 == ret && i + 1 < argc)
+                {
+                    cfg.uri_size = parse_size_or_die(argv[++i], "uri-size");
+                }
+                else
+                {
+                    ret = strcmp(argv[i], "-body-size");
+                    if (0 == ret && i + 1 < argc)
+                    {
+                        cfg.body_size = parse_size_or_die(argv[++i], "body-size");
+                    }
+                    else
+                    {
+                        ret = strcmp(argv[i], "-header-size");
+                        if (0 == ret && i + 1 < argc)
+                        {
+                            cfg.header_size = parse_size_or_die(argv[++i], "header-size");
+                        }
+                        else
+                        {
+                            ret = strcmp(argv[i], "-prefix");
+                            if (0 == ret && i + 1 < argc)
+                            {
+                                cfg.prefix = argv[++i];
+                                cfg.prefix_set = true;
+                            }
+                            else
+                            {
+                                ret = strcmp(argv[i], "-suffix");
+                                if (0 == ret && i + 1 < argc)
+                                {
+                                    cfg.suffix = argv[++i];
+                                    cfg.suffix_set = true;
+                                }
+                                else
+                                {
+                                    ret = strcmp(argv[i], "-count");
+                                    if (0 == ret && i + 1 < argc)
+                                    {
+                                        cfg.count = (int)parse_size_or_die(argv[++i], "count");
+                                    }
+                                    else
+                                    {
+                                        ret = strcmp(argv[i], "-interval-ms");
+                                        if (0 == ret && i + 1 < argc)
+                                        {
+                                            cfg.interval_ms = (unsigned int)parse_size_or_die(argv[++i], "interval-ms");
+                                        }
+                                        else
+                                        {
+                                            ret = strcmp(argv[i], "-seed");
+                                            if (0 == ret && i + 1 < argc)
+                                            {
+                                                cfg.seed = (unsigned int)strtoul(argv[++i], NULL, 10);
+                                            }
+                                            else
+                                            {
+                                                ret = strcmp(argv[i], "-verbose");
+                                                if (0 == ret)
+                                                {
+                                                    cfg.verbose = 1;
+                                                }
+                                                else
+                                                {
+                                                    usage(argv[0]);
+                                                    return 1;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -711,7 +788,10 @@ int main(int argc, char **argv)
             return 1;
         }
 
-        if (send_all(fd, attack_req, strlen(attack_req)) != 0)
+        int ret;
+
+        ret = send_all(fd, attack_req, strlen(attack_req));
+        if (0 != ret)
         {
             perror("send");
             printf("disconnected after %d attack requests\n", i);

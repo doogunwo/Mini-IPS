@@ -86,8 +86,8 @@ ips_operator_t ips_operator_from_string(const char *name);
 /** CRS operator enum을 출력용 문자열로 변환한다. */
 const char *ips_operator_name(ips_operator_t op);
 /** 기본 rules_full.jsonl 또는 지정 경로에서 룰을 적재한다. */
-int regex_load_signatures(const char *jsonl_path);
+int regex_signatures_load(const char *jsonl_path);
 /** 적재된 룰 메모리를 해제한다. */
-void regex_unload_signatures(void);
+void regex_signatures_unload(void);
 
 #endif

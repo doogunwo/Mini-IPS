@@ -90,7 +90,7 @@ static void on_request_cb(const flow_key_t *flow, tcp_dir_t dir,
     ctx->detect_rc = rc;
     if (rc < 0) {
         ctx->detect_err_count++;
-    } else if (rc > 0) {
+    } else if (ctx->detect_score >= APP_DETECT_THRESHOLD) {
         ctx->detect_count++;
     }
     detect_match_list_free(&matches);
@@ -370,7 +370,7 @@ static int feed_request_in_segments(httgw_t *gw, const char *req,
         if (build_tcp_packet(pkt, sizeof(pkt), &sp, &pkt_len) != 0) {
             return -1;
         }
-        if (httgw_ingest_packet(gw, pkt, pkt_len, ts++) != 1) {
+        if (httgw_ingest_packet(gw, pkt, pkt_len, ts++) != 0) {
             return -1;
         }
         off += chunk;
@@ -410,7 +410,7 @@ static int feed_request_two_segments_out_of_order(httgw_t *gw, const char *req,
     if (build_tcp_packet(pkt, sizeof(pkt), &sp, &pkt_len) != 0) {
         return -1;
     }
-    if (httgw_ingest_packet(gw, pkt, pkt_len, ts_base) != 1) {
+    if (httgw_ingest_packet(gw, pkt, pkt_len, ts_base) != 0) {
         return -1;
     }
 
@@ -420,7 +420,7 @@ static int feed_request_two_segments_out_of_order(httgw_t *gw, const char *req,
     if (build_tcp_packet(pkt, sizeof(pkt), &sp, &pkt_len) != 0) {
         return -1;
     }
-    if (httgw_ingest_packet(gw, pkt, pkt_len, ts_base + 1U) != 1) {
+    if (httgw_ingest_packet(gw, pkt, pkt_len, ts_base + 1U) != 0) {
         return -1;
     }
 
@@ -467,7 +467,7 @@ static int feed_no_syn_two_segments_out_of_order(httgw_t *gw, const char *req,
     if (build_tcp_packet(pkt, sizeof(pkt), &sp, &pkt_len) != 0) {
         return -1;
     }
-    if (httgw_ingest_packet(gw, pkt, pkt_len, ts_base) != 1) {
+    if (httgw_ingest_packet(gw, pkt, pkt_len, ts_base) != 0) {
         return -1;
     }
 
@@ -478,7 +478,7 @@ static int feed_no_syn_two_segments_out_of_order(httgw_t *gw, const char *req,
     if (build_tcp_packet(pkt, sizeof(pkt), &sp, &pkt_len) != 0) {
         return -1;
     }
-    if (httgw_ingest_packet(gw, pkt, pkt_len, ts_base + 1U) != 1) {
+    if (httgw_ingest_packet(gw, pkt, pkt_len, ts_base + 1U) != 0) {
         return -1;
     }
 
@@ -488,7 +488,7 @@ static int feed_no_syn_two_segments_out_of_order(httgw_t *gw, const char *req,
     if (build_tcp_packet(pkt, sizeof(pkt), &sp, &pkt_len) != 0) {
         return -1;
     }
-    if (httgw_ingest_packet(gw, pkt, pkt_len, ts_base + 2U) != 1) {
+    if (httgw_ingest_packet(gw, pkt, pkt_len, ts_base + 2U) != 0) {
         return -1;
     }
 
@@ -731,8 +731,8 @@ static int run_no_syn_two_segment_ooo_case(size_t uri_size) {
 }
 
 int main(void) {
-    if (regex_load_signatures(TEST_RULES_PATH) != 0) {
-        fprintf(stderr, "regex_load_signatures failed: %s\n", TEST_RULES_PATH);
+    if (regex_signatures_load(TEST_RULES_PATH) != 0) {
+        fprintf(stderr, "regex_signatures_load failed: %s\n", TEST_RULES_PATH);
         return 1;
     }
 

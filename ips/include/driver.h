@@ -15,7 +15,6 @@
 //   - 정책에 의한 예외 처리
 //   - 필터링이 필요한 패킷을 응용에 전달
 /*default*/
-#include <errno.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdlib.h>

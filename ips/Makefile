@@ -50,7 +50,10 @@ MAIN_BIN := $(BUILD_DIR)/main
 REGEX_COMPAT_BIN := $(BUILD_DIR)/test_regex_compat
 DETECT_ENGINE_BIN := $(BENCH_BUILD_DIR)/test_engine_detect
 DETECT_PIPELINE_BIN := $(BENCH_BUILD_DIR)/test_detect_pipeline
+NORMAL_BENCHMARK_BIN := $(BENCH_BUILD_DIR)/test_benchmark_normal
+ATTACK_BENCHMARK_BIN := $(BENCH_BUILD_DIR)/test_benchmark_attack
 REASM_PIPELINE_BIN := $(BENCH_BUILD_DIR)/test_reasm_pipeline
+HTTP_STREAM_SEARCH_BENCH_BIN := $(BENCH_BUILD_DIR)/test_http_stream_search_bench
 HTTP_LIVE_LIKE_REASM_BIN := $(BUILD_DIR)/test_httgw_live_reasm
 BOT_URL_DETECT_BIN := $(BUILD_DIR)/test_runtime_bot_url_detect
 
@@ -77,7 +80,7 @@ BENCH_NAMES := $(notdir $(basename $(BENCH_SRCS)))
 PACKET_RING_BENCH_SRCS := $(wildcard $(BENCH_DIR)/test_packet_ring_*.c)
 PACKET_RING_BENCH_NAMES := $(notdir $(basename $(PACKET_RING_BENCH_SRCS)))
 PACKET_RING_BENCH_BINS := $(addprefix $(BENCH_BUILD_DIR)/,$(PACKET_RING_BENCH_NAMES))
-BENCH_BINS := $(PACKET_RING_BENCH_BINS) $(DETECT_ENGINE_BIN) $(DETECT_PIPELINE_BIN) $(REASM_PIPELINE_BIN)
+BENCH_BINS := $(PACKET_RING_BENCH_BINS) $(DETECT_ENGINE_BIN) $(DETECT_PIPELINE_BIN) $(NORMAL_BENCHMARK_BIN) $(ATTACK_BENCHMARK_BIN) $(REASM_PIPELINE_BIN) $(HTTP_STREAM_SEARCH_BENCH_BIN)
 BENCH_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .log,$(BENCH_NAMES)))
 MAIN_VG_LOG := $(LOG_DIR)/main.valgrind.log
 FORMAT_SRCS := $(shell find $(SRC_DIR) $(INC_DIR) $(TEST_DIR) $(BENCH_DIR) -type f \( -name '*.c' -o -name '*.h' \))
@@ -126,11 +129,40 @@ $(DETECT_PIPELINE_BIN): check_pcre $(BENCH_DIR)/test_detect_pipeline.c \
 		$(SRC_DIR)/regex.c $(SRC_DIR)/packet_ring.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
 		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
 
+$(NORMAL_BENCHMARK_BIN): check_pcre $(BENCH_DIR)/test_benchmark_normal.c \
+	$(BENCH_DIR)/configurable_detect_benchmark.c \
+	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
+	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/packet_ring.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c \
+	$(SRC_DIR)/http_stream.c | $(BENCH_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
+		$(BENCH_DIR)/test_benchmark_normal.c \
+		$(BENCH_DIR)/configurable_detect_benchmark.c $(SRC_DIR)/runtime.c \
+		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
+		$(SRC_DIR)/html.c \
+		$(SRC_DIR)/regex.c $(SRC_DIR)/packet_ring.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
+		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
+
+$(ATTACK_BENCHMARK_BIN): check_pcre $(BENCH_DIR)/test_benchmark_attack.c \
+	$(BENCH_DIR)/configurable_detect_benchmark.c \
+	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
+	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/packet_ring.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c \
+	$(SRC_DIR)/http_stream.c | $(BENCH_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
+		$(BENCH_DIR)/test_benchmark_attack.c \
+		$(BENCH_DIR)/configurable_detect_benchmark.c $(SRC_DIR)/runtime.c \
+		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
+		$(SRC_DIR)/html.c \
+		$(SRC_DIR)/regex.c $(SRC_DIR)/packet_ring.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
+		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
+
 $(REASM_PIPELINE_BIN): $(BENCH_DIR)/test_reasm_pipeline.c \
 	$(SRC_DIR)/packet_ring.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c | $(BENCH_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) \
 		$(BENCH_DIR)/test_reasm_pipeline.c $(SRC_DIR)/packet_ring.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c \
 		$(SRC_DIR)/http_stream.c -o $@ $(LDFLAGS) -lpcap $(LDLIBS)
+
+$(HTTP_STREAM_SEARCH_BENCH_BIN): $(BENCH_DIR)/test_http_stream_search_bench.c | $(BENCH_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LDFLAGS) $(LDLIBS)
 
 $(HTTP_LIVE_LIKE_REASM_BIN): $(TEST_DIR)/test_httgw_live_reasm.c \
 	$(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c | $(BUILD_DIR)

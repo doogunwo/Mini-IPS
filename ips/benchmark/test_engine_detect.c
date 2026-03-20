@@ -178,7 +178,7 @@ static int run_backend(const char *backend_name, const http_message_t *msg,
         }
 
         total_detect_us += detect_us;
-        if (last_rc > 0) {
+        if (last_score >= APP_DETECT_THRESHOLD) {
             detected_count++;
         }
 
@@ -218,8 +218,8 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (regex_load_signatures(TEST_RULES_PATH) != 0) {
-        fprintf(stderr, "regex_load_signatures failed: %s\n", TEST_RULES_PATH);
+    if (regex_signatures_load(TEST_RULES_PATH) != 0) {
+        fprintf(stderr, "regex_signatures_load failed: %s\n", TEST_RULES_PATH);
         return 1;
     }
 
@@ -248,5 +248,6 @@ int main(int argc, char **argv) {
         http_message_free(&msg);
     }
 
+    regex_signatures_unload();
     return 0;
 }

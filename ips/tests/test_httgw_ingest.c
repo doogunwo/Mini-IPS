@@ -119,10 +119,10 @@ static int test_ingest_single_request_with_duplicate_segment(void) {
                            seq0, 0, TCP_ACK | TCP_PSH, (const uint8_t *)p1,
                            (uint32_t)strlen(p1), &pkt_len) == 0,
           "build packet #1 failed");
-    CHECK(httgw_ingest_packet(gw, pkt, pkt_len, 1) == 1,
+    CHECK(httgw_ingest_packet(gw, pkt, pkt_len, 1) == 0,
           "ingest packet #1 failed");
 
-    CHECK(httgw_ingest_packet(gw, pkt, pkt_len, 2) == 1,
+    CHECK(httgw_ingest_packet(gw, pkt, pkt_len, 2) == 0,
           "ingest duplicate packet failed");
 
     CHECK(build_tcp_packet(pkt, sizeof(pkt), 0x0A000001, 12345, 0x0A000002, 80,
@@ -130,7 +130,7 @@ static int test_ingest_single_request_with_duplicate_segment(void) {
                            (const uint8_t *)p2, (uint32_t)strlen(p2),
                            &pkt_len) == 0,
           "build packet #2 failed");
-    CHECK(httgw_ingest_packet(gw, pkt, pkt_len, 3) == 1,
+    CHECK(httgw_ingest_packet(gw, pkt, pkt_len, 3) == 0,
           "ingest packet #2 failed");
 
     CHECK(ctx.req_count == 1, "expected exactly one request callback");
@@ -173,7 +173,7 @@ static int test_ingest_malformed_request_increments_parse_err(void) {
                            5000, 0, TCP_ACK | TCP_PSH, (const uint8_t *)bad,
                            (uint32_t)strlen(bad), &pkt_len) == 0,
           "build malformed packet failed");
-    CHECK(httgw_ingest_packet(gw, pkt, pkt_len, 10) == 1,
+    CHECK(httgw_ingest_packet(gw, pkt, pkt_len, 10) == 0,
           "ingest malformed packet failed");
 
     st = httgw_stats(gw);

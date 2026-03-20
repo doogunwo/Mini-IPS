@@ -250,7 +250,11 @@ def extract_rule(rule_text: str, source_file: pathlib.Path) -> dict | None:
 
 
 def iter_conf_files(root: pathlib.Path) -> Iterable[pathlib.Path]:
-    return sorted(path for path in root.rglob("*.conf") if path.is_file())
+    return sorted(
+        path
+        for path in root.rglob("*.conf")
+        if path.is_file() and path.name.upper().startswith("REQUEST-")
+    )
 
 
 def main() -> int:

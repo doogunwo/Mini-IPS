@@ -266,19 +266,19 @@ static int test_gap_then_fill(void) {
     sp.seq         = seq0;
     sp.payload     = (const uint8_t *)p1;
     sp.payload_len = (uint32_t)strlen(p1);
-    CHECK(feed_seg(gw, &sp, 1) == 1, "feed p1 failed");
+    CHECK(feed_seg(gw, &sp, 1) == 0, "feed p1 failed");
     CHECK(ctx.req_count == 0, "request must not flush after p1");
 
     sp.seq         = seq0 + (uint32_t)strlen(p1) + (uint32_t)strlen(pmiss);
     sp.payload     = (const uint8_t *)p2;
     sp.payload_len = (uint32_t)strlen(p2);
-    CHECK(feed_seg(gw, &sp, 2) == 1, "feed p2 failed");
+    CHECK(feed_seg(gw, &sp, 2) == 0, "feed p2 failed");
     CHECK(ctx.req_count == 0, "request must not flush while gap exists");
 
     sp.seq         = seq0 + (uint32_t)strlen(p1);
     sp.payload     = (const uint8_t *)pmiss;
     sp.payload_len = (uint32_t)strlen(pmiss);
-    CHECK(feed_seg(gw, &sp, 3) == 1, "feed missing gap failed");
+    CHECK(feed_seg(gw, &sp, 3) == 0, "feed missing gap failed");
 
     CHECK(ctx.req_count == 1, "expected exactly one request_fill");
     CHECK(strcmp(ctx.last_uri, "/a") == 0, "uri mismatch");
@@ -311,14 +311,14 @@ static int test_header_split_across_segments(void) {
     sp.seq         = seq0;
     sp.payload     = (const uint8_t *)p1;
     sp.payload_len = (uint32_t)strlen(p1);
-    CHECK(feed_seg(gw, &sp, 1) == 1, "feed first split segment failed");
+    CHECK(feed_seg(gw, &sp, 1) == 0, "feed first split segment failed");
     CHECK(ctx.req_count == 0,
           "request must not flush before header terminator completes");
 
     sp.seq         = seq0 + (uint32_t)strlen(p1);
     sp.payload     = (const uint8_t *)p2;
     sp.payload_len = (uint32_t)strlen(p2);
-    CHECK(feed_seg(gw, &sp, 2) == 1, "feed second split segment failed");
+    CHECK(feed_seg(gw, &sp, 2) == 0, "feed second split segment failed");
 
     CHECK(ctx.req_count == 1, "expected exactly one request_header_split");
     CHECK(strcmp(ctx.last_uri, "/split") == 0, "uri mismatch");
@@ -358,7 +358,7 @@ static int test_cl_te_conflict(void) {
     sp.seq         = 3000;
     sp.payload     = (const uint8_t *)req;
     sp.payload_len = (uint32_t)strlen(req);
-    CHECK(feed_seg(gw, &sp, 1) == 1, "feed CL+TE conflict request failed");
+    CHECK(feed_seg(gw, &sp, 1) == 0, "feed CL+TE conflict request failed");
 
     CHECK(ctx.req_count == 0,
           "CL+TE conflict should not produce request callback");
@@ -391,13 +391,13 @@ static int test_out_of_order(void) {
     sp.seq         = seq0 + (uint32_t)strlen(p1);
     sp.payload     = (const uint8_t *)p2;
     sp.payload_len = (uint32_t)strlen(p2);
-    CHECK(feed_seg(gw, &sp, 1) == 1, "feed tail failed");
+    CHECK(feed_seg(gw, &sp, 1) == 0, "feed tail failed");
     CHECK(ctx.req_count == 0, "request must not flush before missing prefix");
 
     sp.seq         = seq0;
     sp.payload     = (const uint8_t *)p1;
     sp.payload_len = (uint32_t)strlen(p1);
-    CHECK(feed_seg(gw, &sp, 2) == 1, "feed head failed");
+    CHECK(feed_seg(gw, &sp, 2) == 0, "feed head failed");
 
     CHECK(ctx.req_count == 1,
           "expected exactly one request_out_of_order");  // "late-start reasm

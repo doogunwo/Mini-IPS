@@ -15,11 +15,11 @@
 #define _DEFAULT_SOURCE
 #endif
 
+#include <limits.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdatomic.h>
 #include <stdint.h>
-#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,10 +46,11 @@ static void on_packet(const uint8_t *data, uint32_t len, uint64_t ts_ns,
                       void *user);
 static void maybe_emit_monitor_stats(app_ctx_t *app, uint64_t ts_ms);
 static void destroy_workers(app_ctx_t *workers, int count);
-static int set_resolved_path(char *dst, size_t dst_len, const char *base,
-                             const char *suffix);
+static int  set_resolved_path(char *dst, size_t dst_len, const char *base,
+                              const char *suffix);
+static const char *first_nonempty_env(const char *first, const char *second);
 static const char *resolve_block_page_template_path(void);
-static void usage(const char *prog);
+static void        usage(const char *prog);
 
 /**
  * @brief 캡처/탐지/게이트웨이 런타임을 구성하고 패킷 처리를 시작한다.
@@ -79,22 +80,29 @@ int main(int argc, char **argv) {
     int               exit_code = 0;
     int               argi      = 0;
     int               i;
+    int               ret;
 
     (void)argc;
+    iface       = first_nonempty_env("IFACE", "IPS_IFACE");
+    bpf         = first_nonempty_env("BPF", "IPS_BPF");
+    engine_name = first_nonempty_env("ENGINE", "IPS_ENGINE");
 
     /* 위치 인자와 `-key=value` 형태를 모두 허용해 최소 설정만 읽는다. */
     for (i = 1; argv[i] != NULL; i++) {
-        if (strncmp(argv[i], "-iface=", 7) == 0) {
+        ret = strncmp(argv[i], "-iface=", 7);
+        if (0 == ret) {
             iface = argv[i] + 7;
             continue;
         }
 
-        if (strncmp(argv[i], "-bpf=", 5) == 0) {
+        ret = strncmp(argv[i], "-bpf=", 5);
+        if (0 == ret) {
             bpf = argv[i] + 5;
             continue;
         }
 
-        if (strncmp(argv[i], "-engine=", 8) == 0) {
+        ret = strncmp(argv[i], "-engine=", 8);
+        if (0 == ret) {
             engine_name = argv[i] + 8;
             continue;
         }
@@ -118,10 +126,11 @@ int main(int argc, char **argv) {
 
     g_block_page_template_path = resolve_block_page_template_path();
 
-    if (engine_name != NULL) {
+    if (NULL != engine_name) {
         char errbuf[64];
 
-        if (engine_set_backend_name(engine_name, errbuf, sizeof(errbuf)) != 0) {
+        ret = engine_set_backend_name(engine_name, errbuf, sizeof(errbuf));
+        if (0 != ret) {
             fprintf(stderr, "invalid engine: %s\n", engine_name);
             usage(argv[0]);
             return 1;
@@ -133,7 +142,8 @@ int main(int argc, char **argv) {
     memset(&rt, 0, sizeof(rt));
     memset(&shared, 0, sizeof(shared));
 
-    if (app_log_open(&shared) != 0) {
+    ret = app_log_open(&shared);
+    if (0 != ret) {
         fprintf(stderr, "log init failed\n");
         return 1;
     }
@@ -153,7 +163,7 @@ int main(int argc, char **argv) {
     shared.worker_count      = 0;
 
     worker_count = 1;
-    if (worker_count < 1) {
+    if (1 > worker_count) {
         worker_count = 1;
     }
     if (worker_count > MAX_QUEUE_COUNT) {
@@ -163,12 +173,13 @@ int main(int argc, char **argv) {
     /* pcap capture는 full snaplen/sniffing 모드 기준으로 초기화한다. */
     memset(&pcfg, 0, sizeof(pcfg));
     pcfg.dev         = iface;
-    pcfg.snaplen     = 65535;
+    pcfg.snaplen     = 2032;
     pcfg.promisc     = 1;
-    pcfg.timeout_ms  = 1000;
+    pcfg.timeout_ms  = 100;
     pcfg.nonblocking = 0;
 
-    if (driver_init(&rt, worker_count) != 0) {
+    ret = driver_init(&rt, worker_count);
+    if (0 != ret) {
         fprintf(stderr, "driver_init failed\n");
         app_log_write(&shared, "ERROR", "driver_init failed");
         app_log_close(&shared);
@@ -176,7 +187,7 @@ int main(int argc, char **argv) {
     }
 
     rc = capture_create(&rt.cc, &pcfg);
-    if (rc != 0) {
+    if (0 != rc) {
         fprintf(stderr, "capture_create failed rc=%d\n", rc);
         app_log_write(&shared, "ERROR", "capture_create failed rc=%d", rc);
         driver_destroy(&rt);
@@ -185,7 +196,7 @@ int main(int argc, char **argv) {
     }
 
     rc = capture_activate(&rt.cc, &pcfg);
-    if (rc != 0) {
+    if (0 != rc) {
         fprintf(stderr, "capture_activate failed rc=%d\n", rc);
         app_log_write(&shared, "ERROR", "capture_activate failed rc=%d", rc);
         driver_destroy(&rt);
@@ -193,10 +204,11 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    if (bpf && bpf[0] != '\0') {
+    if (NULL != bpf && '\0' != bpf[0]) {
         struct bpf_program fp;
 
-        if (pcap_compile(rt.cc.handle, &fp, bpf, 1, PCAP_NETMASK_UNKNOWN) < 0) {
+        ret = pcap_compile(rt.cc.handle, &fp, bpf, 1, PCAP_NETMASK_UNKNOWN);
+        if (0 > ret) {
             fprintf(stderr, "pcap_compile failed: %s\n",
                     pcap_geterr(rt.cc.handle));
             app_log_write(&shared, "ERROR", "pcap_compile failed: %s",
@@ -206,7 +218,8 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        if (pcap_setfilter(rt.cc.handle, &fp) < 0) {
+        ret = pcap_setfilter(rt.cc.handle, &fp);
+        if (0 > ret) {
             fprintf(stderr, "pcap_setfilter failed: %s\n",
                     pcap_geterr(rt.cc.handle));
             app_log_write(&shared, "ERROR", "pcap_setfilter failed: %s",
@@ -230,9 +243,10 @@ int main(int argc, char **argv) {
     cbs.on_request = on_request;
     cbs.on_error   = on_error;
 
-    workers      = calloc((size_t)worker_count, sizeof(*workers));
-    worker_users = calloc((size_t)worker_count, sizeof(*worker_users));
-    if (!workers || !worker_users) {
+    workers = (app_ctx_t *)malloc((size_t)worker_count * sizeof(*workers));
+    worker_users =
+        (void **)malloc((size_t)worker_count * sizeof(*worker_users));
+    if (NULL == workers || NULL == worker_users) {
         fprintf(stderr, "worker alloc failed\n");
         app_log_write(&shared, "ERROR", "worker alloc failed");
         free(workers);
@@ -241,6 +255,8 @@ int main(int argc, char **argv) {
         app_log_close(&shared);
         return 1;
     }
+    memset(workers, 0, (size_t)worker_count * sizeof(*workers));
+    memset(worker_users, 0, (size_t)worker_count * sizeof(*worker_users));
 
     shared.workers      = workers;
     shared.worker_count = worker_count;
@@ -282,7 +298,8 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        if (tx_ctx_init(&w->rst_tx) != 0) {
+        ret = tx_ctx_init(&w->rst_tx);
+        if (0 != ret) {
             fprintf(stderr, "tx_ctx_init failed (need root?)\n");
             app_log_write(&shared, "ERROR", "tx_ctx_init failed");
             destroy_workers(workers, worker_count);
@@ -293,7 +310,8 @@ int main(int argc, char **argv) {
             return 1;
         }
 
-        if (httgw_set_tx(w->gw, &w->rst_tx) != 0) {
+        ret = httgw_set_tx(w->gw, &w->rst_tx);
+        if (0 != ret) {
             fprintf(stderr, "httgw_set_tx failed\n");
             app_log_write(&shared, "ERROR", "httgw_set_tx failed");
             destroy_workers(workers, worker_count);
@@ -310,7 +328,8 @@ int main(int argc, char **argv) {
     driver_set_packet_handler_multi(&rt, on_packet, worker_users,
                                     (size_t)worker_count);
 
-    if (driver_start(&rt) != 0) {
+    ret = driver_start(&rt);
+    if (0 != ret) {
         fprintf(stderr, "driver_start failed\n");
         app_log_write(&shared, "ERROR", "driver_start failed");
         destroy_workers(workers, worker_count);
@@ -331,7 +350,8 @@ int main(int argc, char **argv) {
 
     /* 메인 스레드는 stop 신호 또는 capture thread 실패만 감시한다. */
     while (!g_stop) {
-        if (driver_has_failed(&rt)) {
+        ret = driver_has_failed(&rt);
+        if (0 != ret) {
             rc = driver_last_error(&rt);
             fprintf(stderr, "capture thread failed rc=%d\n", rc);
             app_log_write(&shared, "ERROR", "event=capture_thread_failed rc=%d",
@@ -403,7 +423,7 @@ static int set_resolved_path(char *dst, size_t dst_len, const char *base,
  * @return const char * 읽을 수 있는 템플릿 경로, 없으면 기본 상대 경로
  */
 static const char *resolve_block_page_template_path(void) {
-    static char resolved[PATH_MAX];
+    static char              resolved[PATH_MAX];
     static const char *const cwd_candidates[] = {
         "DB/index.html",
         "../DB/index.html",
@@ -414,21 +434,27 @@ static const char *resolve_block_page_template_path(void) {
     size_t      i;
     char        exe_path[PATH_MAX];
     ssize_t     exe_len;
+    int         ret;
 
     env_path = getenv("IPS_BLOCK_PAGE_TEMPLATE");
-    if (NULL != env_path && '\0' != env_path[0] && 0 == access(env_path, R_OK)) {
+    ret      = -1;
+    if (NULL != env_path && '\0' != env_path[0]) {
+        ret = access(env_path, R_OK);
+    }
+    if (NULL != env_path && '\0' != env_path[0] && 0 == ret) {
         return env_path;
     }
 
     for (i = 0; NULL != cwd_candidates[i]; i++) {
-        if (0 == access(cwd_candidates[i], R_OK)) {
+        ret = access(cwd_candidates[i], R_OK);
+        if (0 == ret) {
             snprintf(resolved, sizeof(resolved), "%s", cwd_candidates[i]);
             return resolved;
         }
     }
 
     exe_len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
-    if (exe_len > 0) {
+    if (0 < exe_len) {
         char *slash;
 
         exe_path[exe_len] = '\0';
@@ -436,21 +462,45 @@ static const char *resolve_block_page_template_path(void) {
         if (NULL != slash) {
             *slash = '\0';
 
-            if (0 == set_resolved_path(resolved, sizeof(resolved), exe_path,
-                                       "/../DB/index.html") &&
-                0 == access(resolved, R_OK)) {
+            ret = set_resolved_path(resolved, sizeof(resolved), exe_path,
+                                    "/../DB/index.html");
+            if (0 == ret) {
+                ret = access(resolved, R_OK);
+            }
+            if (0 == ret) {
                 return resolved;
             }
 
-            if (0 == set_resolved_path(resolved, sizeof(resolved), exe_path,
-                                       "/DB/index.html") &&
-                0 == access(resolved, R_OK)) {
+            ret = set_resolved_path(resolved, sizeof(resolved), exe_path,
+                                    "/DB/index.html");
+            if (0 == ret) {
+                ret = access(resolved, R_OK);
+            }
+            if (0 == ret) {
                 return resolved;
             }
         }
     }
 
     return "DB/index.html";
+}
+
+static const char *first_nonempty_env(const char *first, const char *second) {
+    const char *value;
+
+    if (NULL != first) {
+        value = getenv(first);
+        if (NULL != value && '\0' != value[0]) {
+            return value;
+        }
+    }
+    if (NULL != second) {
+        value = getenv(second);
+        if (NULL != value && '\0' != value[0]) {
+            return value;
+        }
+    }
+    return NULL;
 }
 
 /**
@@ -469,12 +519,12 @@ static const char *resolve_block_page_template_path(void) {
 static void on_request(const flow_key_t *flow, tcp_dir_t dir,
                        const http_message_t *msg, const char *query,
                        size_t query_len, void *user) {
-
     app_ctx_t           *app  = (app_ctx_t *)user;
     const IPS_Signature *rule = NULL;
     detect_match_list_t  matches;
     int                  score = 0;
     int                  rc;
+    int                  ret;
     uint64_t             detect_us = 0;
     long                 detect_ms;
     strbuf_t             matched_rules = {0};
@@ -496,17 +546,30 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
     detect_ms = (long)((detect_us + 999ULL) / 1000ULL);
     ip4_to_str(flow->src_ip, ip, sizeof(ip));
 
-    if (rc > 0) {
+    if (0 > rc) {
+        char *detail_esc;
+
+        detail_esc = log_escape_dup(detect_engine_last_error(app->det));
+
+        if (NULL != detail_esc) {
+            app_log_write(app->shared, "ERROR",
+                          "event=detect_error detail=\"%s\"", detail_esc);
+            free(detail_esc);
+        }
+    } else if (score >= APP_DETECT_THRESHOLD) {
         char from[256];
 
-        if (app_make_event_id(app->shared, event_id, sizeof(event_id)) != 0) {
+        ret = app_make_event_id(app->shared, event_id, sizeof(event_id));
+        if (0 != ret) {
             snprintf(event_id, sizeof(event_id), "evt-unavailable");
         }
-        if (app_make_timestamp(event_ts, sizeof(event_ts)) != 0) {
+        ret = app_make_timestamp(event_ts, sizeof(event_ts));
+        if (0 != ret) {
             snprintf(event_ts, sizeof(event_ts), "1970-01-01T00:00:00.000");
         }
 
-        /* 차단 이벤트를 고유 ID로 기록하고, 같은 이벤트 ID로 차단 페이지를 생성한다. */
+        /* 차단 이벤트를 고유 ID로 기록하고, 같은 이벤트 ID로 차단 페이지를
+         * 생성한다. */
         block_page_html = app_render_block_page(g_block_page_template_path,
                                                 event_id, event_ts, ip);
         free(app->last_block_page_html);
@@ -516,7 +579,7 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
         snprintf(app->last_event_ts, sizeof(app->last_event_ts), "%s",
                  event_ts);
         snprintf(app->last_client_ip, sizeof(app->last_client_ip), "%s", ip);
-        if (block_page_html == NULL) {
+        if (NULL == block_page_html) {
             app_log_write(
                 app->shared, "ERROR",
                 "event=block_page_render_failed event_id=%s template=%s",
@@ -538,11 +601,11 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
         atomic_fetch_add(&app->shared->reqs, 1);
         /* 탐지 로그 기록 후 실제 차단 동작을 수행한다. */
         request_block_action_v2(app, flow, event_id);
-    } else if (0 == rc) {
+    } else {
         if (app->shared->pass_log_enabled) {
             char *uri_esc = log_escape_dup(msg->uri[0] ? msg->uri : "/");
 
-            if (uri_esc != NULL) {
+            if (NULL != uri_esc) {
                 app_log_write(app->shared, "INFO",
                               "event=http_pass where=request "
                               "method=%s uri=\"%s\" src_ip=%s "
@@ -554,16 +617,6 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
         }
         atomic_fetch_add(&app->shared->http_msgs, 1);
         atomic_fetch_add(&app->shared->reqs, 1);
-    } else {
-        char *detail_esc;
-
-        detail_esc = log_escape_dup(detect_engine_last_error(app->det));
-
-        if (detail_esc != NULL) {
-            app_log_write(app->shared, "ERROR",
-                          "event=detect_error detail=\"%s\"", detail_esc);
-            free(detail_esc);
-        }
     }
 
     detect_match_list_free(&matches);
@@ -582,6 +635,7 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
 static void on_error(const char *stage, const char *detail, void *user) {
     app_ctx_t *app = (app_ctx_t *)user;
     char      *detail_esc;
+    int        ret;
 
     if (!app || !app->shared) {
         return;
@@ -589,7 +643,7 @@ static void on_error(const char *stage, const char *detail, void *user) {
 
     detail_esc = log_escape_dup(detail ? detail : "unknown");
 
-    if (detail_esc != NULL) {
+    if (NULL != detail_esc) {
         app_log_write(app->shared, "ERROR",
                       "event=stream_error stage=%s detail=\"%s\"",
                       stage ? stage : "unknown", detail_esc);
@@ -597,10 +651,12 @@ static void on_error(const char *stage, const char *detail, void *user) {
     }
 
     if (stage) {
-        if (strcmp(stage, "reasm_ingest") == 0) {
+        ret = strcmp(stage, "reasm_ingest");
+        if (0 == ret) {
             atomic_fetch_add(&app->shared->reasm_errs, 1);
         }
-        if (strcmp(stage, "http_stream_feed") == 0) {
+        ret = strcmp(stage, "http_stream_feed");
+        if (0 == ret) {
             atomic_fetch_add(&app->shared->parse_errs, 1);
         }
     }
@@ -627,12 +683,16 @@ static void on_packet(const uint8_t *data, uint32_t len, uint64_t ts_ns,
     uint8_t                      flags = 0;
     httgw_sess_snapshot_t        pre_snap;
     const httgw_sess_snapshot_t *fallback_snap = NULL;
+    int                          ret;
 
     /* wire에서 RST가 관측될 때 사용할 fallback snapshot을 미리 잡아 둔다. */
-    if (app && app->gw &&
-        parse_flow_dir_and_flags(data, len, &flow, &dir, &flags) &&
-        (flags & TCP_RST)) {
-        if (httgw_get_session_snapshot(app->gw, &flow, &pre_snap) == 0) {
+    ret = 0;
+    if (NULL != app && NULL != app->gw) {
+        ret = parse_flow_dir_and_flags(data, len, &flow, &dir, &flags);
+    }
+    if (NULL != app && NULL != app->gw && 0 != ret && 0 != (flags & TCP_RST)) {
+        ret = httgw_get_session_snapshot(app->gw, &flow, &pre_snap);
+        if (0 == ret) {
             rst_log_cache_put(app, &flow, &pre_snap, ts_ms);
             fallback_snap = &pre_snap;
         } else {
@@ -645,21 +705,18 @@ static void on_packet(const uint8_t *data, uint32_t len, uint64_t ts_ns,
 
         int rc = httgw_ingest_packet(app->gw, data, len, ts_ms);
 
-        /* idle session/reassembly state가 무한히 쌓이지 않도록 주기 GC를 돈다. */
-        if (0 == app->last_gc_ms || ts_ms - app->last_gc_ms >= 1000ULL) {
+        /* idle session/reassembly state가 무한히 쌓이지 않도록 주기 GC를 돈다.
+         */
+        if (0 == app->last_gc_ms || 1000ULL <= (ts_ms - app->last_gc_ms)) {
             httgw_gc(app->gw, ts_ms);
             app->last_gc_ms = ts_ms;
         }
 
-        /* ingest 결과는 무시/입력 오류만 로깅하고, 정상 경로는 후속 콜백에서 처리한다. */
-        if (rc == 0) {
-            app_log_write(app->shared, "DEBUG",
-                          "event=packet_ignored len=%u ts_ms=%llu", len,
-                          (unsigned long long)ts_ms);
-        } else if (rc == -1) {
+        /* ingest 실패만 오류로 기록하고, 정상 경로는 후속 콜백에서 처리한다. */
+        if (0 > rc) {
             app_log_write(app->shared, "ERROR",
-                          "event=httgw_ingest_invalid_arg len=%u ts_ms=%llu",
-                          len, (unsigned long long)ts_ms);
+                          "event=httgw_ingest_failed len=%u ts_ms=%llu", len,
+                          (unsigned long long)ts_ms);
         }
 
         /* 디버그 로그가 켜진 경우 TCP 라인 로그용 파싱을 별도로 수행한다. */
@@ -673,28 +730,30 @@ static void on_packet(const uint8_t *data, uint32_t len, uint64_t ts_ns,
 /**
  * @brief 주기적으로 monitor.log에 성능/상태 통계를 기록한다.
  *
- * event 단위 로그가 아니라 pps, req/s, detect/s, queue depth, 재조립 순서 통계의
- * 누적/초당 변화를 1초 주기로 한 줄에 기록한다.
+ * event 단위 로그가 아니라 pps, req/s, detect/s, queue depth, 재조립 순서
+ * 통계의 누적/초당 변화를 1초 주기로 한 줄에 기록한다.
  *
  * @param app worker app context
  * @param ts_ms 현재 패킷 시각(ms)
  */
 static void maybe_emit_monitor_stats(app_ctx_t *app, uint64_t ts_ms) {
-    app_shared_t     *shared;
-    uint_fast64_t     last_emit_ms;
-    uint_fast64_t     expected;
-    uint64_t          interval_ms;
-    uint64_t          packets;
-    uint64_t          reqs;
-    uint64_t          detects;
-    uint64_t          pps;
-    uint64_t          req_ps;
-    uint64_t          detect_ps;
-    uint64_t          queue_depth = 0;
-    reasm_stats_t     total_reasm = {0};
-    uint64_t          reasm_in_order_ps;
-    uint64_t          reasm_out_of_order_ps;
-    uint64_t          reasm_trimmed_ps;
+    app_shared_t *shared;
+    uint_fast64_t last_emit_ms;
+    uint_fast64_t expected;
+    uint64_t      interval_ms;
+    uint64_t      packets;
+    uint64_t      reqs;
+    uint64_t      detects;
+    uint64_t      pps;
+    uint64_t      req_ps;
+    uint64_t      detect_ps;
+    uint64_t      queue_depth = 0;
+    reasm_stats_t total_reasm = {0};
+    uint64_t      reasm_in_order_ps;
+    uint64_t      reasm_out_of_order_ps;
+    uint64_t      reasm_trimmed_ps;
+    int           exchanged;
+    int           ret;
 
     if (NULL == app || NULL == app->shared) {
         return;
@@ -708,14 +767,15 @@ static void maybe_emit_monitor_stats(app_ctx_t *app, uint64_t ts_ms) {
 
     last_emit_ms = atomic_load_explicit(&shared->monitor_last_emit_ms,
                                         memory_order_relaxed);
-    if (0 != last_emit_ms && ts_ms - (uint64_t)last_emit_ms < 1000ULL) {
+    if (0 != last_emit_ms && 1000ULL > (ts_ms - (uint64_t)last_emit_ms)) {
         return;
     }
 
-    expected = last_emit_ms;
-    if (0 == atomic_compare_exchange_strong_explicit(
-                 &shared->monitor_last_emit_ms, &expected, ts_ms,
-                 memory_order_relaxed, memory_order_relaxed)) {
+    expected  = last_emit_ms;
+    exchanged = atomic_compare_exchange_strong_explicit(
+        &shared->monitor_last_emit_ms, &expected, ts_ms, memory_order_relaxed,
+        memory_order_relaxed);
+    if (0 == exchanged) {
         return;
     }
 
@@ -723,17 +783,18 @@ static void maybe_emit_monitor_stats(app_ctx_t *app, uint64_t ts_ms) {
                       ? (ts_ms - (uint64_t)last_emit_ms)
                       : 1000ULL;
 
-    packets =
-        atomic_load_explicit(&shared->packet_count, memory_order_relaxed);
-    reqs = atomic_load_explicit(&shared->reqs, memory_order_relaxed);
-    detects =
-        atomic_load_explicit(&shared->detect_count, memory_order_relaxed);
+    packets = atomic_load_explicit(&shared->packet_count, memory_order_relaxed);
+    reqs    = atomic_load_explicit(&shared->reqs, memory_order_relaxed);
+    detects = atomic_load_explicit(&shared->detect_count, memory_order_relaxed);
 
     for (int i = 0; i < shared->worker_count; i++) {
         reasm_stats_t rs = {0};
 
-        if (NULL != shared->workers[i].gw &&
-            0 == httgw_get_reasm_stats(shared->workers[i].gw, &rs)) {
+        ret = -1;
+        if (NULL != shared->workers[i].gw) {
+            ret = httgw_get_reasm_stats(shared->workers[i].gw, &rs);
+        }
+        if (0 == ret) {
             total_reasm.in_order_pkts += rs.in_order_pkts;
             total_reasm.out_of_order_pkts += rs.out_of_order_pkts;
             total_reasm.trimmed_pkts += rs.trimmed_pkts;
@@ -750,8 +811,7 @@ static void maybe_emit_monitor_stats(app_ctx_t *app, uint64_t ts_ms) {
         queue_depth += (uint64_t)(tail - head);
     }
 
-    pps =
-        ((packets - shared->monitor_prev_packets) * 1000ULL) / interval_ms;
+    pps    = ((packets - shared->monitor_prev_packets) * 1000ULL) / interval_ms;
     req_ps = ((reqs - shared->monitor_prev_reqs) * 1000ULL) / interval_ms;
     detect_ps =
         ((detects - shared->monitor_prev_detects) * 1000ULL) / interval_ms;
@@ -759,11 +819,10 @@ static void maybe_emit_monitor_stats(app_ctx_t *app, uint64_t ts_ms) {
         ((total_reasm.in_order_pkts - shared->monitor_prev_reasm_in_order) *
          1000ULL) /
         interval_ms;
-    reasm_out_of_order_ps =
-        ((total_reasm.out_of_order_pkts -
-          shared->monitor_prev_reasm_out_of_order) *
-         1000ULL) /
-        interval_ms;
+    reasm_out_of_order_ps = ((total_reasm.out_of_order_pkts -
+                              shared->monitor_prev_reasm_out_of_order) *
+                             1000ULL) /
+                            interval_ms;
     reasm_trimmed_ps =
         ((total_reasm.trimmed_pkts - shared->monitor_prev_reasm_trimmed) *
          1000ULL) /
@@ -788,13 +847,12 @@ static void maybe_emit_monitor_stats(app_ctx_t *app, uint64_t ts_ms) {
         (unsigned long long)total_reasm.out_of_order_pkts,
         (unsigned long long)total_reasm.trimmed_pkts);
 
-    shared->monitor_prev_packets           = packets;
-    shared->monitor_prev_reqs              = reqs;
-    shared->monitor_prev_detects           = detects;
-    shared->monitor_prev_reasm_in_order    = total_reasm.in_order_pkts;
-    shared->monitor_prev_reasm_out_of_order =
-        total_reasm.out_of_order_pkts;
-    shared->monitor_prev_reasm_trimmed = total_reasm.trimmed_pkts;
+    shared->monitor_prev_packets            = packets;
+    shared->monitor_prev_reqs               = reqs;
+    shared->monitor_prev_detects            = detects;
+    shared->monitor_prev_reasm_in_order     = total_reasm.in_order_pkts;
+    shared->monitor_prev_reasm_out_of_order = total_reasm.out_of_order_pkts;
+    shared->monitor_prev_reasm_trimmed      = total_reasm.trimmed_pkts;
 }
 
 /**
@@ -809,7 +867,7 @@ static void maybe_emit_monitor_stats(app_ctx_t *app, uint64_t ts_ms) {
 static void destroy_workers(app_ctx_t *workers, int count) {
     int i;
 
-    if (!workers || count <= 0) {
+    if (NULL == workers || 0 >= count) {
         return;
     }
 
@@ -841,6 +899,7 @@ static void destroy_workers(app_ctx_t *workers, int count) {
 static void usage(const char *prog) {
     fprintf(stderr,
             "usage: %s -iface=<iface> -bpf=<filter> "
-            "[-engine=pcre2|hs]\n",
+            "[-engine=pcre2|hs]\n"
+            "env: IFACE|IPS_IFACE, BPF|IPS_BPF, ENGINE|IPS_ENGINE\n",
             prog ? prog : "main");
 }

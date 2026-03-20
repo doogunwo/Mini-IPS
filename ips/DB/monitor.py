@@ -429,27 +429,31 @@ def render_index() -> bytes:
       color: var(--muted);
       font-size: 13px;
     }
-    .legend {
-      display: flex;
+    .timeline-stack {
+      display: grid;
       gap: 14px;
+    }
+    .chart-card {
+      display: grid;
+      gap: 10px;
+    }
+    .chart-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
       flex-wrap: wrap;
     }
-    .legend-item {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
+    .chart-title {
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+    .chart-meta {
       color: var(--muted);
       font-size: 12px;
-      font-weight: 700;
+      font-family: "SFMono-Regular", Menlo, monospace;
     }
-    .legend-swatch {
-      width: 12px;
-      height: 12px;
-      border-radius: 999px;
-    }
-    .swatch-pps { background: #2f6fed; }
-    .swatch-req { background: #0f9d76; }
-    .swatch-detect { background: #d04f37; }
     .chart-frame {
       border-radius: 20px;
       border: 1px solid var(--line);
@@ -580,14 +584,9 @@ def render_index() -> bytes:
           <div>
             <h2>Traffic Timeline</h2>
           </div>
-          <div class="legend">
-            <span class="legend-item"><span class="legend-swatch swatch-pps"></span>PPS</span>
-            <span class="legend-item"><span class="legend-swatch swatch-req"></span>Req/s</span>
-            <span class="legend-item"><span class="legend-swatch swatch-detect"></span>Detect/s</span>
-          </div>
         </div>
-        <div class="chart-frame">
-          <div id="timeline-chart" class="chart-empty">waiting for stats...</div>
+        <div id="timeline-charts" class="timeline-stack">
+          <div class="chart-empty">waiting for stats...</div>
         </div>
       </section>
     </main>
@@ -658,25 +657,22 @@ def render_index() -> bytes:
       )).join("");
     }
 
-    function renderTimeline(container, samples) {
+    function renderMetricChart(samples, key, lineClass, title, unitLabel) {
       if (!samples.length) {
-        container.innerHTML = `<div class="chart-empty">waiting for stats...</div>`;
-        return;
+        return `<div class="chart-empty">waiting for stats...</div>`;
       }
 
       const ordered = [...samples].reverse();
       const width = 1080;
-      const height = 320;
+      const height = 220;
       const padLeft = 56;
       const padRight = 20;
       const padTop = 18;
       const padBottom = 34;
       const innerWidth = width - padLeft - padRight;
       const innerHeight = height - padTop - padBottom;
-      const maxValue = Math.max(
-        ...ordered.flatMap((row) => [row.pps, row.req_ps, row.detect_ps]),
-        1
-      );
+      const maxValue = Math.max(...ordered.map((row) => row[key]), 1);
+      const latestValue = ordered[ordered.length - 1][key];
 
       function xAt(index) {
         if (ordered.length === 1) {
@@ -689,7 +685,7 @@ def render_index() -> bytes:
         return padTop + innerHeight - (value / maxValue) * innerHeight;
       }
 
-      function buildPath(key) {
+      function buildPath() {
         return ordered.map((row, index) => {
           const prefix = index === 0 ? "M" : "L";
           return `${prefix}${xAt(index).toFixed(2)} ${yAt(row[key]).toFixed(2)}`;
@@ -717,16 +713,35 @@ def render_index() -> bytes:
         return `<text class="chart-label" x="${x.toFixed(2)}" y="${height - 8}" text-anchor="middle">${esc(stamp.slice(0, 8))}</text>`;
       }).join("");
 
-      container.innerHTML =
+      return (
+        `<div class="chart-card">` +
+        `<div class="chart-head">` +
+        `<div class="chart-title">${esc(title)}</div>` +
+        `<div class="chart-meta">latest ${esc(unitLabel)}: ${esc(latestValue)}</div>` +
+        `</div>` +
+        `<div class="chart-frame">` +
         `<svg class="chart-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">` +
         `${grid}` +
         `<line class="chart-axis" x1="${padLeft}" y1="${padTop}" x2="${padLeft}" y2="${padTop + innerHeight}"></line>` +
         `<line class="chart-axis" x1="${padLeft}" y1="${padTop + innerHeight}" x2="${width - padRight}" y2="${padTop + innerHeight}"></line>` +
-        `<path class="chart-line line-pps" d="${buildPath("pps")}"></path>` +
-        `<path class="chart-line line-req" d="${buildPath("req_ps")}"></path>` +
-        `<path class="chart-line line-detect" d="${buildPath("detect_ps")}"></path>` +
+        `<path class="chart-line ${lineClass}" d="${buildPath()}"></path>` +
         `${xLabels}` +
-        `</svg>`;
+        `</svg>` +
+        `</div>` +
+        `</div>`
+      );
+    }
+
+    function renderTimeline(container, samples) {
+      if (!samples.length) {
+        container.innerHTML = `<div class="chart-empty">waiting for stats...</div>`;
+        return;
+      }
+
+      container.innerHTML =
+        renderMetricChart(samples, "pps", "line-pps", "Packets / Sec", "pps") +
+        renderMetricChart(samples, "req_ps", "line-req", "HTTP Req / Sec", "req/s") +
+        renderMetricChart(samples, "detect_ps", "line-detect", "Detect / Sec", "detect/s");
     }
 
     async function refreshState() {
@@ -748,7 +763,7 @@ def render_index() -> bytes:
 
         renderBars(document.getElementById("reasm-bars"), latest);
         renderTotals(document.getElementById("totals-list"), latest, payload);
-        renderTimeline(document.getElementById("timeline-chart"), payload.samples);
+        renderTimeline(document.getElementById("timeline-charts"), payload.samples);
       } catch (err) {
         console.error(err);
       }

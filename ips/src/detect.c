@@ -41,19 +41,19 @@ static int collect_matches_ctx_timed(detect_engine_t *e, const uint8_t *data,
                                      size_t len, ips_context_t ctx,
                                      detect_match_list_t *matches,
                                      uint64_t            *elapsed_us_sum) {
-    if (elapsed_us_sum != NULL) {
+    if (NULL != elapsed_us_sum) {
         *elapsed_us_sum = 0;
     }
-    if (!matches) {
-        if (e) {
+    if (NULL == matches) {
+        if (NULL != e) {
             set_err(e, "null matches");
         }
         return -1;
     }
-    if (!e || !data || len == 0) {
+    if (NULL == e || NULL == data || 0U == len) {
         return 0;
     }
-    if (len > (size_t)INT_MAX) {
+    if ((size_t)INT_MAX < len) {
         set_err(e, "payload too large");
         return -1;
     }
@@ -72,17 +72,17 @@ static int collect_matches_ctx_timed(detect_engine_t *e, const uint8_t *data,
 
         return -1;
     }
-
-    return engine_runtime_collect_matches_timed(
+    int rc = engine_runtime_collect_matches_timed(
         e->runtime, data, len, ctx, matches, elapsed_us_sum, e->last_err,
         sizeof(e->last_err));
+    return rc;
 }
 
 static void set_err(detect_engine_t *e, const char *msg) {
-    if (!e) {
+    if (NULL == e) {
         return;
     }
-    if (!msg) {
+    if (NULL == msg) {
         msg = "unknown error";
     }
     snprintf(e->last_err, sizeof(e->last_err), "%s", msg);
@@ -94,7 +94,7 @@ static void set_err(detect_engine_t *e, const char *msg) {
  * @param matches 매치 결과 리스트
  */
 void detect_match_list_init(detect_match_list_t *matches) {
-    if (!matches) {
+    if (NULL == matches) {
         return;
     }
     memset(matches, 0, sizeof(*matches));
@@ -108,7 +108,7 @@ void detect_match_list_init(detect_match_list_t *matches) {
 void detect_match_list_free(detect_match_list_t *matches) {
     size_t i;
 
-    if (!matches) {
+    if (NULL == matches) {
         return;
     }
     for (i = 0; i < matches->count; i++) {
@@ -128,31 +128,45 @@ void detect_match_list_free(detect_match_list_t *matches) {
 static int collect_policy_patterns(const char           *policy_name,
                                    policy_pattern_set_t *out) {
     int          i;
+    int          ret;
     unsigned int n = 0;
 
+    if (NULL == policy_name || NULL == out) {
+        return -1;
+    }
+
+    n = 0;
     memset(out, 0, sizeof(*out));
+
+    /* 지금 당장 교체 불가능 */
     for (i = 0; i < g_signature_count; i++) {
-        if (strcmp(g_ips_signatures[i].policy_name, policy_name) == 0) {
+        ret = strcmp(g_ips_signatures[i].policy_name, policy_name);
+        if (0 == ret) {
             n++;
         }
     }
-    if (n == 0) {
+
+    if (0 == n) {
         return -1;
     }
 
-    out->rules = (const IPS_Signature **)calloc(n, sizeof(*out->rules));
-    if (!out->rules) {
+    out->rules = (const IPS_Signature **)malloc(n * sizeof(*out->rules));
+    if (NULL == out->rules) {
         memset(out, 0, sizeof(*out));
         return -1;
     }
-    out->count = n;
 
-    n = 0;
+    out->count = n;
+    n          = 0;
+
     for (i = 0; i < g_signature_count; i++) {
-        if (strcmp(g_ips_signatures[i].policy_name, policy_name) == 0) {
-            out->rules[n++] = &g_ips_signatures[i];
+        ret = strcmp(g_ips_signatures[i].policy_name, policy_name);
+        if (0 == ret) {
+            out->rules[n] = &g_ips_signatures[i];
+            n++;
         }
     }
+
     return 0;
 }
 
@@ -167,12 +181,12 @@ static int collect_all_patterns(policy_pattern_set_t *out) {
     unsigned int i;
 
     memset(out, 0, sizeof(*out));
-    if (n == 0) {
+    if (0U == n) {
         return -1;
     }
 
-    out->rules = (const IPS_Signature **)calloc(n, sizeof(*out->rules));
-    if (!out->rules) {
+    out->rules = (const IPS_Signature **)malloc(n * sizeof(*out->rules));
+    if (NULL == out->rules) {
         memset(out, 0, sizeof(*out));
         return -1;
     }
@@ -208,26 +222,34 @@ detect_engine_t *detect_engine_create(const char       *policy_name,
                                       detect_jit_mode_t jit_mode) {
     detect_engine_t     *e;
     policy_pattern_set_t set;
+    int                  ret;
 
-    if (regex_load_signatures(NULL) != 0) {
+    memset(&set, 0, sizeof(set));
+
+    ret = regex_signatures_load(NULL);
+    if (0 != ret) {
         return NULL;
     }
 
-    e = (detect_engine_t *)calloc(1, sizeof(*e));
-    if (!e) {
+    e = (detect_engine_t *)malloc(sizeof(*e));
+    if (NULL == e) {
         return NULL;
     }
+    memset(e, 0, sizeof(*e));
     e->last_err[0] = '\0';
 
-    if (!policy_name || !policy_name[0] || strcmp(policy_name, "ALL") == 0 ||
-        strcmp(policy_name, "all") == 0 || strcmp(policy_name, "*") == 0) {
-        if (collect_all_patterns(&set) != 0) {
+    if (NULL == policy_name || '\0' == policy_name[0] ||
+        0 == strcmp(policy_name, "ALL") || 0 == strcmp(policy_name, "all") ||
+        0 == strcmp(policy_name, "*")) {
+        ret = collect_all_patterns(&set);
+        if (0 != ret) {
             set_err(e, "no patterns");
             detect_engine_destroy(e);
             return NULL;
         }
     } else {
-        if (collect_policy_patterns(policy_name, &set) != 0) {
+        ret = collect_policy_patterns(policy_name, &set);
+        if (0 != ret) {
             set_err(e, "unknown policy");
             detect_engine_destroy(e);
             return NULL;
@@ -236,7 +258,7 @@ detect_engine_t *detect_engine_create(const char       *policy_name,
 
     e->runtime = engine_runtime_create(set.rules, set.count, jit_mode,
                                        e->last_err, sizeof(e->last_err));
-    if (!e->runtime) {
+    if (NULL == e->runtime) {
         free_policy_patterns(&set);
         detect_engine_destroy(e);
         return NULL;
@@ -253,7 +275,7 @@ detect_engine_t *detect_engine_create(const char       *policy_name,
  * @param e 해제할 탐지 엔진
  */
 void detect_engine_destroy(detect_engine_t *e) {
-    if (!e) {
+    if (NULL == e) {
         return;
     }
     engine_runtime_destroy(e->runtime);
@@ -269,7 +291,7 @@ void detect_engine_destroy(detect_engine_t *e) {
  * @param len 데이터 길이
  * @param ctx 검사 context
  * @param matched_rule 첫 매칭 룰을 받을 포인터
- * @return int 1이면 매칭, 0이면 미매칭, -1이면 오류
+ * @return int 0이면 정상 완료, -1이면 오류
  */
 int detect_engine_match_ctx(detect_engine_t *e, const uint8_t *data, size_t len,
                             ips_context_t         ctx,
@@ -284,21 +306,23 @@ int detect_engine_match_ctx(detect_engine_t *e, const uint8_t *data, size_t len,
     case IPS_CTX_ALL:
         break;
     default:
-        if (matched_rule) {
+        if (NULL != matched_rule) {
             *matched_rule = NULL;
         }
-        if (e) {
+        if (NULL != e) {
             set_err(e, "invalid context");
         }
         return -1;
     }
 
-    if (!e) {
+    if (NULL == e) {
         return 0;
     }
 
-    return engine_runtime_match_first(e->runtime, data, len, ctx, matched_rule,
-                                      e->last_err, sizeof(e->last_err));
+    int ret =
+        engine_runtime_match_first(e->runtime, data, len, ctx, matched_rule,
+                                   e->last_err, sizeof(e->last_err));
+    return ret;
 }
 
 /**
@@ -309,7 +333,7 @@ int detect_engine_match_ctx(detect_engine_t *e, const uint8_t *data, size_t len,
  * @param len 데이터 길이
  * @param ctx 검사 context
  * @param matches 매치 결과 리스트
- * @return int 1이면 매칭 존재, 0이면 미매칭, -1이면 오류
+ * @return int 0이면 정상 완료, -1이면 오류
  */
 int detect_engine_collect_matches_ctx(detect_engine_t *e, const uint8_t *data,
                                       size_t len, ips_context_t ctx,
@@ -340,7 +364,8 @@ int detect_engine_collect_matches_ctx_timed(detect_engine_t *e,
 
 int detect_engine_match(detect_engine_t *e, const uint8_t *data, size_t len,
                         const IPS_Signature **matched_rule) {
-    return detect_engine_match_ctx(e, data, len, IPS_CTX_ALL, matched_rule);
+    int ret = detect_engine_match_ctx(e, data, len, IPS_CTX_ALL, matched_rule);
+    return ret;
 }
 
 /**
@@ -350,7 +375,7 @@ int detect_engine_match(detect_engine_t *e, const uint8_t *data, size_t len,
  * @return const char* backend 이름
  */
 const char *detect_engine_backend_name(const detect_engine_t *e) {
-    if (!e) {
+    if (NULL == e) {
         return "-";
     }
     return engine_runtime_backend_name(e->runtime);
@@ -363,7 +388,7 @@ const char *detect_engine_backend_name(const detect_engine_t *e) {
  * @return int 활성화면 1, 아니면 0
  */
 int detect_engine_jit_enabled(const detect_engine_t *e) {
-    if (!e) {
+    if (NULL == e) {
         return 0;
     }
     return engine_runtime_jit_enabled(e->runtime);
@@ -376,10 +401,10 @@ int detect_engine_jit_enabled(const detect_engine_t *e) {
  * @return const char* 마지막 오류 문자열
  */
 const char *detect_engine_last_error(const detect_engine_t *e) {
-    if (!e) {
+    if (NULL == e) {
         return "null engine";
     }
-    if (e->last_err[0] == '\0') {
+    if ('\0' == e->last_err[0]) {
         return "ok";
     }
     return e->last_err;

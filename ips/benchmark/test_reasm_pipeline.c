@@ -351,7 +351,7 @@ static int feed_request(packet_ring_t *ring, httgw_t *gw, reasm_ctx_t *ctx,
         }
 
         rc = ingest_packet_via_ring(ring, gw, pkt, pkt_len, *ts_ms);
-        if (1 != rc) {
+        if (0 != rc) {
             return -1;
         }
 

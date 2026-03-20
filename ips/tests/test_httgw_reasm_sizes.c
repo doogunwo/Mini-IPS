@@ -263,7 +263,7 @@ static int run_reasm_case(size_t uri_len, size_t seg_len) {
         sp.seq         = seq0 + (uint32_t)off;
         sp.payload     = (const uint8_t *)req + off;
         sp.payload_len = (uint32_t)chunk;
-        CHECK(feed_segment(gw, &sp, ts_ms++) == 1, "feed_segment failed");
+        CHECK(feed_segment(gw, &sp, ts_ms++) == 0, "feed_segment failed");
         off += chunk;
     }
 

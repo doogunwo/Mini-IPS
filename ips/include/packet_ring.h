@@ -5,7 +5,6 @@
 #pragma once
 
 #include <stdio.h>
-#include <errno.h>
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdint.h>

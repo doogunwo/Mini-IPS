@@ -47,6 +47,7 @@ static size_t packet_hugepage_size(void) {
     FILE  *fp;
     char   line[128];
     size_t kb = 0;
+    int    ret;
 
     /* hugepage 크기는 커널이 /proc/meminfo에 kB 단위로 노출한다. */
     fp = fopen("/proc/meminfo", "r");
@@ -56,7 +57,8 @@ static size_t packet_hugepage_size(void) {
 
     /* Hugepagesize 행을 찾으면 바이트 단위로 환산해 즉시 반환한다. */
     while (NULL != fgets(line, sizeof(line), fp)) {
-        if (1 == sscanf(line, "Hugepagesize: %zu kB", &kb)) {
+        ret = sscanf(line, "Hugepagesize: %zu kB", &kb);
+        if (1 == ret) {
             fclose(fp);
             return kb * 1024U;
         }
@@ -119,7 +121,9 @@ static void *packet_slots_alloc(size_t bytes, size_t *alloc_len,
     map_len       = align_up_size(bytes, hugepage_size);
 
     /* hugepage pool이 준비되어 있으면 slot 배열 전체를 hugepage에 올린다. */
-    p = mmap(NULL, map_len, PROT_READ | PROT_WRITE,
+    p = mmap(NULL, map_len,
+             PROT_READ |
+                 PROT_WRITE, /* 시스템 헤더에 MAP_HUETLB가 정의되어있으면 안씀*/
              MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB, -1, 0);
     if (MAP_FAILED != p) {
         memset(p, 0, map_len);
@@ -129,8 +133,9 @@ static void *packet_slots_alloc(size_t bytes, size_t *alloc_len,
     }
 
     /* hugepage 확보에 실패한 환경에서는 일반 힙 할당으로 동작을 유지한다. */
-    p = calloc(1, bytes);
+    p = malloc(bytes);
     if (NULL != p) {
+        memset(p, 0, bytes);
         *alloc_len = bytes;
         *used_mmap = 0;
     }
@@ -168,18 +173,20 @@ static void packet_slots_free(void *ptr, size_t alloc_len, int used_mmap) {
  * @param slot_count 슬롯 개수
  * @param use_blocking 블로킹 여부 체크, use_blocking = 1, 큐가 full이면
  * 소비자가 공간만들때까지 기다림
- * @return int
+ * @return int 성공 시 0, 실패 시 -1
  */
 int packet_ring_init(packet_ring_t *r, uint32_t slot_count, int use_blocking) {
     size_t slots_bytes;
     void  *slots_mem;
+    int    ret;
 
     if (NULL == r) {
-        return EINVAL;
+        return -1;
     }
 
-    if (0U == slot_count || 0 == is_power_of_two_u32(slot_count)) {
-        return EINVAL;
+    ret = is_power_of_two_u32(slot_count);
+    if (0U == slot_count || 0 == ret) {
+        return -1;
     }
 
     memset(r, 0, sizeof(*r));
@@ -189,7 +196,7 @@ int packet_ring_init(packet_ring_t *r, uint32_t slot_count, int use_blocking) {
                                      &r->slots_use_mmap);
 
     if (NULL == slots_mem) {
-        return ENOMEM;
+        return -1;
     }
 
     r->slots      = (packet_slot_t *)slots_mem;
@@ -225,11 +232,12 @@ int packet_ring_enq(packet_ring_t *r, const uint8_t *data, uint32_t len,
                     uint64_t ts_ns) {
     uint32_t       head;
     uint32_t       tail;
+    int            use_blocking;
     packet_slot_t *s;
 
     /* 링 본체가 없거나, 길이가 있는 패킷인데 data가 없으면 잘못된 호출이다. */
     if (NULL == r || (NULL == data && 0U != len)) {
-        return EINVAL;
+        return -1;
     }
 
     /*
@@ -238,7 +246,7 @@ int packet_ring_enq(packet_ring_t *r, const uint8_t *data, uint32_t len,
      * enqueue API 계약 자체는 여전히 slot 상한을 기준으로 검증한다.
      */
     if (len > PACKET_MAX_BYTES) {
-        return EMSGSIZE;
+        return -1;
     }
 
     /*
@@ -246,7 +254,7 @@ int packet_ring_enq(packet_ring_t *r, const uint8_t *data, uint32_t len,
      * acquire로 읽는다. ring이 가득 찼으면 blocking/non-blocking 정책에 따라
      * 즉시 실패하거나 backoff 대기에 들어간다.
      */
-    for (uint32_t spin = 0; ; spin++) {
+    for (uint32_t spin = 0;; spin++) {
         tail = atomic_load_explicit(&r->tail, memory_order_relaxed);
         head = atomic_load_explicit(&r->head, memory_order_acquire);
 
@@ -255,10 +263,12 @@ int packet_ring_enq(packet_ring_t *r, const uint8_t *data, uint32_t len,
             break;
         }
 
-        /* non-blocking 모드에서는 full을 만나면 즉시 EAGAIN으로 되돌린다. */
-        if (0 == atomic_load_explicit(&r->use_blocking, memory_order_acquire)) {
+        /* non-blocking 모드에서는 full을 만나면 즉시 실패를 돌려준다. */
+        use_blocking =
+            atomic_load_explicit(&r->use_blocking, memory_order_acquire);
+        if (0 == use_blocking) {
             r->stats.drop_full++;
-            return EAGAIN;
+            return -1;
         }
 
         /*
@@ -267,7 +277,7 @@ int packet_ring_enq(packet_ring_t *r, const uint8_t *data, uint32_t len,
          * 고려해 dequeue와 같은 형태의 고정 backoff를 사용한다.
          */
         r->stats.wait_full++;
-        if (spin < 256U) {
+        if (256U > spin) {
 #if defined(__x86_64__) || defined(__i386__)
             __builtin_ia32_pause();
 #endif
@@ -302,11 +312,12 @@ int packet_ring_deq(packet_ring_t *r, uint8_t *out, uint32_t out_cap,
     uint32_t       head;
     uint32_t       tail;
     uint32_t       len;
+    int            use_blocking;
     packet_slot_t *s;
 
     /* 결과 길이를 돌려줄 포인터는 필수다. */
     if (NULL == r || NULL == out_len) {
-        return EINVAL;
+        return -1;
     }
 
     /*
@@ -314,7 +325,7 @@ int packet_ring_deq(packet_ring_t *r, uint8_t *out, uint32_t out_cap,
      * acquire로 읽는다. ring이 비어 있으면 blocking/non-blocking 정책에 따라
      * 즉시 실패하거나 짧은 backoff 대기에 들어간다.
      */
-    for (uint32_t spin = 0; ; spin++) {
+    for (uint32_t spin = 0;; spin++) {
         head = atomic_load_explicit(&r->head, memory_order_relaxed);
         tail = atomic_load_explicit(&r->tail, memory_order_acquire);
 
@@ -323,16 +334,19 @@ int packet_ring_deq(packet_ring_t *r, uint8_t *out, uint32_t out_cap,
             break;
         }
 
-        /* non-blocking 모드에서는 empty를 만나면 즉시 EAGAIN으로 되돌린다. */
-        if (0 == atomic_load_explicit(&r->use_blocking, memory_order_acquire)) {
-            return EAGAIN;
+        /* non-blocking 모드에서는 empty를 만나면 즉시 실패를 돌려준다. */
+        use_blocking =
+            atomic_load_explicit(&r->use_blocking, memory_order_acquire);
+        if (0 == use_blocking) {
+            return -1;
         }
 
         /*
          * blocking 모드에서는 잠깐 busy-wait 하다가, 바로 데이터가 안 들어오면
-         * 스케줄러에 CPU를 양보한다. SPSC 환경이라 짧은 spin이 보통 더 유리하다.
+         * 스케줄러에 CPU를 양보한다. SPSC 환경이라 짧은 spin이 보통 더
+         * 유리하다.
          */
-        if (spin < 256U) {
+        if (256U > spin) {
 #if defined(__x86_64__) || defined(__i386__)
             __builtin_ia32_pause();
 #endif
@@ -350,11 +364,11 @@ int packet_ring_deq(packet_ring_t *r, uint8_t *out, uint32_t out_cap,
      * 호출자가 출력 버퍼를 제공한 경우에만 payload를 복사한다.
      * 현재 운영 환경은 GRO/LRO 비활성화로 MTU 수준 패킷을 기대하지만,
      * dequeue API 계약은 여전히 "out_cap >= 실제 slot 길이"를 요구한다.
-     * 작은 버퍼를 넘기면 EMSGSIZE를 반환하며, 이 경우 head는 전진하지 않는다.
+     * 작은 버퍼를 넘기면 실패를 반환하며, 이 경우 head는 전진하지 않는다.
      */
     if (NULL != out) {
         if (out_cap < len) {
-            return EMSGSIZE;
+            return -1;
         }
         if (0U != len) {
             memcpy(out, s->data, len);
@@ -386,30 +400,35 @@ int packet_ring_deq(packet_ring_t *r, uint8_t *out, uint32_t out_cap,
  * @param packet_queue_count 생성할 queue 개수
  * @param slot_count queue 하나당 slot 개수
  * @param user_blocking blocking 동작 여부
- * @return int 0이면 성공, 그 외 errno 계열 실패 코드
+ * @return int 성공 시 0, 실패 시 -1
  */
 int packet_queue_set_init(packet_queue_set_t *set, uint32_t packet_queue_count,
                           uint32_t slot_count, int user_blocking) {
+    int ret;
+
     if (NULL == set) {
-        return EINVAL;
+        return -1;
     }
     if (packet_queue_count < MIN_QUEUE_COUNT ||
         packet_queue_count > MAX_QUEUE_COUNT) {
-        return EINVAL;
+        return -1;
     }
     if (0U == slot_count) {
         slot_count = DEFAULT_SLOT_COUNT;
     }
-    if (0U == is_power_of_two_u32(slot_count)) {
-        return EINVAL;
+    ret = is_power_of_two_u32(slot_count);
+    if (0 == ret) {
+        return -1;
     }
 
     /* queue set 자체를 먼저 초기화한 뒤 ring 배열을 동적으로 확보한다. */
     memset(set, 0, sizeof(*set));
-    set->q = (packet_ring_t *)calloc(packet_queue_count, sizeof(packet_ring_t));
-    if (NULL == set->q) {
-        return ENOMEM;
+    ret = posix_memalign((void **)&set->q, 64, packet_queue_count * sizeof(packet_ring_t));
+    if (0 != ret) {
+        set->q = NULL;
+        return -1;
     }
+    memset(set->q, 0, packet_queue_count * sizeof(packet_ring_t));
 
     /*
      * 각 worker queue를 순서대로 생성한다. 중간 실패 시 이미 성공한 ring만

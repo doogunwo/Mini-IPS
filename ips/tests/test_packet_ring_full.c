@@ -41,8 +41,8 @@ int main(void) {
     CHECK(0 == packet_ring_enq(&ring, pkt3, sizeof(pkt3), 103),
           "enqueue pkt3 failed");
 
-    CHECK(EAGAIN == packet_ring_enq(&ring, pkt4, sizeof(pkt4), 104),
-          "full ring should return EAGAIN");
+    CHECK(-1 == packet_ring_enq(&ring, pkt4, sizeof(pkt4), 104),
+          "full ring should return -1");
     CHECK(1 == ring.stats.drop_full, "drop_full should be incremented once");
     CHECK(0 == ring.stats.wait_full, "wait_full should stay zero");
     CHECK(4 == ring.stats.enq_ok, "enq_ok mismatch");

@@ -66,20 +66,20 @@ struct reasm_ctx {
     reasm_stats_t    stats;
 };
 
-static uint32_t reasm_flow_hash(const flow_key_t *k);
-static int reasm_flow_eq(const flow_key_t *a, const flow_key_t *b);
-static void reasm_seg_free(reasm_seg_node_t *s);
-static void reasm_dir_clear(reasm_dir_t *d);
-static void reasm_session_free(reasm_session_t *s);
+static uint32_t         reasm_flow_hash(const flow_key_t *k);
+static int              reasm_flow_eq(const flow_key_t *a, const flow_key_t *b);
+static void             reasm_seg_free(reasm_seg_node_t *s);
+static void             reasm_dir_clear(reasm_dir_t *d);
+static void             reasm_session_free(reasm_session_t *s);
 static reasm_session_t *reasm_lookup(reasm_ctx_t *c, const flow_key_t *k,
                                      uint64_t ts_ms);
 static reasm_session_t *reasm_get_or_create(reasm_ctx_t *c, const flow_key_t *k,
                                             uint64_t ts_ms);
-static void reasm_trim_to_next(reasm_dir_t *d, uint32_t *seq,
-                               const uint8_t **payload, uint32_t *len);
-static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
-                                const uint8_t *payload, uint32_t len);
-static int reasm_looks_like_http_start(const uint8_t *payload, uint32_t len);
+static void             reasm_trim_to_next(reasm_dir_t *d, uint32_t *seq,
+                                           const uint8_t **payload, uint32_t *len);
+static int              reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
+                                             const uint8_t *payload, uint32_t len);
+static int  reasm_looks_like_http_start(const uint8_t *payload, uint32_t len);
 static void reasm_flush(reasm_ctx_t *c, reasm_session_t *s, tcp_dir_t dir);
 
 /**
@@ -192,20 +192,23 @@ static void reasm_session_free(reasm_session_t *s) {
 reasm_ctx_t *reasm_create(uint32_t nbuckets, reasm_on_data_cb cb, void *user) {
     reasm_ctx_t *c;
 
-    c = (reasm_ctx_t *)calloc(1, sizeof(*c));
+    c = (reasm_ctx_t *)malloc(sizeof(*c));
     if (NULL == c) {
         return NULL;
     }
+    memset(c, 0, sizeof(*c));
 
     if (0 == nbuckets) {
         nbuckets = 8192;
     }
 
-    c->buckets = (reasm_session_t **)calloc(nbuckets, sizeof(reasm_session_t *));
+    c->buckets = (reasm_session_t **)malloc((size_t)nbuckets *
+                                            sizeof(reasm_session_t *));
     if (NULL == c->buckets) {
         free(c);
         return NULL;
     }
+    memset(c->buckets, 0, (size_t)nbuckets * sizeof(reasm_session_t *));
 
     c->nbuckets = nbuckets;
     c->mode     = REASM_MODE_LATE_START;
@@ -314,7 +317,10 @@ static reasm_session_t *reasm_lookup(reasm_ctx_t *c, const flow_key_t *k,
     uint32_t idx = reasm_flow_hash(k) % c->nbuckets;
 
     for (reasm_session_t *p = c->buckets[idx]; NULL != p; p = p->next) {
-        if (reasm_flow_eq(&p->key, k)) {
+        int eq;
+
+        eq = reasm_flow_eq(&p->key, k);
+        if (0 != eq) {
             p->last_seen_ms = ts_ms;
             return p;
         }
@@ -346,10 +352,11 @@ static reasm_session_t *reasm_get_or_create(reasm_ctx_t *c, const flow_key_t *k,
     }
 
     idx = reasm_flow_hash(k) % c->nbuckets;
-    s   = (reasm_session_t *)calloc(1, sizeof(*s));
+    s   = (reasm_session_t *)malloc(sizeof(*s));
     if (NULL == s) {
         return NULL;
     }
+    memset(s, 0, sizeof(*s));
 
     s->key          = *k;
     s->last_seen_ms = ts_ms;
@@ -371,6 +378,7 @@ static void reasm_trim_to_next(reasm_dir_t *d, uint32_t *seq,
                                const uint8_t **payload, uint32_t *len) {
     uint32_t start;
     uint32_t end;
+    int      ret;
 
     if (0 == *len || 0 == d->has_next) {
         return;
@@ -378,12 +386,14 @@ static void reasm_trim_to_next(reasm_dir_t *d, uint32_t *seq,
 
     start = *seq;
     end   = start + *len;
-    if (SEQ_LEQ(end, d->next_seq)) {
+    ret   = SEQ_LEQ(end, d->next_seq);
+    if (0 != ret) {
         *len = 0;
         return;
     }
 
-    if (SEQ_LT(start, d->next_seq)) {
+    ret = SEQ_LT(start, d->next_seq);
+    if (0 != ret) {
         uint32_t delta = (uint32_t)(d->next_seq - start);
 
         *seq = d->next_seq;
@@ -407,6 +417,7 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
     reasm_seg_node_t  *prev      = NULL;
     uint32_t           new_start = seq;
     uint32_t           new_end   = seq + len;
+    int                ret;
 
     if (0 == len) {
         return 0;
@@ -418,9 +429,11 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
         return -2;
     }
 
-    pp = &d->head;
-    while (NULL != *pp && SEQ_LT((*pp)->seq, seq)) {
-        pp = &(*pp)->next;
+    pp  = &d->head;
+    ret = (NULL != *pp) ? SEQ_LT((*pp)->seq, seq) : 0;
+    while (NULL != *pp && 0 != ret) {
+        pp  = &(*pp)->next;
+        ret = (NULL != *pp) ? SEQ_LT((*pp)->seq, seq) : 0;
     }
 
     if (pp != &d->head) {
@@ -434,9 +447,12 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
 
     if (NULL != prev) {
         uint32_t prev_end = prev->seq + prev->len;
+        int      seq_geq;
 
-        if (SEQ_GEQ(prev_end, new_start)) {
-            if (SEQ_GEQ(prev_end, new_end)) {
+        seq_geq = SEQ_GEQ(prev_end, new_start);
+        if (0 != seq_geq) {
+            seq_geq = SEQ_GEQ(prev_end, new_end);
+            if (0 != seq_geq) {
                 return 0;
             }
 
@@ -455,13 +471,17 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
         reasm_seg_node_t *cur       = *pp;
         uint32_t          cur_start = cur->seq;
         uint32_t          cur_end   = cur->seq + cur->len;
+        int               seq_cmp;
 
-        if (SEQ_LEQ(new_end, cur_start)) {
+        seq_cmp = SEQ_LEQ(new_end, cur_start);
+        if (0 != seq_cmp) {
             break;
         }
 
-        if (SEQ_LT(new_start, cur_start)) {
-            if (SEQ_GEQ(new_end, cur_end)) {
+        seq_cmp = SEQ_LT(new_start, cur_start);
+        if (0 != seq_cmp) {
+            seq_cmp = SEQ_GEQ(new_end, cur_end);
+            if (0 != seq_cmp) {
                 *pp = cur->next;
                 d->seg_count--;
                 d->bytes_queued -= cur->len;
@@ -477,8 +497,10 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
             }
         }
 
-        if (SEQ_LT(new_start, cur_end)) {
-            if (SEQ_GEQ(cur_end, new_end)) {
+        seq_cmp = SEQ_LT(new_start, cur_end);
+        if (0 != seq_cmp) {
+            seq_cmp = SEQ_GEQ(cur_end, new_end);
+            if (0 != seq_cmp) {
                 return 0;
             }
 
@@ -508,11 +530,12 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
     }
 
     {
-        reasm_seg_node_t *n = (reasm_seg_node_t *)calloc(1, sizeof(*n));
+        reasm_seg_node_t *n = (reasm_seg_node_t *)malloc(sizeof(*n));
 
         if (NULL == n) {
             return -3;
         }
+        memset(n, 0, sizeof(*n));
         /* ************* Malloc *****************/
         n->data = (uint8_t *)malloc(len);
         if (NULL == n->data) {
@@ -524,9 +547,11 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
         n->seq = new_start;
         n->len = len;
 
-        pp = &d->head;
-        while (NULL != *pp && SEQ_LT((*pp)->seq, n->seq)) {
-            pp = &(*pp)->next;
+        pp  = &d->head;
+        ret = (NULL != *pp) ? SEQ_LT((*pp)->seq, n->seq) : 0;
+        while (NULL != *pp && 0 != ret) {
+            pp  = &(*pp)->next;
+            ret = (NULL != *pp) ? SEQ_LT((*pp)->seq, n->seq) : 0;
         }
         n->next = *pp;
         *pp     = n;
@@ -544,8 +569,7 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
 
             {
                 uint32_t merged_len = n->len + nx->len;
-                 /* ************* realloc *****************/
-                uint8_t *buf = (uint8_t *)realloc(n->data, merged_len);
+                uint8_t *buf        = (uint8_t *)realloc(n->data, merged_len);
 
                 if (NULL == buf) {
                     break;
@@ -566,7 +590,12 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
 }
 
 /**
- * @brief payload 시작이 HTTP 요청처럼 보이는지 검사한다.
+ * @brief payload 시작이 HTTP 요청/응답 시작줄처럼 보이는지 검사한다.
+ *
+ * late-start 모드에서는 첫 payload가 HTTP 메시지의 시작인지 알아야
+ * out-of-order 적재 대신 즉시 next_seq 기준을 잡을 수 있다. 요청 메서드뿐만
+ * 아니라 `HTTP/1.x` 응답 시작줄도 허용해야 서버/차단 응답 방향에서
+ * 불필요한 out-of-order 누적을 피할 수 있다.
  *
  * @param payload payload 시작 주소
  * @param len payload 길이
@@ -576,7 +605,7 @@ static int reasm_looks_like_http_start(const uint8_t *payload, uint32_t len) {
     static const char *const methods[] = {"GET ",   "POST ",   "PUT ",
                                           "HEAD ",  "DELETE ", "OPTIONS ",
                                           "PATCH ", "TRACE ",  "CONNECT "};
-    size_t i;
+    size_t                   i;
 
     if (NULL == payload || 0 == len) {
         return 0;
@@ -584,8 +613,27 @@ static int reasm_looks_like_http_start(const uint8_t *payload, uint32_t len) {
 
     for (i = 0; i < sizeof(methods) / sizeof(methods[0]); i++) {
         size_t n = strlen(methods[i]);
+        int    ret;
 
-        if (len >= n && memcmp(payload, methods[i], n) == 0) {
+        ret = 1;
+        if (len >= n) {
+            ret = memcmp(payload, methods[i], n);
+        }
+        if (len >= n && 0 == ret) {
+            return 1;
+        }
+    }
+
+    if (len >= sizeof("HTTP/1.0") - 1U) {
+        int ret;
+
+        ret = memcmp(payload, "HTTP/1.0", sizeof("HTTP/1.0") - 1U);
+        if (0 == ret) {
+            return 1;
+        }
+
+        ret = memcmp(payload, "HTTP/1.1", sizeof("HTTP/1.1") - 1U);
+        if (0 == ret) {
             return 1;
         }
     }
@@ -633,7 +681,7 @@ static void reasm_flush(reasm_ctx_t *c, reasm_session_t *s, tcp_dir_t dir) {
  * @param payload payload 시작 주소
  * @param len payload 길이
  * @param ts_ms 현재 시각(ms)
- * @return int 0:정상, -1:입력 오류, -2:세션 생성 실패
+ * @return int 0이면 정상, -1이면 실패
  */
 int reasm_ingest(reasm_ctx_t *c, const flow_key_t *flow, tcp_dir_t dir,
                  uint32_t seq, uint8_t tcp_flags, const uint8_t *payload,
@@ -680,13 +728,14 @@ int reasm_ingest(reasm_ctx_t *c, const flow_key_t *flow, tcp_dir_t dir,
         if (0 == len && c->mode == REASM_MODE_LATE_START) {
             return 0;
         }
-        if (c->mode == REASM_MODE_STRICT_SYN && !(tcp_flags & TCP_SYN)) {
+        rc = (int)(tcp_flags & TCP_SYN);
+        if (REASM_MODE_STRICT_SYN == c->mode && 0 == rc) {
             return 0;
         }
 
         s = reasm_get_or_create(c, flow, ts_ms);
         if (NULL == s) {
-            return -2;
+            return -1;
         }
     }
 
@@ -703,7 +752,8 @@ int reasm_ingest(reasm_ctx_t *c, const flow_key_t *flow, tcp_dir_t dir,
             if (0 == len) {
                 return 0;
             }
-            if (0 == reasm_looks_like_http_start(payload, len)) {
+            rc = reasm_looks_like_http_start(payload, len);
+            if (0 == rc) {
                 c->stats.out_of_order_pkts++;
                 return reasm_insert_segment(d, seq, payload, len);
             }

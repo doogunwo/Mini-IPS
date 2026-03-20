@@ -16,6 +16,9 @@ int                  g_signature_count = 0;
 
 static IPS_Signature *g_loaded_signatures = NULL;
 
+static POLICY        policy_from_string(const char *name);
+static ips_context_t ctx_from_string(const char *name);
+
 typedef struct {
     char  *buf;
     size_t len;
@@ -90,136 +93,16 @@ static char *xstrdup(const char *s) {
  * @return const char* 공백을 건너뛴 새 위치
  */
 static const char *skip_ws(const char *p) {
-    while (p && *p && isspace((unsigned char)*p)) {
+    int is_ws;
+
+    while (NULL != p && '\0' != *p) {
+        is_ws = isspace((unsigned char)*p);
+        if (0 == is_ws) {
+            break;
+        }
         p++;
     }
     return p;
-}
-
-/**
- * @brief JSON line 안에서 특정 key 토큰의 시작 위치를 찾는다.
- *
- * 간단한 JSONL 입력을 전제로 `"key"` 문자열을 그대로 검색한다.
- *
- * @param line JSON 한 줄
- * @param key 찾을 key 이름
- * @return const char* key가 있으면 그 위치, 없으면 NULL
- */
-static const char *find_json_key(const char *line, const char *key) {
-    char needle[64];
-    snprintf(needle, sizeof(needle), "\"%s\"", key);
-    return strstr(line, needle);
-}
-
-/**
- * @brief JSON line에서 문자열 필드 하나를 unescape 하며 읽는다.
- *
- * @param line JSON 한 줄
- * @param key 찾을 key 이름
- * @param out 파싱한 문자열을 받을 포인터
- * @return int 1이면 성공, 0이면 key 없음, -1이면 파싱 실패
- */
-static int parse_json_string_field(const char *line, const char *key,
-                                   char **out) {
-    const char *p;
-    strbuf_t    sb;
-
-    *out = NULL;
-    p    = find_json_key(line, key);
-    if (!p) {
-        return 0;
-    }
-
-    /* key 뒤의 ':'를 찾고, 문자열 값 시작 따옴표까지 이동한다. */
-    p = strchr(p, ':');
-    if (!p) {
-        return -1;
-    }
-    p = skip_ws(p + 1);
-    if (!p || *p != '"') {
-        return -1;
-    }
-    p++;
-
-    memset(&sb, 0, sizeof(sb));
-    /* escape 시퀀스를 해석하며 문자열 종료 따옴표까지 복원한다. */
-    while (*p) {
-        if (*p == '\\') {
-            p++;
-            if (!*p) {
-                break;
-            }
-            switch (*p) {
-            case '"':
-                if (strbuf_append_char(&sb, '"') != 0) {
-                    goto oom;
-                }
-                break;
-            case '\\':
-                if (strbuf_append_char(&sb, '\\') != 0) {
-                    goto oom;
-                }
-                break;
-            case '/':
-                if (strbuf_append_char(&sb, '/') != 0) {
-                    goto oom;
-                }
-                break;
-            case 'b':
-                if (strbuf_append_char(&sb, '\b') != 0) {
-                    goto oom;
-                }
-                break;
-            case 'f':
-                if (strbuf_append_char(&sb, '\f') != 0) {
-                    goto oom;
-                }
-                break;
-            case 'n':
-                if (strbuf_append_char(&sb, '\n') != 0) {
-                    goto oom;
-                }
-                break;
-            case 'r':
-                if (strbuf_append_char(&sb, '\r') != 0) {
-                    goto oom;
-                }
-                break;
-            case 't':
-                if (strbuf_append_char(&sb, '\t') != 0) {
-                    goto oom;
-                }
-                break;
-            case 'u':
-                if (strbuf_append_char(&sb, '?') != 0) {
-                    goto oom;
-                }
-                while (p[1] && isxdigit((unsigned char)p[1])) {
-                    p++;
-                }
-                break;
-            default:
-                if (strbuf_append_char(&sb, *p) != 0) {
-                    goto oom;
-                }
-                break;
-            }
-            p++;
-            continue;
-        }
-        if (*p == '"') {
-            *out = sb.buf ? sb.buf : xstrdup("");
-            return *out ? 1 : -1;
-        }
-        if (strbuf_append_char(&sb, *p) != 0) {
-            goto oom;
-        }
-        p++;
-    }
-
-oom:
-    strbuf_free(&sb);
-    return -1;
 }
 
 /**
@@ -232,78 +115,212 @@ oom:
  * @return int 1이면 성공, -1이면 실패
  */
 static int parse_json_string_at(const char **cursor, char **out) {
-    const char *p = *cursor;
+    const char *p;
     strbuf_t    sb;
+    int         ret;
+    int         is_hex;
 
+    p    = *cursor;
     *out = NULL;
-    if (!p || *p != '"') {
+    if (NULL == p || '"' != *p) {
         return -1;
     }
     p++;
 
     memset(&sb, 0, sizeof(sb));
-    while (*p) {
-        if (*p == '\\') {
+    while ('\0' != *p) {
+        if ('\\' == *p) {
             p++;
-            if (!*p) {
+            if ('\0' == *p) {
                 break;
             }
             switch (*p) {
             case '"':
-                if (strbuf_append_char(&sb, '"') != 0) {
+                ret = strbuf_append_char(&sb, '"');
+                if (0 != ret) {
                     goto oom;
                 }
                 break;
             case '\\':
-                if (strbuf_append_char(&sb, '\\') != 0) {
+                ret = strbuf_append_char(&sb, '\\');
+                if (0 != ret) {
                     goto oom;
                 }
                 break;
             case '/':
-                if (strbuf_append_char(&sb, '/') != 0) {
+                ret = strbuf_append_char(&sb, '/');
+                if (0 != ret) {
                     goto oom;
                 }
                 break;
             case 'b':
-                if (strbuf_append_char(&sb, '\b') != 0) {
+                ret = strbuf_append_char(&sb, '\b');
+                if (0 != ret) {
                     goto oom;
                 }
                 break;
             case 'f':
-                if (strbuf_append_char(&sb, '\f') != 0) {
+                ret = strbuf_append_char(&sb, '\f');
+                if (0 != ret) {
                     goto oom;
                 }
                 break;
             case 'n':
-                if (strbuf_append_char(&sb, '\n') != 0) {
+                ret = strbuf_append_char(&sb, '\n');
+                if (0 != ret) {
                     goto oom;
                 }
                 break;
             case 'r':
-                if (strbuf_append_char(&sb, '\r') != 0) {
+                ret = strbuf_append_char(&sb, '\r');
+                if (0 != ret) {
                     goto oom;
                 }
                 break;
             case 't':
-                if (strbuf_append_char(&sb, '\t') != 0) {
+                ret = strbuf_append_char(&sb, '\t');
+                if (0 != ret) {
                     goto oom;
                 }
                 break;
+            case 'u': {
+                unsigned int cp;
+                unsigned int v;
+                int          i;
+
+                cp = 0U;
+                for (i = 1; i <= 4; i++) {
+                    is_hex = 0;
+                    if ('\0' != p[i]) {
+                        is_hex = isxdigit((unsigned char)p[i]);
+                    }
+                    if ('\0' == p[i] || 0 == is_hex) {
+                        goto oom;
+                    }
+
+                    if ('0' <= p[i] && '9' >= p[i]) {
+                        v = (unsigned int)(p[i] - '0');
+                    } else if ('a' <= p[i] && 'f' >= p[i]) {
+                        v = (unsigned int)(p[i] - 'a' + 10);
+                    } else if ('A' <= p[i] && 'F' >= p[i]) {
+                        v = (unsigned int)(p[i] - 'A' + 10);
+                    } else {
+                        goto oom;
+                    }
+
+                    cp = (cp << 4) | v;
+                }
+
+                if (0xD800U <= cp && 0xDBFFU >= cp) {
+                    unsigned int low;
+
+                    if ('\\' != p[5] || 'u' != p[6]) {
+                        goto oom;
+                    }
+
+                    low = 0U;
+                    for (i = 7; i <= 10; i++) {
+                        is_hex = 0;
+                        if ('\0' != p[i]) {
+                            is_hex = isxdigit((unsigned char)p[i]);
+                        }
+                        if ('\0' == p[i] || 0 == is_hex) {
+                            goto oom;
+                        }
+
+                        if ('0' <= p[i] && '9' >= p[i]) {
+                            v = (unsigned int)(p[i] - '0');
+                        } else if ('a' <= p[i] && 'f' >= p[i]) {
+                            v = (unsigned int)(p[i] - 'a' + 10);
+                        } else if ('A' <= p[i] && 'F' >= p[i]) {
+                            v = (unsigned int)(p[i] - 'A' + 10);
+                        } else {
+                            goto oom;
+                        }
+
+                        low = (low << 4) | v;
+                    }
+
+                    if (0xDC00U > low || 0xDFFFU < low) {
+                        goto oom;
+                    }
+
+                    cp = 0x10000U + (((cp - 0xD800U) << 10) | (low - 0xDC00U));
+                    p += 10;
+                } else {
+                    if (0xDC00U <= cp && 0xDFFFU >= cp) {
+                        goto oom;
+                    }
+                    p += 4;
+                }
+
+                if (0x7FU >= cp) {
+                    ret = strbuf_append_char(&sb, (char)cp);
+                    if (0 != ret) {
+                        goto oom;
+                    }
+                } else if (0x7FFU >= cp) {
+                    ret = strbuf_append_char(
+                        &sb, (char)(0xC0U | ((cp >> 6) & 0x1FU)));
+                    if (0 != ret) {
+                        goto oom;
+                    }
+                    ret = strbuf_append_char(&sb, (char)(0x80U | (cp & 0x3FU)));
+                    if (0 != ret) {
+                        goto oom;
+                    }
+                } else if (0xFFFFU >= cp) {
+                    ret = strbuf_append_char(
+                        &sb, (char)(0xE0U | ((cp >> 12) & 0x0FU)));
+                    if (0 != ret) {
+                        goto oom;
+                    }
+                    ret = strbuf_append_char(
+                        &sb, (char)(0x80U | ((cp >> 6) & 0x3FU)));
+                    if (0 != ret) {
+                        goto oom;
+                    }
+                    ret = strbuf_append_char(&sb, (char)(0x80U | (cp & 0x3FU)));
+                    if (0 != ret) {
+                        goto oom;
+                    }
+                } else if (0x10FFFFU >= cp) {
+                    ret = strbuf_append_char(
+                        &sb, (char)(0xF0U | ((cp >> 18) & 0x07U)));
+                    if (0 != ret) {
+                        goto oom;
+                    }
+                    ret = strbuf_append_char(
+                        &sb, (char)(0x80U | ((cp >> 12) & 0x3FU)));
+                    if (0 != ret) {
+                        goto oom;
+                    }
+                    ret = strbuf_append_char(
+                        &sb, (char)(0x80U | ((cp >> 6) & 0x3FU)));
+                    if (0 != ret) {
+                        goto oom;
+                    }
+                    ret = strbuf_append_char(&sb, (char)(0x80U | (cp & 0x3FU)));
+                    if (0 != ret) {
+                        goto oom;
+                    }
+                } else {
+                    goto oom;
+                }
+            } break;
             default:
-                if (strbuf_append_char(&sb, *p) != 0) {
-                    goto oom;
-                }
-                break;
+                goto oom;
             }
             p++;
             continue;
         }
-        if (*p == '"') {
+        if ('"' == *p) {
             *out    = sb.buf ? sb.buf : xstrdup("");
             *cursor = p + 1;
             return *out ? 1 : -1;
         }
-        if (strbuf_append_char(&sb, *p) != 0) {
+        ret = strbuf_append_char(&sb, *p);
+        if (0 != ret) {
             goto oom;
         }
         p++;
@@ -314,144 +331,570 @@ oom:
 }
 
 /**
- * @brief JSON line에서 정수 필드를 읽는다.
+ * @brief 문자열 배열 원소들을 전부 해제한다.
  *
- * @param line JSON 한 줄
- * @param key 찾을 key 이름
- * @param out 파싱된 정수 값을 받을 포인터
- * @return int 1이면 성공, 0이면 key 없음/null, -1이면 파싱 실패
+ * @param values 해제할 문자열 포인터 배열
+ * @param count 배열 원소 수
  */
-static int parse_json_int_field(const char *line, const char *key, int *out) {
+static void free_string_values(const char **values, size_t count) {
+    size_t i;
+
+    for (i = 0; i < count; i++) {
+        free((char *)values[i]);
+    }
+    free((char **)values);
+}
+
+/**
+ * @brief 현재 위치가 JSON 값 경계인지 검사한다.
+ *
+ * 숫자/리터럴 뒤에 다른 식별자 문자가 이어지면 malformed input으로 본다.
+ *
+ * @param ch 검사할 문자
+ * @return int 경계 문자면 1, 아니면 0
+ */
+static int is_json_value_delim(char ch) {
+    if ('\0' == ch || ',' == ch || '}' == ch || ']' == ch) {
+        return 1;
+    }
+    return 0 != isspace((unsigned char)ch);
+}
+
+/**
+ * @brief cursor가 가리키는 정수 또는 null 값을 읽는다.
+ *
+ * @param cursor 현재 읽기 위치
+ * @param out 파싱된 정수 값을 받을 포인터
+ * @return int 1이면 정수 성공, 0이면 null, -1이면 실패
+ */
+static int parse_json_int_at(const char **cursor, int *out) {
     const char *p;
     char       *endptr;
     long        value;
+    int         ret;
 
-    p = find_json_key(line, key);
-    if (!p) {
-        return 0;
-    }
-    p = strchr(p, ':');
-    if (!p) {
+    p = skip_ws(*cursor);
+    if (NULL == p) {
         return -1;
     }
-    p = skip_ws(p + 1);
-    if (!strncmp(p, "null", 4)) {
+
+    ret = strncmp(p, "null", 4);
+    if (0 == ret && 0 != is_json_value_delim(p[4])) {
+        *cursor = p + 4;
         return 0;
     }
 
     value = strtol(p, &endptr, 10);
-    if (endptr == p) {
+    ret   = is_json_value_delim(*endptr);
+    if (endptr == p || 0 == ret) {
         return -1;
     }
-    *out = (int)value;
+
+    *out    = (int)value;
+    *cursor = endptr;
     return 1;
 }
 
 /**
- * @brief JSON line에서 boolean 필드를 읽는다.
+ * @brief cursor가 가리키는 boolean 값을 읽는다.
  *
- * @param line JSON 한 줄
- * @param key 찾을 key 이름
+ * @param cursor 현재 읽기 위치
  * @param out 파싱된 bool 값을 받을 포인터
- * @return int 1이면 성공, 0이면 key 없음, -1이면 파싱 실패
+ * @return int 1이면 성공, -1이면 실패
  */
-static int parse_json_bool_field(const char *line, const char *key, int *out) {
+static int parse_json_bool_at(const char **cursor, int *out) {
     const char *p;
+    int         ret;
 
-    p = find_json_key(line, key);
-    if (!p) {
-        return 0;
-    }
-    p = strchr(p, ':');
-    if (!p) {
+    p = skip_ws(*cursor);
+    if (NULL == p) {
         return -1;
     }
-    p = skip_ws(p + 1);
-    if (!strncmp(p, "true", 4)) {
-        *out = 1;
+
+    ret = strncmp(p, "true", 4);
+    if (0 == ret && 0 != is_json_value_delim(p[4])) {
+        *out    = 1;
+        *cursor = p + 4;
         return 1;
     }
-    if (!strncmp(p, "false", 5)) {
-        *out = 0;
+
+    ret = strncmp(p, "false", 5);
+    if (0 == ret && 0 != is_json_value_delim(p[5])) {
+        *out    = 0;
+        *cursor = p + 5;
         return 1;
     }
+
     return -1;
 }
 
 /**
- * @brief JSON line에서 문자열 배열 필드를 읽는다.
+ * @brief cursor가 가리키는 문자열 배열 값을 읽는다.
  *
- * `["a", "b"]` 형태의 단순 문자열 배열만 지원한다.
- *
- * @param line JSON 한 줄
- * @param key 찾을 key 이름
+ * @param cursor 현재 읽기 위치
  * @param out_values 파싱된 문자열 배열
  * @param out_count 배열 원소 수
- * @return int 1이면 성공, 0이면 key 없음, -1이면 실패
+ * @return int 1이면 성공, -1이면 실패
  */
-static int parse_json_string_array_field(const char *line, const char *key,
-                                         const char ***out_values,
-                                         size_t       *out_count) {
+static int parse_json_string_array_at(const char  **cursor,
+                                      const char ***out_values,
+                                      size_t       *out_count) {
     const char  *p;
-    const char  *cursor;
-    const char **values = NULL;
-    size_t       count  = 0;
+    const char **values;
+    const char **next_values;
+    size_t       count;
+    size_t       capacity;
+    int          ret;
 
     *out_values = NULL;
     *out_count  = 0;
 
-    p = find_json_key(line, key);
-    if (!p) {
+    values   = NULL;
+    count    = 0;
+    capacity = 0;
+
+    p = skip_ws(*cursor);
+    if (NULL == p || '[' != *p) {
+        return -1;
+    }
+    p++;
+
+    while ('\0' != *p) {
+        char *item;
+
+        p = skip_ws(p);
+        if (']' == *p) {
+            *cursor     = p + 1;
+            *out_values = values;
+            *out_count  = count;
+            return 1;
+        }
+
+        if ('"' != *p) {
+            free_string_values(values, count);
+            return -1;
+        }
+
+        item = NULL;
+        ret  = parse_json_string_at(&p, &item);
+        if (0 > ret) {
+            free_string_values(values, count);
+            return -1;
+        }
+
+        if (count == capacity) {
+            size_t next_capacity;
+
+            next_capacity = (0U == capacity) ? 4U : (capacity * 2U);
+            next_values   = (const char **)realloc(
+                (void *)values, next_capacity * sizeof(*next_values));
+            if (NULL == next_values) {
+                free(item);
+                free_string_values(values, count);
+                return -1;
+            }
+
+            values   = next_values;
+            capacity = next_capacity;
+        }
+
+        values[count] = item;
+        count++;
+
+        p = skip_ws(p);
+        if (',' == *p) {
+            p++;
+            continue;
+        }
+        if (']' == *p) {
+            *cursor     = p + 1;
+            *out_values = values;
+            *out_count  = count;
+            return 1;
+        }
+
+        free_string_values(values, count);
+        return -1;
+    }
+
+    free_string_values(values, count);
+    return -1;
+}
+
+/**
+ * @brief 현재 cursor가 가리키는 중첩 JSON 값 전체를 건너뛴다.
+ *
+ * @param cursor 현재 읽기 위치
+ * @param open_ch 시작 문자
+ * @param close_ch 종료 문자
+ * @return int 0이면 성공, -1이면 실패
+ */
+static int skip_json_nested(const char **cursor, char open_ch, char close_ch) {
+    const char *p;
+    int         depth;
+    int         in_string;
+    int         escaped;
+
+    p = *cursor;
+    if (NULL == p || open_ch != *p) {
+        return -1;
+    }
+
+    depth     = 0;
+    in_string = 0;
+    escaped   = 0;
+
+    while ('\0' != *p) {
+        if (0 != in_string) {
+            if (0 != escaped) {
+                escaped = 0;
+            } else if ('\\' == *p) {
+                escaped = 1;
+            } else if ('"' == *p) {
+                in_string = 0;
+            }
+        } else {
+            if ('"' == *p) {
+                in_string = 1;
+            } else if (open_ch == *p) {
+                depth++;
+            } else if (close_ch == *p) {
+                depth--;
+                if (0 == depth) {
+                    *cursor = p + 1;
+                    return 0;
+                }
+            }
+        }
+        p++;
+    }
+
+    return -1;
+}
+
+/**
+ * @brief 현재 cursor가 가리키는 값을 파싱 없이 건너뛴다.
+ *
+ * 알려지지 않은 key를 무시하기 위해 문자열/숫자/리터럴/배열/객체를
+ * 한 값 단위로 소비한다.
+ *
+ * @param cursor 현재 읽기 위치
+ * @return int 0이면 성공, -1이면 실패
+ */
+static int skip_json_value(const char **cursor) {
+    const char *p;
+    char       *endptr;
+    char       *tmp;
+    int         ret;
+
+    p = skip_ws(*cursor);
+    if (NULL == p || '\0' == *p) {
+        return -1;
+    }
+
+    if ('"' == *p) {
+        tmp = NULL;
+        ret = parse_json_string_at(&p, &tmp);
+        if (0 > ret) {
+            return -1;
+        }
+        free(tmp);
+        *cursor = p;
         return 0;
     }
-    p = strchr(p, ':');
-    if (!p) {
+
+    if ('[' == *p) {
+        ret = skip_json_nested(&p, '[', ']');
+        if (0 != ret) {
+            return -1;
+        }
+        *cursor = p;
+        return 0;
+    }
+
+    if ('{' == *p) {
+        ret = skip_json_nested(&p, '{', '}');
+        if (0 != ret) {
+            return -1;
+        }
+        *cursor = p;
+        return 0;
+    }
+
+    ret = strncmp(p, "true", 4);
+    if (0 == ret && 0 != is_json_value_delim(p[4])) {
+        *cursor = p + 4;
+        return 0;
+    }
+    ret = strncmp(p, "false", 5);
+    if (0 == ret && 0 != is_json_value_delim(p[5])) {
+        *cursor = p + 5;
+        return 0;
+    }
+    ret = strncmp(p, "null", 4);
+    if (0 == ret && 0 != is_json_value_delim(p[4])) {
+        *cursor = p + 4;
+        return 0;
+    }
+
+    (void)strtod(p, &endptr);
+    ret = is_json_value_delim(*endptr);
+    if (endptr == p || 0 == ret) {
         return -1;
     }
-    p = skip_ws(p + 1);
-    if (*p != '[') {
-        return -1;
+
+    *cursor = endptr;
+    return 0;
+}
+
+/**
+ * @brief rules.jsonl 한 줄을 top-level object 기준으로 한 번만 훑어 파싱한다.
+ *
+ * key 탐색을 위해 line을 여러 번 다시 스캔하지 않고, cursor를 앞에서 뒤로
+ * 한 번만 이동시키며 필요한 필드를 채운다.
+ *
+ * @param line JSONL 한 줄
+ * @param sig 파싱 결과 시그니처
+ * @return int 0이면 성공, -1이면 실패
+ */
+static int regex_signature_parse(const char *line, IPS_Signature *sig) {
+    const char  *cursor;
+    char        *key;
+    char        *pid;
+    char        *pname;
+    char        *pat;
+    char        *ctx;
+    char        *op;
+    char        *source;
+    int          prio;
+    int          rid;
+    int          negated;
+    int          cmp;
+    int          parse_ret;
+    const char **data_values;
+    size_t       data_value_count;
+
+    memset(sig, 0, sizeof(*sig));
+
+    key              = NULL;
+    pid              = NULL;
+    pname            = NULL;
+    pat              = NULL;
+    ctx              = NULL;
+    op               = NULL;
+    source           = NULL;
+    prio             = 0;
+    rid              = 0;
+    negated          = 0;
+    data_values      = NULL;
+    data_value_count = 0;
+
+    cursor = skip_ws(line);
+    if (NULL == cursor || '{' != *cursor) {
+        goto fail;
     }
-    cursor = p + 1;
+    cursor++;
 
-    /* 닫는 대괄호를 만날 때까지 문자열 원소를 하나씩 읽어 배열에 붙인다. */
-    while (*cursor) {
-        char        *item = NULL;
-        const char **next_values;
-
+    while (1) {
         cursor = skip_ws(cursor);
-        if (*cursor == ']') {
+        if (NULL == cursor || '\0' == *cursor) {
+            goto fail;
+        }
+        if ('}' == *cursor) {
+            cursor++;
             break;
         }
-        if (*cursor != '"') {
-            return -1;
+        if ('"' != *cursor) {
+            goto fail;
         }
 
-        if (parse_json_string_at(&cursor, &item) < 0) {
-            return -1;
+        parse_ret = parse_json_string_at(&cursor, &key);
+        if (0 > parse_ret) {
+            goto fail;
         }
-        next_values =
-            (const char **)realloc(values, (count + 1U) * sizeof(*next_values));
-        if (!next_values) {
-            free(item);
-            return -1;
-        }
-        values          = next_values;
-        values[count++] = item;
 
         cursor = skip_ws(cursor);
-        if (*cursor == ',') {
+        if (':' != *cursor) {
+            goto fail;
+        }
+        cursor++;
+        cursor = skip_ws(cursor);
+
+        cmp = strcmp(key, "pid");
+        if (0 == cmp) {
+            free(pid);
+            pid       = NULL;
+            parse_ret = parse_json_string_at(&cursor, &pid);
+            if (0 > parse_ret) {
+                goto fail;
+            }
+        } else {
+            cmp = strcmp(key, "pname");
+            if (0 == cmp) {
+                free(pname);
+                pname     = NULL;
+                parse_ret = parse_json_string_at(&cursor, &pname);
+                if (0 > parse_ret) {
+                    goto fail;
+                }
+            } else {
+                cmp = strcmp(key, "pat");
+                if (0 == cmp) {
+                    free(pat);
+                    pat       = NULL;
+                    parse_ret = parse_json_string_at(&cursor, &pat);
+                    if (0 > parse_ret) {
+                        goto fail;
+                    }
+                } else {
+                    cmp = strcmp(key, "ctx");
+                    if (0 == cmp) {
+                        free(ctx);
+                        ctx       = NULL;
+                        parse_ret = parse_json_string_at(&cursor, &ctx);
+                        if (0 > parse_ret) {
+                            goto fail;
+                        }
+                    } else {
+                        cmp = strcmp(key, "op");
+                        if (0 == cmp) {
+                            free(op);
+                            op        = NULL;
+                            parse_ret = parse_json_string_at(&cursor, &op);
+                            if (0 > parse_ret) {
+                                goto fail;
+                            }
+                        } else {
+                            cmp = strcmp(key, "source");
+                            if (0 == cmp) {
+                                free(source);
+                                source = NULL;
+                                parse_ret =
+                                    parse_json_string_at(&cursor, &source);
+                                if (0 > parse_ret) {
+                                    goto fail;
+                                }
+                            } else {
+                                cmp = strcmp(key, "prio");
+                                if (0 == cmp) {
+                                    parse_ret =
+                                        parse_json_int_at(&cursor, &prio);
+                                    if (0 > parse_ret) {
+                                        goto fail;
+                                    }
+                                } else {
+                                    cmp = strcmp(key, "rid");
+                                    if (0 == cmp) {
+                                        parse_ret =
+                                            parse_json_int_at(&cursor, &rid);
+                                        if (0 > parse_ret) {
+                                            goto fail;
+                                        }
+                                    } else {
+                                        cmp = strcmp(key, "op_negated");
+                                        if (0 == cmp) {
+                                            parse_ret = parse_json_bool_at(
+                                                &cursor, &negated);
+                                            if (0 > parse_ret) {
+                                                goto fail;
+                                            }
+                                        } else {
+                                            cmp = strcmp(key, "data_values");
+                                            if (0 == cmp) {
+                                                free_string_values(
+                                                    data_values,
+                                                    data_value_count);
+                                                data_values      = NULL;
+                                                data_value_count = 0;
+                                                parse_ret =
+                                                    parse_json_string_array_at(
+                                                        &cursor, &data_values,
+                                                        &data_value_count);
+                                                if (0 > parse_ret) {
+                                                    goto fail;
+                                                }
+                                            } else {
+                                                parse_ret =
+                                                    skip_json_value(&cursor);
+                                                if (0 != parse_ret) {
+                                                    goto fail;
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        free(key);
+        key = NULL;
+
+        cursor = skip_ws(cursor);
+        if (',' == *cursor) {
             cursor++;
             continue;
         }
-        if (*cursor == ']') {
+        if ('}' == *cursor) {
+            cursor++;
             break;
+        }
+        goto fail;
+    }
+
+    cursor = skip_ws(cursor);
+    if ('\0' != *cursor) {
+        goto fail;
+    }
+
+    if (NULL == pid || NULL == pname || NULL == ctx || NULL == op) {
+        goto fail;
+    }
+
+    if (NULL == pat) {
+        pat = xstrdup("");
+        if (NULL == pat) {
+            goto fail;
+        }
+    }
+    if (NULL == source) {
+        source = xstrdup("");
+        if (NULL == source) {
+            goto fail;
         }
     }
 
-    *out_values = values;
-    *out_count  = count;
-    return 1;
+    sig->policy_id        = policy_from_string(pname);
+    sig->policy_name      = pname;
+    sig->pattern          = pat;
+    sig->is_high_priority = prio;
+    sig->context          = ctx_from_string(ctx);
+    sig->op               = ips_operator_from_string(op);
+    sig->op_negated       = negated;
+    sig->rule_id          = rid;
+    sig->source           = source;
+    sig->data_values      = data_values;
+    sig->data_value_count = data_value_count;
+
+    free(pid);
+    free(ctx);
+    free(op);
+    return 0;
+
+fail:
+    free(key);
+    free(pid);
+    free(pname);
+    free(pat);
+    free(ctx);
+    free(op);
+    free(source);
+    free_string_values(data_values, data_value_count);
+    memset(sig, 0, sizeof(*sig));
+    return -1;
 }
 
 /**
@@ -461,11 +904,28 @@ static int parse_json_string_array_field(const char *line, const char *key,
  * @return POLICY 매핑된 정책 enum
  */
 static POLICY policy_from_string(const char *name) {
-#define X(ename, sname)                   \
-    if (name && strcmp(name, sname) == 0) \
-        return ename;
-    POLICY_LIST
+    size_t i;
+    int    cmp;
+    static const struct {
+        POLICY      policy;
+        const char *name;
+    } policies[] = {
+#define X(ename, sname) {ename, sname},
+        POLICY_LIST
 #undef X
+    };
+
+    if (NULL == name) {
+        return POLICY_COMMAND_INJECTION;
+    }
+
+    for (i = 0; i < (sizeof(policies) / sizeof(policies[0])); i++) {
+        cmp = strcmp(name, policies[i].name);
+        if (0 == cmp) {
+            return policies[i].policy;
+        }
+    }
+
     return POLICY_COMMAND_INJECTION;
 }
 
@@ -476,27 +936,41 @@ static POLICY policy_from_string(const char *name) {
  * @return ips_context_t 매핑된 context enum
  */
 static ips_context_t ctx_from_string(const char *name) {
-    if (!name) {
+    size_t i;
+    size_t len;
+    int    cmp;
+    static const struct {
+        ips_context_t context;
+        const char   *name;
+        size_t        len;
+    } aliases[] = {
+        {IPS_CTX_REQUEST_URI, "URI", 3U},
+        {IPS_CTX_REQUEST_URI, "REQUEST_URI", 11U},
+        {IPS_CTX_ARGS, "ARGS", 4U},
+        {IPS_CTX_ARGS_NAMES, "ARGS_NAMES", 10U},
+        {IPS_CTX_REQUEST_HEADERS, "HEADERS", 7U},
+        {IPS_CTX_REQUEST_HEADERS, "REQUEST_HEADERS", 15U},
+        {IPS_CTX_REQUEST_BODY, "BODY", 4U},
+        {IPS_CTX_REQUEST_BODY, "REQUEST_BODY", 12U},
+        {IPS_CTX_RESPONSE_BODY, "RESPONSE_BODY", 13U},
+    };
+
+    if (NULL == name) {
         return IPS_CTX_ALL;
     }
-    if (strcmp(name, "URI") == 0 || strcmp(name, "REQUEST_URI") == 0) {
-        return IPS_CTX_REQUEST_URI;
+
+    len = strlen(name);
+
+    for (i = 0; i < (sizeof(aliases) / sizeof(aliases[0])); i++) {
+        if (aliases[i].len != len) {
+            continue;
+        }
+        cmp = strncmp(name, aliases[i].name, aliases[i].len);
+        if (0 == cmp) {
+            return aliases[i].context;
+        }
     }
-    if (strcmp(name, "ARGS") == 0) {
-        return IPS_CTX_ARGS;
-    }
-    if (strcmp(name, "ARGS_NAMES") == 0) {
-        return IPS_CTX_ARGS_NAMES;
-    }
-    if (strcmp(name, "HEADERS") == 0 || strcmp(name, "REQUEST_HEADERS") == 0) {
-        return IPS_CTX_REQUEST_HEADERS;
-    }
-    if (strcmp(name, "BODY") == 0 || strcmp(name, "REQUEST_BODY") == 0) {
-        return IPS_CTX_REQUEST_BODY;
-    }
-    if (strcmp(name, "RESPONSE_BODY") == 0) {
-        return IPS_CTX_RESPONSE_BODY;
-    }
+
     return IPS_CTX_ALL;
 }
 
@@ -507,60 +981,43 @@ static ips_context_t ctx_from_string(const char *name) {
  * @return ips_operator_t 매핑된 operator enum
  */
 ips_operator_t ips_operator_from_string(const char *name) {
-    if (!name) {
+    size_t i;
+    int    cmp;
+    static const struct {
+        ips_operator_t op;
+        const char    *name;
+    } operators[] = {
+        {IPS_OP_RX, "rx"},
+        {IPS_OP_PM, "pm"},
+        {IPS_OP_PM_FROM_FILE, "pmFromFile"},
+        {IPS_OP_CONTAINS, "contains"},
+        {IPS_OP_BEGINS_WITH, "beginsWith"},
+        {IPS_OP_ENDS_WITH, "endsWith"},
+        {IPS_OP_STREQ, "streq"},
+        {IPS_OP_WITHIN, "within"},
+        {IPS_OP_DETECT_SQLI, "detectSQLi"},
+        {IPS_OP_DETECT_XSS, "detectXSS"},
+        {IPS_OP_EQ, "eq"},
+        {IPS_OP_GE, "ge"},
+        {IPS_OP_GT, "gt"},
+        {IPS_OP_LT, "lt"},
+        {IPS_OP_VALIDATE_BYTE_RANGE, "validateByteRange"},
+        {IPS_OP_IP_MATCH, "ipMatch"},
+    };
+
+    if (NULL == name) {
         return IPS_OP_UNKNOWN;
     }
-    if (strcmp(name, "rx") == 0) {
-        return IPS_OP_RX;
+
+    for (i = 0; i < (sizeof(operators) / sizeof(operators[0])); i++) {
+        cmp = strcmp(name, operators[i].name);
+        if (0 == cmp) {
+            return operators[i].op;
+        }
     }
-    if (strcmp(name, "pm") == 0) {
-        return IPS_OP_PM;
-    }
-    if (strcmp(name, "pmFromFile") == 0) {
-        return IPS_OP_PM_FROM_FILE;
-    }
-    if (strcmp(name, "contains") == 0) {
-        return IPS_OP_CONTAINS;
-    }
-    if (strcmp(name, "beginsWith") == 0) {
-        return IPS_OP_BEGINS_WITH;
-    }
-    if (strcmp(name, "endsWith") == 0) {
-        return IPS_OP_ENDS_WITH;
-    }
-    if (strcmp(name, "streq") == 0) {
-        return IPS_OP_STREQ;
-    }
-    if (strcmp(name, "within") == 0) {
-        return IPS_OP_WITHIN;
-    }
-    if (strcmp(name, "detectSQLi") == 0) {
-        return IPS_OP_DETECT_SQLI;
-    }
-    if (strcmp(name, "detectXSS") == 0) {
-        return IPS_OP_DETECT_XSS;
-    }
-    if (strcmp(name, "eq") == 0) {
-        return IPS_OP_EQ;
-    }
-    if (strcmp(name, "ge") == 0) {
-        return IPS_OP_GE;
-    }
-    if (strcmp(name, "gt") == 0) {
-        return IPS_OP_GT;
-    }
-    if (strcmp(name, "lt") == 0) {
-        return IPS_OP_LT;
-    }
-    if (strcmp(name, "validateByteRange") == 0) {
-        return IPS_OP_VALIDATE_BYTE_RANGE;
-    }
-    if (strcmp(name, "ipMatch") == 0) {
-        return IPS_OP_IP_MATCH;
-    }
+
     return IPS_OP_UNKNOWN;
 }
-
 
 /**
  * @brief operator enum을 사람이 읽을 문자열로 변환한다.
@@ -612,7 +1069,7 @@ const char *ips_operator_name(ips_operator_t op) {
  *
  * @param sig 정리할 시그니처
  */
-static void free_signature_entry(IPS_Signature *sig) {
+static void regex_signature_free(IPS_Signature *sig) {
     size_t i;
 
     free((char *)sig->policy_name);
@@ -630,14 +1087,14 @@ static void free_signature_entry(IPS_Signature *sig) {
  *
  * @return 없음
  */
-void regex_unload_signatures(void) {
+void regex_signatures_unload(void) {
     int i;
 
-    if (!g_loaded_signatures) {
+    if (NULL == g_loaded_signatures) {
         return;
     }
     for (i = 0; i < g_signature_count; i++) {
-        free_signature_entry(&g_loaded_signatures[i]);
+        regex_signature_free(&g_loaded_signatures[i]);
     }
     free(g_loaded_signatures);
     g_loaded_signatures = NULL;
@@ -654,8 +1111,8 @@ void regex_unload_signatures(void) {
  * @param sig 추가할 시그니처
  * @return int 0이면 성공, -1이면 실패
  */
-static int append_signature(IPS_Signature **items, int *count, int *capacity,
-                            const IPS_Signature *sig) {
+static int regex_signature_append(IPS_Signature **items, int *count,
+                                  int *capacity, const IPS_Signature *sig) {
     IPS_Signature *next;
     int            next_cap;
 
@@ -684,80 +1141,8 @@ static int append_signature(IPS_Signature **items, int *count, int *capacity,
  * @param sig 파싱 결과 시그니처
  * @return int 0이면 성공, -1이면 실패
  */
-static int load_one_signature(const char *line, IPS_Signature *sig) {
-    char        *pid              = NULL;
-    char        *pname            = NULL;
-    char        *pat              = NULL;
-    char        *ctx              = NULL;
-    char        *op               = NULL;
-    char        *source           = NULL;
-    int          prio             = 0;
-    int          rid              = 0;
-    int          negated          = 0;
-    const char **data_values      = NULL;
-    size_t       data_value_count = 0;
-
-    memset(sig, 0, sizeof(*sig));
-
-    /* 룰 해석에 필요한 핵심 필드는 먼저 읽고, 하나라도 실패하면 해당 줄을 버린다. */
-    if (parse_json_string_field(line, "pid", &pid) <= 0 ||
-        parse_json_string_field(line, "pname", &pname) <= 0 ||
-        parse_json_string_field(line, "pat", &pat) < 0 ||
-        parse_json_string_field(line, "ctx", &ctx) <= 0 ||
-        parse_json_string_field(line, "op", &op) <= 0) {
-        goto fail;
-    }
-
-    if (parse_json_int_field(line, "prio", &prio) < 0) {
-        goto fail;
-    }
-    if (parse_json_int_field(line, "rid", &rid) < 0) {
-        goto fail;
-    }
-    if (parse_json_bool_field(line, "op_negated", &negated) < 0) {
-        goto fail;
-    }
-    if (parse_json_string_field(line, "source", &source) < 0) {
-        goto fail;
-    }
-    if (parse_json_string_array_field(line, "data_values", &data_values,
-                                      &data_value_count) < 0) {
-        goto fail;
-    }
-
-    sig->policy_id   = policy_from_string(pname);
-    sig->policy_name = pname ? pname : xstrdup(get_policy_name(sig->policy_id));
-    sig->pattern     = pat ? pat : xstrdup("");
-    sig->is_high_priority = prio;
-    sig->context          = ctx_from_string(ctx);
-    sig->op               = ips_operator_from_string(op);
-    sig->op_negated       = negated;
-    sig->rule_id          = rid;
-    sig->source           = source ? source : xstrdup("");
-    sig->data_values      = data_values;
-    sig->data_value_count = data_value_count;
-
-    free(pid);
-    free(ctx);
-    free(op);
-    return 0;
-
-fail:
-    /* 부분적으로 확보된 문자열과 배열을 모두 정리하고 실패를 돌려준다. */
-    free(pid);
-    free(pname);
-    free(pat);
-    free(ctx);
-    free(op);
-    free(source);
-    if (data_values) {
-        size_t i;
-        for (i = 0; i < data_value_count; i++) {
-            free((char *)data_values[i]);
-        }
-        free((char **)data_values);
-    }
-    return -1;
+static int regex_signature_load(const char *line, IPS_Signature *sig) {
+    return regex_signature_parse(line, sig);
 }
 
 /**
@@ -772,6 +1157,7 @@ static int try_load_file(const char *path) {
     IPS_Signature *items    = NULL;
     int            count    = 0;
     int            capacity = 0;
+    int            ret;
 
     fp = fopen(path, "r");
     if (!fp) {
@@ -781,21 +1167,28 @@ static int try_load_file(const char *path) {
     /* 줄 단위로 읽어 정상 파싱된 룰만 배열에 누적한다. */
     while (fgets(line, sizeof(line), fp)) {
         IPS_Signature sig;
-        if (line[0] == '\0' || line[0] == '\n') {
+        if ('\0' == line[0] || '\n' == line[0]) {
             continue;
         }
-        if (load_one_signature(line, &sig) != 0) {
+        ret = regex_signature_load(line, &sig);
+        if (-1 == ret) {
             continue;
         }
-        if (append_signature(&items, &count, &capacity, &sig) != 0) {
-            free_signature_entry(&sig);
+        ret = regex_signature_append(&items, &count, &capacity, &sig);
+        if (-1 == ret) {
+            regex_signature_free(&sig);
             fclose(fp);
             return -1;
         }
     }
     fclose(fp);
 
-    regex_unload_signatures();
+    if (0 == count) {
+        free(items);
+        return -1;
+    }
+
+    regex_signatures_unload();
     g_loaded_signatures = items;
     g_ips_signatures    = items;
     g_signature_count   = count;
@@ -805,25 +1198,36 @@ static int try_load_file(const char *path) {
 /**
  * @brief IPS 시그니처 JSONL 파일을 적재한다.
  *
- * 명시적 경로를 먼저 시도하고, 실패하면 환경 변수 `IPS_RULES_FILE`을 fallback으로
- * 사용한다.
+ * 명시적 경로를 먼저 시도하고, 실패하면 환경 변수 `IPS_RULES_FILE`을
+ * fallback으로 사용한다.
  *
  * @param jsonl_path 우선 시도할 JSONL 파일 경로
  * @return int 0이면 성공, -1이면 실패
  */
-int regex_load_signatures(const char *jsonl_path) {
+int regex_signatures_load(const char *jsonl_path) {
     const char *env_path;
+    int         ret;
 
-    if (g_loaded_signatures) {
+    if (NULL != g_loaded_signatures) {
         return 0;
     }
 
-    if (jsonl_path && try_load_file(jsonl_path) == 0) {
+    /* 경로로 받던지 */
+    ret = -1;
+    if (NULL != jsonl_path) {
+        ret = try_load_file(jsonl_path);
+    }
+    if (0 == ret) {
         return 0;
     }
 
+    /* 환경변수로 받던지 */
     env_path = getenv(RULES_FILE_ENV);
-    if (env_path && env_path[0] != '\0' && try_load_file(env_path) == 0) {
+    ret      = -1;
+    if (NULL != env_path && '\0' != env_path[0]) {
+        ret = try_load_file(env_path);
+    }
+    if (0 == ret) {
         return 0;
     }
 
@@ -843,7 +1247,7 @@ const char *get_policy_name(POLICY p) {
 #undef X
     };
 
-    if ((int)p < 0 || p >= POLICY_MAX) {
+    if (0 > (int)p || POLICY_MAX <= p) {
         return "UNKNOWN_POLICY";
     }
     return policy_names[p] ? policy_names[p] : "UNDEFINED_NAME";

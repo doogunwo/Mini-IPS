@@ -262,7 +262,7 @@ static int test_late_start_accepts_http_without_syn(void) {
     sp.payload     = (const uint8_t *)req;
     sp.payload_len = (uint32_t)strlen(req);
 
-    CHECK(feed_seg(gw, &sp, 1) == 1, "late-start payload ingest failed");
+    CHECK(feed_seg(gw, &sp, 1) == 0, "late-start payload ingest failed");
     CHECK(ctx.req_count == 1, "late-start should parse HTTP without SYN");
     CHECK(strcmp(ctx.last_uri, "/late") == 0, "late-start uri mismatch");
     CHECK(ctx.err_count == 0, "late-start unexpected error");
@@ -271,6 +271,52 @@ static int test_late_start_accepts_http_without_syn(void) {
             "[test_httgw_reasm_modes] case=late_start_no_syn req_count=%d "
             "err_count=%d uri=%s mode=%d\n",
             ctx.req_count, ctx.err_count, ctx.last_uri, cfg.reasm_mode);
+
+    httgw_destroy(gw);
+    return 0;
+}
+
+static int test_late_start_accepts_http_response_without_syn(void) {
+    httgw_cfg_t       cfg;
+    httgw_callbacks_t cbs;
+    httgw_t          *gw;
+    test_ctx_t        ctx;
+    tcp_pkt_spec_t    sp;
+    reasm_stats_t     stats;
+    const char       *res = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+
+    init_common(&cfg, &cbs, &ctx, REASM_MODE_LATE_START);
+    gw = httgw_create(&cfg, &cbs, &ctx);
+    CHECK(gw != NULL, "httgw_create failed");
+
+    init_spec(&sp);
+    sp.sip         = 0x0A000002;
+    sp.sport       = 8080;
+    sp.dip         = 0x0A000001;
+    sp.dport       = 12345;
+    sp.seq         = 4000;
+    sp.flags       = TCP_ACK | TCP_PSH;
+    sp.payload     = (const uint8_t *)res;
+    sp.payload_len = (uint32_t)strlen(res);
+
+    CHECK(feed_seg(gw, &sp, 1) == 0, "late-start response ingest failed");
+    CHECK(httgw_get_reasm_stats(gw, &stats) == 0,
+          "late-start response stats failed");
+    CHECK(stats.in_order_pkts == 1,
+          "late-start response should count as in-order");
+    CHECK(stats.out_of_order_pkts == 0,
+          "late-start response must not count as out-of-order");
+    CHECK(stats.trimmed_pkts == 0, "late-start response unexpected trim");
+    CHECK(ctx.err_count == 0, "late-start response unexpected error");
+
+    fprintf(stderr,
+            "[test_httgw_reasm_modes] case=late_start_response_no_syn "
+            "in_order=%llu out_of_order=%llu trimmed=%llu err_count=%d "
+            "mode=%d\n",
+            (unsigned long long)stats.in_order_pkts,
+            (unsigned long long)stats.out_of_order_pkts,
+            (unsigned long long)stats.trimmed_pkts, ctx.err_count,
+            cfg.reasm_mode);
 
     httgw_destroy(gw);
     return 0;
@@ -294,7 +340,7 @@ static int test_strict_syn_ignores_http_without_syn(void) {
     sp.payload     = (const uint8_t *)req;
     sp.payload_len = (uint32_t)strlen(req);
 
-    CHECK(feed_seg(gw, &sp, 1) == 1, "strict-nosyn payload ingest failed");
+    CHECK(feed_seg(gw, &sp, 1) == 0, "strict-nosyn payload ingest failed");
     CHECK(ctx.req_count == 0,
           "strict-syn must ignore first payload without SYN");
     CHECK(ctx.err_count == 0, "strict-syn unexpected error without SYN");
@@ -326,13 +372,13 @@ static int test_strict_syn_accepts_after_syn(void) {
     sp.flags       = TCP_SYN;
     sp.payload     = NULL;
     sp.payload_len = 0;
-    CHECK(feed_seg(gw, &sp, 1) == 1, "strict-syn initial SYN ingest failed");
+    CHECK(feed_seg(gw, &sp, 1) == 0, "strict-syn initial SYN ingest failed");
 
     sp.seq         = seq0 + 1;
     sp.flags       = TCP_ACK | TCP_PSH;
     sp.payload     = (const uint8_t *)req;
     sp.payload_len = (uint32_t)strlen(req);
-    CHECK(feed_seg(gw, &sp, 2) == 1, "strict-syn payload after SYN failed");
+    CHECK(feed_seg(gw, &sp, 2) == 0, "strict-syn payload after SYN failed");
 
     CHECK(ctx.req_count == 1, "strict-syn should parse payload after SYN");
     CHECK(strcmp(ctx.last_uri, "/strict-ok") == 0, "strict-syn uri mismatch");
@@ -350,6 +396,8 @@ static int test_strict_syn_accepts_after_syn(void) {
 int main(void) {
     CHECK(test_late_start_accepts_http_without_syn() == 0,
           "late-start mode case failed");
+    CHECK(test_late_start_accepts_http_response_without_syn() == 0,
+          "late-start response case failed");
     CHECK(test_strict_syn_ignores_http_without_syn() == 0,
           "strict-syn no-syn case failed");
     CHECK(test_strict_syn_accepts_after_syn() == 0,

@@ -1,4 +1,3 @@
-
 /**
  * @file logging.c
  * @brief 구조화 로그 기록과 문자열 escape helper 구현
@@ -21,9 +20,8 @@ static int         strbuf_append_str(strbuf_t *sb, const char *s);
 static int         strbuf_append_escaped(strbuf_t *sb, const char *s);
 static const char *ctx_name(ips_context_t ctx);
 static int         ensure_parent_dir(const char *path);
-static void        write_log_line_locked(FILE *fp, const char *ts,
-                                         const char *level,
-                                         const char *body);
+static void write_log_line_locked(FILE *fp, const char *ts, const char *level,
+                                  const char *body);
 
 /**
  * @brief 환경 변수 값을 boolean 플래그처럼 해석한다.
@@ -36,27 +34,72 @@ static void        write_log_line_locked(FILE *fp, const char *ts,
  */
 int env_flag_enabled(const char *name, int default_value) {
     const char *val;
+    int         ret;
 
-    if (!name) {
+    if (NULL == name) {
         return default_value;
     }
 
     val = getenv(name);
-    if (!val || !*val) {
+    if (NULL == val || '\0' == *val) {
         return default_value;
     }
 
-    if (strcmp(val, "1") == 0 || strcmp(val, "true") == 0 ||
-        strcmp(val, "TRUE") == 0 || strcmp(val, "yes") == 0 ||
-        strcmp(val, "YES") == 0 || strcmp(val, "on") == 0 ||
-        strcmp(val, "ON") == 0) {
+    ret = strcmp(val, "1");
+    if (0 == ret) {
+        return 1;
+    }
+    ret = strcmp(val, "true");
+    if (0 == ret) {
+        return 1;
+    }
+    ret = strcmp(val, "TRUE");
+    if (0 == ret) {
+        return 1;
+    }
+    ret = strcmp(val, "yes");
+    if (0 == ret) {
+        return 1;
+    }
+    ret = strcmp(val, "YES");
+    if (0 == ret) {
+        return 1;
+    }
+    ret = strcmp(val, "on");
+    if (0 == ret) {
+        return 1;
+    }
+    ret = strcmp(val, "ON");
+    if (0 == ret) {
         return 1;
     }
 
-    if (strcmp(val, "0") == 0 || strcmp(val, "false") == 0 ||
-        strcmp(val, "FALSE") == 0 || strcmp(val, "no") == 0 ||
-        strcmp(val, "NO") == 0 || strcmp(val, "off") == 0 ||
-        strcmp(val, "OFF") == 0) {
+    ret = strcmp(val, "0");
+    if (0 == ret) {
+        return 0;
+    }
+    ret = strcmp(val, "false");
+    if (0 == ret) {
+        return 0;
+    }
+    ret = strcmp(val, "FALSE");
+    if (0 == ret) {
+        return 0;
+    }
+    ret = strcmp(val, "no");
+    if (0 == ret) {
+        return 0;
+    }
+    ret = strcmp(val, "NO");
+    if (0 == ret) {
+        return 0;
+    }
+    ret = strcmp(val, "off");
+    if (0 == ret) {
+        return 0;
+    }
+    ret = strcmp(val, "OFF");
+    if (0 == ret) {
         return 0;
     }
 
@@ -89,14 +132,22 @@ void strbuf_free(strbuf_t *sb) {
  */
 char *log_escape_dup(const char *s) {
     strbuf_t sb = {0};
+    int      ret;
 
-    if (strbuf_append_escaped(&sb, s) != 0) {
+    ret = strbuf_append_escaped(&sb, s);
+    if (0 != ret) {
         strbuf_free(&sb);
         return NULL;
     }
 
     if (NULL == sb.buf) {
-        return strdup("");
+        char *empty = (char *)malloc(1U);
+
+        if (NULL == empty) {
+            return NULL;
+        }
+        empty[0] = '\0';
+        return empty;
     }
 
     return sb.buf;
@@ -110,7 +161,7 @@ char *log_escape_dup(const char *s) {
  * @return int 성공 시 0, 실패 시 -1
  */
 int app_make_timestamp(char *out, size_t out_sz) {
-    if (!out || out_sz == 0) {
+    if (NULL == out || 0U == out_sz) {
         return -1;
     }
 
@@ -133,12 +184,14 @@ int app_make_event_id(app_shared_t *shared, char *out, size_t out_sz) {
     struct timespec ts;
     uint64_t        seq;
     uint64_t        epoch_ms;
+    int             ret;
 
-    if (!shared || !out || out_sz == 0) {
+    if (NULL == shared || NULL == out || 0U == out_sz) {
         return -1;
     }
 
-    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+    ret = clock_gettime(CLOCK_REALTIME, &ts);
+    if (0 != ret) {
         return -1;
     }
 
@@ -163,37 +216,62 @@ int app_make_event_id(app_shared_t *shared, char *out, size_t out_sz) {
 int append_match_strings(const detect_match_list_t *matches, strbuf_t *rules,
                          strbuf_t *texts) {
     size_t i;
+    int    ret;
 
-    if (!matches) {
+    if (NULL == matches) {
         return 0;
     }
 
     for (i = 0; i < matches->count; i++) {
         const detect_match_t *m = &matches->items[i];
 
-        if (i > 0) {
-            if (strbuf_append_str(rules, "; ") != 0 ||
-                strbuf_append_str(texts, "; ") != 0) {
+        if (0 < i) {
+            ret = strbuf_append_str(rules, "; ");
+            if (0 != ret) {
+                return -1;
+            }
+            ret = strbuf_append_str(texts, "; ");
+            if (0 != ret) {
                 return -1;
             }
         }
 
-        if (strbuf_append_str(rules, ctx_name(m->context)) != 0 ||
-            strbuf_append_char(rules, '|') != 0 ||
-            strbuf_append_str(rules, (m->rule && m->rule->policy_name)
-                                         ? m->rule->policy_name
-                                         : "unknown") != 0 ||
-            strbuf_append_char(rules, '|') != 0 ||
-            strbuf_append_str(rules, (m->rule && m->rule->pattern)
-                                         ? m->rule->pattern
-                                         : "unknown") != 0) {
+        ret = strbuf_append_str(rules, ctx_name(m->context));
+        if (0 != ret) {
+            return -1;
+        }
+        ret = strbuf_append_char(rules, '|');
+        if (0 != ret) {
+            return -1;
+        }
+        ret = strbuf_append_str(rules, (m->rule && m->rule->policy_name)
+                                           ? m->rule->policy_name
+                                           : "unknown");
+        if (0 != ret) {
+            return -1;
+        }
+        ret = strbuf_append_char(rules, '|');
+        if (0 != ret) {
+            return -1;
+        }
+        ret = strbuf_append_str(rules, (m->rule && m->rule->pattern)
+                                           ? m->rule->pattern
+                                           : "unknown");
+        if (0 != ret) {
             return -1;
         }
 
-        if (strbuf_append_str(texts, ctx_name(m->context)) != 0 ||
-            strbuf_append_char(texts, '|') != 0 ||
-            strbuf_append_escaped(
-                texts, m->matched_text ? m->matched_text : "") != 0) {
+        ret = strbuf_append_str(texts, ctx_name(m->context));
+        if (0 != ret) {
+            return -1;
+        }
+        ret = strbuf_append_char(texts, '|');
+        if (0 != ret) {
+            return -1;
+        }
+        ret = strbuf_append_escaped(texts,
+                                    m->matched_text ? m->matched_text : "");
+        if (0 != ret) {
             return -1;
         }
     }
@@ -214,13 +292,14 @@ int append_match_strings(const detect_match_list_t *matches, strbuf_t *rules,
 int app_log_open(app_shared_t *shared) {
     const char *log_file_env;
     const char *monitor_log_file_env;
+    int         ret;
 
-    if (!shared) {
+    if (NULL == shared) {
         return -1;
     }
 
     log_file_env = getenv("LOG_FILE");
-    if (log_file_env && log_file_env[0] != '\0') {
+    if (NULL != log_file_env && '\0' != log_file_env[0]) {
         snprintf(shared->log_path, sizeof(shared->log_path), "%s",
                  log_file_env);
     } else {
@@ -228,7 +307,7 @@ int app_log_open(app_shared_t *shared) {
     }
 
     monitor_log_file_env = getenv("MONITOR_LOG_FILE");
-    if (monitor_log_file_env && monitor_log_file_env[0] != '\0') {
+    if (NULL != monitor_log_file_env && '\0' != monitor_log_file_env[0]) {
         snprintf(shared->monitor_log_path, sizeof(shared->monitor_log_path),
                  "%s", monitor_log_file_env);
     } else {
@@ -236,10 +315,12 @@ int app_log_open(app_shared_t *shared) {
                  "logs/monitor.log");
     }
 
-    if (ensure_parent_dir(shared->log_path) != 0) {
+    ret = ensure_parent_dir(shared->log_path);
+    if (0 != ret) {
         return -1;
     }
-    if (ensure_parent_dir(shared->monitor_log_path) != 0) {
+    ret = ensure_parent_dir(shared->monitor_log_path);
+    if (0 != ret) {
         return -1;
     }
 
@@ -389,7 +470,7 @@ void app_log_attack(app_shared_t *shared, const char *event_id,
         return;
     }
 
-    if (event_ts && event_ts[0] != '\0') {
+    if (NULL != event_ts && '\0' != event_ts[0]) {
         snprintf(ts, sizeof(ts), "%s", event_ts);
     } else {
         make_log_timestamp(ts, sizeof(ts));
@@ -443,12 +524,14 @@ static void make_log_timestamp(char *out, size_t out_sz) {
     struct tm       tm_now;
     int             ms;
     size_t          n;
+    int             ret;
 
-    if (!out || 0 == out_sz) {
+    if (NULL == out || 0U == out_sz) {
         return;
     }
 
-    if (clock_gettime(CLOCK_REALTIME, &ts) != 0) {
+    ret = clock_gettime(CLOCK_REALTIME, &ts);
+    if (0 != ret) {
         snprintf(out, out_sz, "1970-01-01T00:00:00.000");
         return;
     }
@@ -493,7 +576,7 @@ static int strbuf_reserve(strbuf_t *sb, size_t need) {
     char  *next;
     size_t next_cap;
 
-    if (!sb) {
+    if (NULL == sb) {
         return -1;
     }
 
@@ -524,7 +607,10 @@ static int strbuf_reserve(strbuf_t *sb, size_t need) {
  * @return int 성공 시 0, 실패 시 -1
  */
 static int strbuf_append_char(strbuf_t *sb, char c) {
-    if (strbuf_reserve(sb, sb->len + 2U) != 0) {
+    int ret;
+
+    ret = strbuf_reserve(sb, sb->len + 2U);
+    if (0 != ret) {
         return -1;
     }
 
@@ -542,13 +628,15 @@ static int strbuf_append_char(strbuf_t *sb, char c) {
  */
 static int strbuf_append_str(strbuf_t *sb, const char *s) {
     size_t n;
+    int    ret;
 
-    if (!s) {
+    if (NULL == s) {
         s = "";
     }
 
-    n = strlen(s);
-    if (strbuf_reserve(sb, sb->len + n + 1U) != 0) {
+    n   = strlen(s);
+    ret = strbuf_reserve(sb, sb->len + n + 1U);
+    if (0 != ret) {
         return -1;
     }
 
@@ -569,37 +657,46 @@ static int strbuf_append_escaped(strbuf_t *sb, const char *s) {
     size_t        i;
     unsigned char c;
     char          hex[5];
+    int           ret;
 
-    if (!s) {
+    if (NULL == s) {
         return strbuf_append_str(sb, "");
     }
 
     for (i = 0; s[i] != '\0'; i++) {
         c = (unsigned char)s[i];
-        if (c == '"' || c == '\\') {
-            if (strbuf_append_char(sb, '\\') != 0 ||
-                strbuf_append_char(sb, (char)c) != 0) {
+        if ('"' == c || '\\' == c) {
+            ret = strbuf_append_char(sb, '\\');
+            if (0 != ret) {
+                return -1;
+            }
+            ret = strbuf_append_char(sb, (char)c);
+            if (0 != ret) {
                 return -1;
             }
             continue;
         }
 
-        if (c == '\n' || c == '\r' || c == '\t') {
-            if (strbuf_append_char(sb, ' ') != 0) {
+        if ('\n' == c || '\r' == c || '\t' == c) {
+            ret = strbuf_append_char(sb, ' ');
+            if (0 != ret) {
                 return -1;
             }
             continue;
         }
 
-        if (!isprint(c)) {
+        ret = isprint(c);
+        if (0 == ret) {
             snprintf(hex, sizeof(hex), "\\x%02X", c);
-            if (strbuf_append_str(sb, hex) != 0) {
+            ret = strbuf_append_str(sb, hex);
+            if (0 != ret) {
                 return -1;
             }
             continue;
         }
 
-        if (strbuf_append_char(sb, (char)c) != 0) {
+        ret = strbuf_append_char(sb, (char)c);
+        if (0 != ret) {
             return -1;
         }
     }
@@ -644,29 +741,33 @@ static const char *ctx_name(ips_context_t ctx) {
 static int ensure_parent_dir(const char *path) {
     char  dir_path[256];
     char *slash;
+    int   ret;
 
-    if (!path || path[0] == '\0') {
+    if (NULL == path || '\0' == path[0]) {
         return -1;
     }
 
     snprintf(dir_path, sizeof(dir_path), "%s", path);
     slash = strrchr(dir_path, '/');
     if (!slash) {
-        if (mkdir(".", 0755) != 0 && errno != EEXIST) {
+        ret = mkdir(".", 0755);
+        if (0 != ret && EEXIST != errno) {
             return -1;
         }
         return 0;
     }
 
     if (slash == dir_path) {
-        if (mkdir("/", 0755) != 0 && errno != EEXIST) {
+        ret = mkdir("/", 0755);
+        if (0 != ret && EEXIST != errno) {
             return -1;
         }
         return 0;
     }
 
     *slash = '\0';
-    if (mkdir(dir_path, 0755) != 0 && errno != EEXIST) {
+    ret    = mkdir(dir_path, 0755);
+    if (0 != ret && EEXIST != errno) {
         return -1;
     }
 

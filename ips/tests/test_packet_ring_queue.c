@@ -53,14 +53,14 @@ static int test_drop_full_counts_real_drop_only(void) {
           "first enqueue failed");
     CHECK(packet_ring_enq(&ring, pkt_b, sizeof(pkt_b), 2) == 0,
           "second enqueue failed");
-    CHECK(packet_ring_enq(&ring, pkt_c, sizeof(pkt_c), 3) == EAGAIN,
-          "full nonblocking enqueue should return EAGAIN");
+    CHECK(packet_ring_enq(&ring, pkt_c, sizeof(pkt_c), 3) == -1,
+          "full nonblocking enqueue should return -1");
     CHECK(ring.stats.drop_full == 1, "drop_full should count failed enqueue");
     CHECK(ring.stats.wait_full == 0,
           "wait_full should stay zero for nonblocking ring");
 
     fprintf(stderr,
-            "[test_packet_ring_queue] case=drop_full rc=EAGAIN enq_ok=%llu "
+            "[test_packet_ring_queue] case=drop_full rc=-1 enq_ok=%llu "
             "drop_full=%llu wait_full=%llu slot_count=%u\n",
             (unsigned long long)ring.stats.enq_ok,
             (unsigned long long)ring.stats.drop_full,

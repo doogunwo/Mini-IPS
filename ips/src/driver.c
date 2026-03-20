@@ -85,7 +85,10 @@ static uint32_t flow_hash_mix4(uint32_t a, uint32_t b, uint32_t c, uint32_t d) {
  */
 static uint32_t flow_hash_5tuple(uint32_t sip, uint32_t dip, uint16_t sport,
                                  uint16_t dport, uint8_t proto) {
-    if (endpoint_cmp(sip, sport, dip, dport) > 0) {
+    int cmp;
+
+    cmp = endpoint_cmp(sip, sport, dip, dport);
+    if (0 < cmp) {
         uint32_t tmp_ip   = sip;
         uint16_t tmp_port = sport;
         sip               = dip;
@@ -94,7 +97,8 @@ static uint32_t flow_hash_5tuple(uint32_t sip, uint32_t dip, uint16_t sport,
         dport             = tmp_port;
     }
 
-    uint32_t h = flow_hash_mix4(sip, dip, ((uint32_t)sport << 16) | dport, proto);
+    uint32_t h =
+        flow_hash_mix4(sip, dip, ((uint32_t)sport << 16) | dport, proto);
     return h;
 }
 
@@ -112,7 +116,10 @@ static uint32_t flow_hash_5tuple(uint32_t sip, uint32_t dip, uint16_t sport,
  */
 static uint32_t flow_hash_fragment(uint32_t sip, uint32_t dip, uint16_t ip_id,
                                    uint8_t proto) {
-    if (endpoint_cmp(sip, 0, dip, 0) > 0) {
+    int cmp;
+
+    cmp = endpoint_cmp(sip, 0, dip, 0);
+    if (0 < cmp) {
         uint32_t tmp_ip = sip;
         sip             = dip;
         dip             = tmp_ip;
@@ -154,7 +161,7 @@ static int parse_ipv4_dispatch_key(const uint8_t *pkt, uint32_t len,
         !proto) {
         return 0;
     }
-    if (len < 14 + 20) {
+    if ((14 + 20) > len) {
         return 0;
     }
 
@@ -162,8 +169,8 @@ static int parse_ipv4_dispatch_key(const uint8_t *pkt, uint32_t len,
     p += 14;
     n = len - 14;
 
-    if (eth_type == 0x8100 || eth_type == 0x88A8) {
-        if (n < 4) {
+    if (0x8100 == eth_type || 0x88A8 == eth_type) {
+        if (4 > n) {
             return 0;
         }
         eth_type = (uint16_t)((p[2] << 8) | p[3]);
@@ -171,15 +178,15 @@ static int parse_ipv4_dispatch_key(const uint8_t *pkt, uint32_t len,
         n -= 4;
     }
 
-    if (eth_type != 0x0800 || n < 20) {
+    if (0x0800 != eth_type || 20 > n) {
         return 0;
     }
-    if ((p[0] >> 4) != 4) {
+    if (4 != (p[0] >> 4)) {
         return 0;
     }
 
     ihl = (uint32_t)(p[0] & 0x0F) * 4U;
-    if (ihl < 20 || n < ihl) {
+    if (20 > ihl || ihl > n) {
         return 0;
     }
     total_len = (uint16_t)((p[2] << 8) | p[3]);
@@ -221,21 +228,23 @@ static int parse_ipv4_5tuple(const uint8_t *pkt, uint32_t len, uint32_t *sip,
     uint16_t       ip_id      = 0;
     uint16_t       frag_field = 0;
     uint16_t       frag_offset;
+    int            ret;
 
-    if (!sport || !dport) {
+    if (NULL == sport || NULL == dport) {
         return 0;
     }
-    if (!parse_ipv4_dispatch_key(pkt, len, &l4, &l4_len, sip, dip, &ip_id,
-                                 &frag_field, proto)) {
+    ret = parse_ipv4_dispatch_key(pkt, len, &l4, &l4_len, sip, dip, &ip_id,
+                                  &frag_field, proto);
+    if (0 == ret) {
         return 0;
     }
 
     (void)ip_id;
     frag_offset = (uint16_t)(frag_field & 0x1FFFu);
-    if ((frag_field & 0x2000u) != 0 || frag_offset != 0) {
+    if (0 != (frag_field & 0x2000u) || 0 != frag_offset) {
         return 0;
     }
-    if (l4_len < 8) {
+    if (8 > l4_len) {
         return 0;
     }
 
@@ -264,19 +273,22 @@ static uint32_t pick_worker_idx(capture_ctx_t *cc, const uint8_t *pkt,
     uint16_t       frag_field  = 0;
     uint16_t       frag_offset = 0;
     uint8_t        proto       = 0;
+    int            ret;
 
-    if (worker_count == 0) {
+    if (0 == worker_count) {
         return 0;
     }
-    if (parse_ipv4_5tuple(pkt, len, &sip, &dip, &sport, &dport, &proto)) {
+    ret = parse_ipv4_5tuple(pkt, len, &sip, &dip, &sport, &dport, &proto);
+    if (0 != ret) {
         return flow_hash_5tuple(sip, dip, sport, dport, proto) % worker_count;
     }
-    if (parse_ipv4_dispatch_key(pkt, len, &l4, &l4_len, &sip, &dip, &ip_id,
-                                &frag_field, &proto)) {
+    ret = parse_ipv4_dispatch_key(pkt, len, &l4, &l4_len, &sip, &dip, &ip_id,
+                                  &frag_field, &proto);
+    if (0 != ret) {
         (void)l4;
         (void)l4_len;
         frag_offset = (uint16_t)(frag_field & 0x1FFFu);
-        if ((frag_field & 0x2000u) != 0 || frag_offset != 0) {
+        if (0 != (frag_field & 0x2000u) || 0 != frag_offset) {
             return flow_hash_fragment(sip, dip, ip_id, proto) % worker_count;
         }
     }
@@ -297,7 +309,7 @@ static void wake_all_queues(driver_runtime_t *rt) {
     if (NULL == rt) {
         return;
     }
-    
+
     for (uint32_t i = 0; i < rt->queues.qcount; i++) {
         packet_ring_t *r = &rt->queues.q[i];
         atomic_store_explicit(&r->use_blocking, 0, memory_order_release);
@@ -310,7 +322,7 @@ static void wake_all_queues(driver_runtime_t *rt) {
  * @param cc 캡처 컨텍스트
  */
 static void wake_capture_handle(capture_ctx_t *cc) {
-    if (!cc || !cc->handle) {
+    if (NULL == cc || NULL == cc->handle) {
         return;
     }
     pcap_breakloop(cc->handle);
@@ -321,25 +333,30 @@ capture_create(&cc, &pc);
 capture_activate(&cc, &pc);
 */
 int capture_create(capture_ctx_t *cc, pcap_ctx_t *pc) {
-    if (!cc || !pc || !pc->dev) {
-        return EINVAL;
+    int ret;
+
+    if (NULL == cc || NULL == pc || NULL == pc->dev) {
+        return -1;
     }
     cc->handle = NULL;
 
     char    errbuf[PCAP_ERRBUF_SIZE];
     pcap_t *h = pcap_create(pc->dev, errbuf);
     if (!h) {
-        return EIO;
+        return -1;
     }
 
     /* snaplen/promisc/timeout 같은 capture 기본 속성을 먼저 설정한다. */
-    if (pcap_set_snaplen(h, pc->snaplen) != 0) {
+    ret = pcap_set_snaplen(h, pc->snaplen);
+    if (0 != ret) {
         goto fail;
     }
-    if (pcap_set_promisc(h, pc->promisc) != 0) {
+    ret = pcap_set_promisc(h, pc->promisc);
+    if (0 != ret) {
         goto fail;
     }
-    if (pcap_set_timeout(h, pc->timeout_ms) != 0) {
+    ret = pcap_set_timeout(h, pc->timeout_ms);
+    if (0 != ret) {
         goto fail;
     }
 
@@ -348,7 +365,7 @@ int capture_create(capture_ctx_t *cc, pcap_ctx_t *pc) {
 
 fail:
     pcap_close(h);
-    return EIO;
+    return -1;
 }
 
 /**
@@ -359,20 +376,23 @@ fail:
  * @return int 0이면 성공, 그 외 오류
  */
 int capture_activate(capture_ctx_t *cc, pcap_ctx_t *pc) {
-    if (!cc || !cc->handle) {
-        return EINVAL;
+    int ret;
+
+    if (NULL == cc || NULL == cc->handle) {
+        return -1;
     }
-    int ret = pcap_activate(cc->handle);
-    if (ret < 0) {
+    ret = pcap_activate(cc->handle);
+    if (0 > ret) {
         /* fprintf(stderr, "pcap_activate failed ret=%d, err=%s\n", ret,
          * pcap_geterr(cc->handle)); */
-        return EIO;
+        return -1;
     }
 
     if (pc && pc->nonblocking) {
         char errbuf[PCAP_ERRBUF_SIZE];
-        if (pcap_setnonblock(cc->handle, 1, errbuf) != 0) {
-            return EIO;
+        ret = pcap_setnonblock(cc->handle, 1, errbuf);
+        if (0 != ret) {
+            return -1;
         }
     }
     return 0;
@@ -401,8 +421,9 @@ void capture_close(capture_ctx_t *cc) {
  */
 int capture_poll_once(capture_ctx_t *cc) {
     /* 인자 검증 */
-    if (!cc || !cc->handle || !cc->queues || cc->queues->qcount == 0) {
-        return EINVAL;
+    if (NULL == cc || NULL == cc->handle || NULL == cc->queues ||
+        0 == cc->queues->qcount) {
+        return -1;
     }
 
     struct pcap_pkthdr *hdr;
@@ -410,28 +431,28 @@ int capture_poll_once(capture_ctx_t *cc) {
 
     /* libpcap에서 실제 패킷 1건을 가져오는 지점이다. */
     int ret = pcap_next_ex(cc->handle, &hdr, &pkt);
-    if (ret == 1) {
+    if (1 == ret) {
         uint64_t ts_ns = ((uint64_t)hdr->ts.tv_sec * 1000000000ULL) +
                          ((uint64_t)hdr->ts.tv_usec * 1000ULL);
         /* 5-tuple 또는 fragment hash로 worker queue를 골라 enqueue 한다. */
         uint32_t idx =
             pick_worker_idx(cc, pkt, hdr->caplen, cc->queues->qcount);
         int rc = packet_ring_enq(&cc->queues->q[idx], pkt, hdr->caplen, ts_ns);
-        if (rc != 0) {
-            return rc;
+        if (0 != rc) {
+            return -1;
         }
-        return 1;
+        return 0;
     }
 
-    if (ret == 0) {
+    if (0 == ret) {
         return 0;
     }
 
     if (ret == -2) {
-        return -2;
+        return -1;
     }
 
-    return EIO;
+    return -1;
 }
 
 /**
@@ -445,16 +466,18 @@ int capture_poll_once(capture_ctx_t *cc) {
  */
 static void *capture_thread_func(void *arg) {
     driver_runtime_t *rt = arg;
-    while (!atomic_load(&rt->stop)) {
+    int               stop;
+
+    stop = atomic_load(&rt->stop);
+    while (0 == stop) {
         int rc = capture_poll_once(&rt->cc);
-        if (rc == 1) {
+        if (0 == rc) {
+            stop = atomic_load(&rt->stop);
             continue;
         }
-        if (rc == 0 || rc == EAGAIN) {
-            usleep(200);
-            continue;
-        }
-        if (rc == -2) {
+
+        stop = atomic_load(&rt->stop);
+        if (0 != stop) {
             break;
         }
 
@@ -484,10 +507,12 @@ static void *worker_thread_func(void *arg) {
     uint8_t           buf[PACKET_MAX_BYTES];
     uint32_t          len;
     uint64_t          ts;
+    int               stop;
 
-    while (!atomic_load(&rt->stop)) {
+    stop = atomic_load(&rt->stop);
+    while (0 == stop) {
         int rc = packet_ring_deq(ring, buf, sizeof(buf), &len, &ts);
-        if (rc == 0) {
+        if (0 == rc) {
             if (rt->on_packet) {
                 void *user = NULL;
                 pthread_mutex_lock(&rt->handler_mu);
@@ -501,9 +526,12 @@ static void *worker_thread_func(void *arg) {
                 pthread_mutex_unlock(&rt->handler_mu);
                 rt->on_packet(buf, len, ts, user);
             }
+            stop = atomic_load(&rt->stop);
             continue;
         }
-        if (rc == EAGAIN) {
+
+        stop = atomic_load(&rt->stop);
+        if (0 == stop) {
             continue;
         }
         break;
@@ -520,8 +548,11 @@ static void *worker_thread_func(void *arg) {
  * @return int
  */
 int driver_init(driver_runtime_t *rt, int worker_count) {
-    if (!rt || worker_count <= 0) {
-        return EINVAL;
+    int qrc;
+    int ret;
+
+    if (NULL == rt || 0 >= worker_count) {
+        return -1;
     }
 
     rt->cc.handle       = NULL;
@@ -543,26 +574,33 @@ int driver_init(driver_runtime_t *rt, int worker_count) {
     memset(&rt->queues, 0, sizeof(rt->queues));
 
     rt->worker_count = worker_count;
-    rt->worker_tids  = calloc(worker_count, sizeof(pthread_t));
-    rt->worker_args  = calloc(worker_count, sizeof(worker_arg_t));
+    rt->worker_tids =
+        (pthread_t *)malloc((size_t)worker_count * sizeof(pthread_t));
+    rt->worker_args =
+        (worker_arg_t *)malloc((size_t)worker_count * sizeof(worker_arg_t));
 
-    if (!rt->worker_tids || !rt->worker_args) {
+    if (NULL == rt->worker_tids || NULL == rt->worker_args) {
         free(rt->worker_tids);
         free(rt->worker_args);
         rt->worker_tids = NULL;
         rt->worker_args = NULL;
-        return ENOMEM;
+        return -1;
     }
-    if (pthread_mutex_init(&rt->handler_mu, NULL) != 0) {
+    memset(rt->worker_tids, 0, (size_t)worker_count * sizeof(pthread_t));
+    memset(rt->worker_args, 0, (size_t)worker_count * sizeof(worker_arg_t));
+
+    ret = pthread_mutex_init(&rt->handler_mu, NULL);
+    if (0 != ret) {
         free(rt->worker_tids);
         free(rt->worker_args);
         rt->worker_tids = NULL;
         rt->worker_args = NULL;
-        return EIO;
+        return -1;
     }
-    int qrc = packet_queue_set_init(&rt->queues, (uint32_t)worker_count,
-                                    DEFAULT_SLOT_COUNT, 1);
-    if (qrc != 0) {
+
+    qrc = packet_queue_set_init(&rt->queues, (uint32_t)worker_count,
+                                DEFAULT_SLOT_COUNT, 1);
+    if (0 != qrc) {
         pthread_mutex_destroy(&rt->handler_mu);
         free(rt->worker_tids);
         free(rt->worker_args);
@@ -582,11 +620,13 @@ int driver_init(driver_runtime_t *rt, int worker_count) {
  * @return int
  */
 int driver_start(driver_runtime_t *rt) {
-    if (!rt) {
-        return EINVAL;
+    int ret;
+
+    if (NULL == rt) {
+        return -1;
     }
-    if (!rt->worker_tids) {
-        return EINVAL;
+    if (NULL == rt->worker_tids) {
+        return -1;
     }
 
     rt->workers_started = 0;
@@ -598,27 +638,28 @@ int driver_start(driver_runtime_t *rt) {
         wa->rt           = rt;
         wa->index        = (uint32_t)i;
 
-        if (pthread_create(&rt->worker_tids[i], NULL, worker_thread_func, wa) !=
-            0) {
+        ret = pthread_create(&rt->worker_tids[i], NULL, worker_thread_func, wa);
+        if (0 != ret) {
             atomic_store(&rt->stop, true);
             wake_all_queues(rt);
             for (int j = 0; j < i; j++) {
                 pthread_join(rt->worker_tids[j], NULL);
             }
             rt->workers_started = 0;
-            return EIO;
+            return -1;
         }
         rt->workers_started++;
     }
 
-    if (pthread_create(&rt->capture_tid, NULL, capture_thread_func, rt) != 0) {
+    ret = pthread_create(&rt->capture_tid, NULL, capture_thread_func, rt);
+    if (0 != ret) {
         atomic_store(&rt->stop, true);
         wake_all_queues(rt);
         for (int i = 0; i < rt->worker_count; i++) {
             pthread_join(rt->worker_tids[i], NULL);
         }
         rt->workers_started = 0;
-        return EIO;
+        return -1;
     }
     rt->capture_started = 1;
     return 0;
@@ -631,10 +672,10 @@ int driver_start(driver_runtime_t *rt) {
  * @return int
  */
 int driver_stop(driver_runtime_t *rt) {
-    if (!rt) {
-        return EINVAL;
+    if (NULL == rt) {
+        return -1;
     }
-    if (!rt->capture_started && rt->workers_started == 0) {
+    if (!rt->capture_started && 0 == rt->workers_started) {
         return 0;
     }
 
@@ -644,7 +685,7 @@ int driver_stop(driver_runtime_t *rt) {
         wake_capture_handle(&rt->cc);
     }
 
-    if (rt->workers_started > 0) {
+    if (0 < rt->workers_started) {
         wake_all_queues(rt);
     }
 
@@ -714,7 +755,7 @@ int driver_has_failed(driver_runtime_t *rt) {
  */
 int driver_last_error(driver_runtime_t *rt) {
     if (!rt) {
-        return EINVAL;
+        return -1;
     }
     return atomic_load(&rt->last_error);
 }
