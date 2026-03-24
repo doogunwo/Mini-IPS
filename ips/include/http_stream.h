@@ -1,6 +1,9 @@
 /**
  * @file http_stream.h
  * @brief HTTP 스트림 파서 공개 인터페이스
+ *
+ * 이 계층은 TCP 재조립 결과로 얻은 연속 바이트 스트림을 버퍼에 누적한 뒤,
+ * 완전한 HTTP 메시지 단위로 파싱해 큐에 적재한다.
  */
 #ifndef HTTP_STREAM_H
 #define HTTP_STREAM_H
@@ -29,22 +32,22 @@ typedef struct {
 
 /** 스트림 파서가 생성한 HTTP 메시지 결과 구조체이다. */
 typedef struct {
-    int  is_request;
-    char method[16];
-    char uri[1048576];
-    char version[16];
-    int  status_code;
-    char reason[64];
+    int  is_request;     /**< 요청 메시지면 1, 응답 메시지면 0 */
+    char method[16];     /**< 요청 메서드 */
+    char uri[1048576];   /**< 요청 URI */
+    char version[16];    /**< HTTP 버전 문자열 */
+    int  status_code;    /**< 응답 상태 코드 */
+    char reason[64];     /**< 응답 reason phrase */
 
-    int       chunked;
-    long long content_length;
-    char      content_type[200];
+    int       chunked;        /**< Transfer-Encoding: chunked 여부 */
+    long long content_length; /**< Content-Length 값, 없으면 -1 계열 */
+    char      content_type[200]; /**< Content-Type 헤더 값 */
 
-    uint8_t *headers_raw;
-    size_t   headers_raw_len;
-    uint8_t *body;
-    size_t   body_len;
-    uint8_t *owned_storage;
+    uint8_t *headers_raw;    /**< 헤더 블록 원문 */
+    size_t   headers_raw_len; /**< 헤더 블록 길이 */
+    uint8_t *body;           /**< body 포인터 */
+    size_t   body_len;       /**< body 길이 */
+    uint8_t *owned_storage;  /**< headers/body를 함께 보관하는 소유 메모리 */
 } http_message_t;
 
 /** HTTP 스트림 파서 내부 구조를 숨기는 핸들 타입이다. */

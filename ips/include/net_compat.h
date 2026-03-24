@@ -1,6 +1,12 @@
 #ifndef NET_COMPAT_H
 #define NET_COMPAT_H
 
+/*
+ * Linux/macOS 사이에서 IP/TCP 헤더 구조체 이름과 필드명이 달라지는 부분을
+ * 매크로로 평탄화한다. raw packet 생성/파싱 코드는 이 헤더만 통해
+ * 플랫폼 차이를 흡수한다.
+ */
+
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
 

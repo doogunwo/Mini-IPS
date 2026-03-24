@@ -1,0 +1,49 @@
+{"name": "RCE", "pat": "(?i)^(file|ftps?|https?|ssh)://(?:\\[?[a-f0-9]+:[a-f0-9:]+\\]?|\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})", "ctx": "ARGS", "score": 5}
+{"name": "RCE", "pat": "(?i)(?:\\binclude\\s*\\([^)]*|mosConfig_absolute_path|_CONF\\[path\\]|_SERVER\\[DOCUMENT_ROOT\\]|GALLERY_BASEDIR|path\\[docroot\\]|appserv_root|config\\[root_dir\\])=(?:file|ftps?|https?)://", "ctx": "URI", "score": 5}
+{"name": "RCE", "pat": "^(?i:file|ftps?|https?).*?\\?+$", "ctx": "ARGS", "score": 5}
+{"name": "RCE", "pat": "\\$(?:\\((?:[^\\)]+|\\([^\\)]+\\))\\)|\\{[^\\}]+\\}|\\[[^\\]]*\\])|[<>]\\([^\\)]+\\)|/[0-9A-Z_a-z]*\\[[^\\]]+\\]", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "\\b(?:for(?:/[dflr].*)? %+[^ ]+ in\\(.*\\)[\\s\\x0b]?do|if(?:/i)?(?: not)?(?: (?:e(?:xist|rrorlevel)|defined|cmdextversion)\\b|[ \\(].*(?:\\b(?:g(?:eq|tr)|equ|neq|l(?:eq|ss))\\b|==)))", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "~[\\+\\-](?:$|[0-9]+)", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "\\{[0-9A-Z_a-z]*,[,\\-0-9A-Z_a-z]*\\}", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "!-\\d", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "^\\(\\s*\\)\\s+\\{", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "^\\(\\s*\\)\\s+\\{", "ctx": "ARGS", "score": 5}
+{"name": "RCE", "pat": "(?i)(?:[\\n\\r;`\\{]|\\|\\|?|&&?)[\\s\\x0b]*[\\s\\x0b\"'\\(,@]*(?:[\"'\\.-9A-Z_a-z]+/|(?:[\"'\\x5c\\^]*[0-9A-Z_a-z][\"'\\x5c\\^]*:[^\\x5c]*|[ \"'\\.-9A-Z\\x5c\\^_a-z]*)\\x5c)?[\"\\^]*a[\"\\^]*t[\"\\^]*[\\s\\x0b,\\./;<>].*(?:\\.[\"\\^]*[0-9A-Z_a-z]+)?\\b", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "\\$(?:\\((?:[^\\)]+|\\([^\\)]+\\))\\)|\\{[^\\}]+\\}|\\[[^\\]]*\\])|[<>]\\([^\\)]+\\)|/[0-9A-Z_a-z]*\\[[^\\]]+\\]", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "\\{[^\\s\\x0b,:\\}]*,[^\\s\\x0b]*\\}", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "~[0-9]+", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "(?i)\\r\\n.*?\\b(?:E(?:HLO[\\s\\x0b][\\-\\.a-z]{1,255}|XPN[\\s\\x0b].{1,64})|HELO[\\s\\x0b][\\-\\.a-z]{1,255}|MAIL[\\s\\x0b]FROM:<.{1,64}@.{1,255}>|R(?:CPT[\\s\\x0b]TO:(?:<.{1,64}@.{1,255}>| )?<.{1,64}>|SET\\b)|VRFY[\\s\\x0b].{1,64}(?:[\\s\\x0b]<.{1,64}@.{1,255}>|@.{1,255})|AUTH[\\s\\x0b][\\-0-9_a-z]{1,20}[\\s\\x0b](?:(?:[\\+/-9A-Z_a-z]{4})*(?:[\\+/-9A-Z_a-z]{2}=|[\\+/-9A-Z_a-z]{3}))?=|STARTTLS\\b|NOOP\\b(?:[\\s\\x0b].{1,255})?)", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "(?is)\\r\\n[0-9A-Z_a-z]{1,50}\\b (?:A(?:PPEND (?:[\"#%&\\*\\--9A-Z\\x5c_a-z]+)?(?: \\([ \\x5ca-z]+\\))?(?: \"?[0-9]{1,2}-[0-9A-Z_a-z]{3}-[0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2} [\\+\\-][0-9]{4}\"?)? \\{[0-9]{1,20}\\+?\\}|UTHENTICATE [\\-0-9_a-z]{1,20}\\r\\n)|L(?:SUB (?:[\"#\\*\\.-9A-Z_a-z~]+)? (?:[\"%&\\*\\.-9A-Z\\x5c_a-z]+)?|ISTRIGHTS (?:[\"%&\\*\\--9A-Z\\x5c_a-z]+)?)|S(?:TATUS (?:[\"%&\\*\\--9A-Z\\x5c_a-z]+)? \\((?:U(?:NSEEN|IDNEXT)|MESSAGES|UIDVALIDITY|RECENT| )+\\)|ETACL (?:[\"%&\\*\\--9A-Z\\x5c_a-z]+)? [\\+\\-][ac-eiklpr-twx]+?)|UID (?:COPY|FETCH|STORE) (?:[\\*,0-:]+)?|(?:(?:DELETE|GET)ACL|MYRIGHTS) (?:[\"%&\\*\\--9A-Z\\x5c_a-z]+)?)", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "(?is)\\r\\n.*?\\b(?:(?:LIST|TOP [0-9]+)(?: [0-9]+)?|U(?:SER .+?|IDL(?: [0-9]+)?)|PASS .+?|(?:RETR|DELE) [0-9]+?|A(?:POP [0-9A-Z_a-z]+ [0-9a-f]{32}|UTH [\\-0-9_a-z]{1,20} (?:(?:[\\+/-9A-Z_a-z]{4})*(?:[\\+/-9A-Z_a-z]{2}=|[\\+/-9A-Z_a-z]{3}))?=))", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "(?i)/(?:[\\*\\?]+[/-9A-Z_a-z]|[/-9A-Z_a-z]+[\\*\\?])", "ctx": "ARGS", "score": 5}
+{"name": "RCE", "pat": "\\r\\n.*?\\b(?:DATA|QUIT|HELP(?: .{1,255})?)", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "\\r\\n.*?\\b(?:(?:QUI|STA|RSE)T|NOOP|CAPA)", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "!(?:\\d|!)", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "(?i)<\\?(?:php[\\s\\x0b]|[\\s\\x0b=]|xml(?:[\\s\\x0b]+[^a-z]|:)|$)|\\[[/\\x5c]?php\\]|\\{/?php\\}", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": ".*\\.ph(?:p\\d*|tml|ar|ps|t|pt)\\.*$", "ctx": "BODY", "score": 5}
+{"name": "RCE", "pat": "\\$\\s*\\{\\s*\\S[^\\{\\}]*\\}", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "(?i)php://(?:std(?:in|out|err)|(?:in|out)put|fd|memory|temp|filter)", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "(?:bzip2|expect|glob|ogg|(?:ph|r)ar|ssh2(?:.(?:s(?:hell|(?:ft|c)p)|exec|tunnel))?|z(?:ip|lib))://", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "(?i)\\b\\(?[\"']*(?:assert(?:_options)?|c(?:hr|reate_function)|e(?:val|x(?:ec|p))|f(?:ile(?:group)?|open|puts)|glob|i(?:mage(?:gif|(?:jpe|pn)g|wbmp|xbm)|s_a|ntval)|m(?:d5|kdir)|o(?:pendir|rd)|p(?:assthru|hpinfo|open|r(?:intf|ev))|r(?:eadfile|trim)|s(?:t(?:rip_tags|at)|ubstr|ystem)|tmpfile|u(?:n(?:(?:pac|lin)k|serialize)|sort))(?:/(?:\\*.*?\\*/|/[^\\n\\r]*)|#[^\\n\\r]*|[\\s\\x0b\"])*[\"']*\\)?[\\s\\x0b]*\\([^\\)]*\\)", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "[oOcC]:\\d+:\".+?\":\\d+:\\{.*}", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "\\$+(?:[a-zA-Z_\\x7f-\\xff][a-zA-Z0-9_\\x7f-\\xff]*|\\s*\\{.+})(?:\\s|\\[.+\\]|\\{.+}|/\\*.*\\*/|//.*|#.*)*\\(.*\\)", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "(?:\\((?:.+\\)(?:[\"'][\\-0-9A-Z_a-z]+[\"'])?\\(.+|[^\\)]*string[^\\)]*\\)[\\s\\x0b\"'\\-\\.0-9A-\\[\\]_a-\\{\\}]+\\([^\\)]*)|(?:\\[[0-9]+\\]|\\{[0-9]+\\}|\\$[^\\(\\),\\./;\\x5c]+|[\"'][\\-0-9A-Z\\x5c_a-z]+[\"'])\\(.+)\\);", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "(?:^|[/\\x5c])sess_[,\\-0-9a-z]{20,256}$", "ctx": "BODY", "score": 5}
+{"name": "RCE", "pat": "AUTH_TYPE|HTTP_(?:ACCEPT(?:_(?:CHARSET|ENCODING|LANGUAGE))?|CONNECTION|(?:HOS|USER_AGEN)T|KEEP_ALIVE|(?:REFERE|X_FORWARDED_FO)R)|ORIG_PATH_INFO|PATH_(?:INFO|TRANSLATED)|QUERY_STRING|REQUEST_URI", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "(?i)\\b(?:a(?:bs|s(?:in|sert(?:_options)?))|basename|c(?:h(?:eckdate|r(?:oot)?)|o(?:(?:mpac|(?:nsta|u)n)t|py|sh?)|r(?:eate_function|ypt)|urrent)|d(?:ate|e(?:coct|fined?)|ir)|e(?:nd|val|x(?:ec|p(?:lode)?|tract))|f(?:ile(?:(?:[acm]tim|inod|siz|typ)e|group|owner|perms)?|l(?:o(?:ck|or)|ush))|glob|h(?:ash|eader)|i(?:date|m(?:age(?:gif|(?:jpe|pn)g|wbmp|xbm)|plode)|s_a)|key|l(?:ink|og)|m(?:a(?:il|x)|d5|in)|n(?:ame|ext)|o(?:pendir|rd)|p(?:a(?:ck|ss(?:thru)?)|i|o(?:pen|w)|rev)|r(?:an(?:d|ge)|e(?:(?:adfil|nam)e|set)|ound)|s(?:(?:erializ|huffl)e|in|leep|(?:or|ta)t|ubstr|y(?:mlink|s(?:log|tem)))|t(?:an|(?:im|mpfil)e|ouch|rim)|u(?:cfirst|n(?:lin|pac)k)|virtual)(?:[\\s\\x0b]|/\\*.*\\*/|(?:#|//).*)*\\(.*\\)", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": ".*\\.ph(?:p\\d*|tml|ar|ps|t|pt)\\..*$", "ctx": "BODY", "score": 5}
+{"name": "RCE", "pat": "(?:\\((?:.+\\)(?:[\"'][\\-0-9A-Z_a-z]+[\"'])?\\(.+|[^\\)]*string[^\\)]*\\)[\\s\\x0b\"'\\-\\.0-9A-\\[\\]_a-\\{\\}]+\\([^\\)]*)|(?:\\[[0-9]+\\]|\\{[0-9]+\\}|\\$[^\\(\\),\\./;\\x5c]+|[\"'][\\-0-9A-Z\\x5c_a-z]+[\"'])\\(.+)\\)(?:;|$)?", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "__proto__|constructor[\\s\\x0b]*(?:\\.|\\]?\\[)[\\s\\x0b]*prototype", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "Process[\\s\\x0b]*\\.[\\s\\x0b]*spawn[\\s\\x0b]*\\(", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "while[\\s\\x0b]*\\([\\s\\x0b\\(]*(?:!+(?:false|null|undefined|NaN|[\\+\\-]?0|\"{2}|'{2}|`{2})|(?:!!)*(?:(?:t(?:rue|his)|[\\+\\-]?(?:Infinity|[1-9][0-9]*)|new [A-Za-z][0-9A-Z_a-z]*|window|String|(?:Boolea|Functio)n|Object|Array)\\b|\\{[^\\}]*\\}|\\[[^\\]]*\\]|\"[^\"]+\"|'[^']+'|`[^`]+`)).*\\)", "ctx": "BODY", "score": 5}
+{"name": "RCE", "pat": "(?:close|exists|fork|(?:ope|spaw)n|re(?:ad|quire)|w(?:atch|rite))[\\s\\x0b]*\\(", "ctx": "BODY", "score": 5}
+{"name": "RCE", "pat": "@+\\{[\\s\\x0b]*\\[", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "(?:\\{%[^%}]*%}|<%=?[^%>]*%>)", "ctx": "HEADERS", "score": 5}
+{"name": "RCE", "pat": "java\\.lang\\.(?:runtime|processbuilder)", "ctx": "ARGS", "score": 5}
+{"name": "RCE", "pat": "(?i)(?:\\$|&dollar;?)(?:\\{|&l(?:brace|cub);?)(?:[^\\}]{0,15}(?:\\$|&dollar;?)(?:\\{|&l(?:brace|cub);?)|jndi|ctx)", "ctx": "URI", "score": 5}
+{"name": "RCE", "pat": "(?i)(?:\\$|&dollar;?)(?:\\{|&l(?:brace|cub);?)(?:[^\\}]*(?:\\$|&dollar;?)(?:\\{|&l(?:brace|cub);?)|jndi|ctx)", "ctx": "URI", "score": 5}
+{"name": "RCE", "pat": "\\xac\\xed\\x00\\x05", "ctx": "ARGS", "score": 5}
+{"name": "RCE", "pat": "(?:rO0ABQ|KztAAU|Cs7QAF)", "ctx": "ARGS", "score": 5}
+{"name": "RCE", "pat": "(?:clonetransform|xmldecod)er|f(?:orclosure|ilewriter)|in(?:stantiate(?:factory|transformer)|vokertransformer)|(?:prototype(?:clone|serialization)factor|getpropert)y|whileclosure", "ctx": "ARGS", "score": 5}
+{"name": "RCE", "pat": "class\\.module\\.classLoader\\.resources\\.context\\.parent\\.pipeline|springframework\\.context\\.support\\.FileSystemXmlApplicationContext", "ctx": "ARGS", "score": 5}
+{"name": "RCE", "pat": "(?i)(?:\\$|&dollar;?)(?:\\{|&l(?:brace|cub);?)", "ctx": "URI", "score": 5}

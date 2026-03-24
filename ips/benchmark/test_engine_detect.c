@@ -13,7 +13,7 @@
 #include "logging.h"
 #include "regex.h"
 
-#define TEST_RULES_PATH "rules/generated/rules.jsonl"
+#define TEST_RULES_PATH "rules"
 #define TEST_URI_LEN 900U
 #define TEST_ITERATIONS 5U
 #define ERRBUF_SIZE 256U

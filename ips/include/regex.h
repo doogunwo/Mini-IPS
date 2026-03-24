@@ -1,6 +1,9 @@
 /**
  * @file regex.h
  * @brief IPS 시그니처 및 정책 정의
+ *
+ * JSONL에서 적재한 CRS 기반 룰을 내부 enum/구조체로 표현하는 공용 정의다.
+ * detect/engine/runtime 계층이 동일한 시그니처 메타데이터를 공유한다.
  */
 #ifndef REGEX_H
 #define REGEX_H
@@ -10,13 +13,8 @@
 #define POLICY_LIST                                    \
     X(POLICY_SQL_INJECTION, "SQL_INJECTION")           \
     X(POLICY_XSS, "XSS")                               \
-    X(POLICY_COMMAND_INJECTION, "COMMAND_INJECTION")   \
-    X(POLICY_DIRECTORY_TRAVERS, "DIRECTORY_TRAVERSAL") \
-    X(POLICY_APP_WEAK, "APP_WEAK")                     \
-    X(POLICY_SCANNER, "SCANNER")                       \
-    X(POLICY_PROTOCOL_VIOLATION, "PROTOCOL_VIOLATION") \
-    X(POLICY_INFO_LEAK, "INFO_LEAK")                   \
-    X(POLICY_WEBSHELL, "WEBSHELL")
+    X(POLICY_RCE, "RCE")                               \
+    X(POLICY_DIRECTORY_TRAVERS, "DIRECTORY_TRAVERSAL")
 
 /** 정규식 시그니처 테이블에서 사용하는 정책 식별자이다. */
 typedef enum {

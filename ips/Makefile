@@ -5,7 +5,7 @@ LDFLAGS :=
 LDLIBS :=
 .DEFAULT_GOAL := main
 VALGRIND ?= valgrind
-VALGRIND_FLAGS ?= --leak-check=full --show-leak-kinds=all --track-origins=yes
+VALGRIND_FLAGS ?= --leak-check=full --show-leak-kinds=all --track-origins=yes --num-callers=32 --error-exitcode=1
 CLANG_FORMAT ?= clang-format
 HS_CFLAGS = $(shell \
 	if command -v pkg-config >/dev/null 2>&1; then \
@@ -85,7 +85,7 @@ BENCH_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .log,$(BENCH_NAMES)))
 MAIN_VG_LOG := $(LOG_DIR)/main.valgrind.log
 FORMAT_SRCS := $(shell find $(SRC_DIR) $(INC_DIR) $(TEST_DIR) $(BENCH_DIR) -type f \( -name '*.c' -o -name '*.h' \))
 
-.PHONY: all clean run tests units benchmark benchmarks run-benchmarks main check_pcre valgrind-units valgrind-main regex-compat test-detect-engine test-http-live-like-reasm test-bot-url-detect format format-check
+.PHONY: all clean run tests units benchmark benchmarks run-benchmarks main check_pcre valgrind-units valgrind-main vg-main regex-compat test-detect-engine test-http-live-like-reasm test-bot-url-detect format format-check
 
 all: main tests benchmark
 
@@ -181,6 +181,17 @@ $(BOT_URL_DETECT_BIN): check_pcre $(TEST_DIR)/test_runtime_bot_url_detect.c \
 		$(SRC_DIR)/regex.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
 		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
 
+$(BUILD_DIR)/test_runtime_detect_invocations: check_pcre $(TEST_DIR)/test_runtime_detect_invocations.c \
+	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
+	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c \
+	$(SRC_DIR)/http_stream.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
+		$(TEST_DIR)/test_runtime_detect_invocations.c $(SRC_DIR)/runtime.c \
+		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
+		$(SRC_DIR)/html.c \
+		$(SRC_DIR)/regex.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
+		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
+
 test-detect-engine: $(DETECT_ENGINE_BIN)
 	./$(DETECT_ENGINE_BIN)
 
@@ -229,6 +240,8 @@ valgrind-units: $(UNIT_BINS) | $(LOG_DIR)
 
 valgrind-main: $(MAIN_BIN) | $(LOG_DIR)
 	$(VALGRIND) $(VALGRIND_FLAGS) --log-file=$(MAIN_VG_LOG) ./$(MAIN_BIN) $(RUN_ARGS)
+
+vg-main: valgrind-main
 
 $(BUILD_DIR)/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c $(SRC_DIR)/packet_ring.c $(INC_DIR)/httgw.h $(INC_DIR)/http_stream.h $(INC_DIR)/packet_ring.h | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c $(SRC_DIR)/packet_ring.c -o $@ $(LDFLAGS) -lpcap $(LDLIBS)

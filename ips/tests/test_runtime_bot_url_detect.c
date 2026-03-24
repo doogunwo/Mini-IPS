@@ -23,7 +23,7 @@
         }                                         \
     } while (0)
 
-#define TEST_RULES_PATH "rules/generated/rules.jsonl"
+#define TEST_RULES_PATH "rules"
 // #define TEST_SEGMENT_SIZE 1500U // MTU = 1500
 #define TEST_SEGMENT_SIZE 1460U  // MSS = 1460
 

@@ -1,6 +1,10 @@
 /**
  * @file detect.c
  * @brief 탐지 엔진 구현
+ *
+ * 이 파일은 "정책 이름 -> 룰 집합 -> backend runtime" 연결을 담당한다.
+ * 실제 regex 실행은 engine.c가 수행하고, detect.c는 상위 런타임이 쓰기 쉬운
+ * 형태로 룰 선택과 match list 관리만 담당한다.
  */
 #include "detect.h"
 
@@ -12,10 +16,13 @@
 #include "engine.h"
 
 typedef struct policy_pattern_set {
+    /* 선택된 룰 포인터 배열 */
     const IPS_Signature **rules;
+    /* 선택된 룰 개수 */
     unsigned int          count;
 } policy_pattern_set_t;
 
+/** detect 엔진 최상위 핸들. 선택한 룰 집합과 backend runtime을 함께 가진다. */
 struct detect_engine {
     engine_runtime_t     *runtime;
     const IPS_Signature **rules;
@@ -23,7 +30,19 @@ struct detect_engine {
     char                  last_err[128];
 };
 
-static void set_err(detect_engine_t *e, const char *msg);
+static void set_err(detect_engine_t *e, const char *msg) {
+    /* 엔진 포인터 검사 */
+    if (NULL == e) {
+        return;
+    }
+    /* NULL 메시지 보정 */
+    if (NULL == msg) {
+        msg = "unknown error";
+    }
+    /* 마지막 오류 문자열 갱신 */
+    snprintf(e->last_err, sizeof(e->last_err), "%s", msg);
+}
+/* --------------------------- match collection --------------------------- */
 
 /**
  * @brief 탐지 엔진의 핵심 탐지 함수
@@ -41,23 +60,29 @@ static int collect_matches_ctx_timed(detect_engine_t *e, const uint8_t *data,
                                      size_t len, ips_context_t ctx,
                                      detect_match_list_t *matches,
                                      uint64_t            *elapsed_us_sum) {
+    /* 탐지 시간 출력 초기화 */
     if (NULL != elapsed_us_sum) {
         *elapsed_us_sum = 0;
     }
+    /* 매치 리스트 포인터 검사 */
     if (NULL == matches) {
         if (NULL != e) {
+            /* 오류 문자열 기록 */
             set_err(e, "null matches");
         }
         return -1;
     }
+    /* 엔진/입력 데이터/길이 검사 */
     if (NULL == e || NULL == data || 0U == len) {
         return 0;
     }
+    /* engine backend가 처리 가능한 길이 상한 검사 */
     if ((size_t)INT_MAX < len) {
         set_err(e, "payload too large");
         return -1;
     }
 
+    /* 지원하는 detect context인지 검증 */
     switch (ctx) {
     case IPS_CTX_REQUEST_URI:
     case IPS_CTX_ARGS:
@@ -68,24 +93,17 @@ static int collect_matches_ctx_timed(detect_engine_t *e, const uint8_t *data,
     case IPS_CTX_ALL:
         break;
     default:
+        /* 잘못된 context 오류 기록 */
         set_err(e, "invalid context");
 
         return -1;
     }
+    /* engine backend에 실제 매치 수집 위임 */
     int rc = engine_runtime_collect_matches_timed(
         e->runtime, data, len, ctx, matches, elapsed_us_sum, e->last_err,
         sizeof(e->last_err));
+    /* backend 반환값 전달 */
     return rc;
-}
-
-static void set_err(detect_engine_t *e, const char *msg) {
-    if (NULL == e) {
-        return;
-    }
-    if (NULL == msg) {
-        msg = "unknown error";
-    }
-    snprintf(e->last_err, sizeof(e->last_err), "%s", msg);
 }
 
 /**
@@ -94,9 +112,11 @@ static void set_err(detect_engine_t *e, const char *msg) {
  * @param matches 매치 결과 리스트
  */
 void detect_match_list_init(detect_match_list_t *matches) {
+    /* 출력 포인터 검사 */
     if (NULL == matches) {
         return;
     }
+    /* 리스트 전체 초기화 */
     memset(matches, 0, sizeof(*matches));
 }
 
@@ -106,15 +126,20 @@ void detect_match_list_init(detect_match_list_t *matches) {
  * @param matches 매치 결과 리스트
  */
 void detect_match_list_free(detect_match_list_t *matches) {
+    /* 순회 인덱스 */
     size_t i;
 
+    /* 입력 포인터 검사 */
     if (NULL == matches) {
         return;
     }
     for (i = 0; i < matches->count; i++) {
+        /* 항목별 matched_text 해제 */
         free(matches->items[i].matched_text);
     }
+    /* items 배열 해제 */
     free(matches->items);
+    /* 구조체 초기화 */
     memset(matches, 0, sizeof(*matches));
 }
 
@@ -127,18 +152,24 @@ void detect_match_list_free(detect_match_list_t *matches) {
  */
 static int collect_policy_patterns(const char           *policy_name,
                                    policy_pattern_set_t *out) {
+    /* 시그니처 순회 인덱스 */
     int          i;
+    /* 문자열 비교 결과 */
     int          ret;
+    /* 선택된 룰 개수 */
     unsigned int n = 0;
 
+    /* 입력 포인터 검사 */
     if (NULL == policy_name || NULL == out) {
         return -1;
     }
 
+    /* 선택 개수 초기화 */
     n = 0;
+    /* 출력 구조체 초기화 */
     memset(out, 0, sizeof(*out));
 
-    /* 지금 당장 교체 불가능 */
+    /* 선택 정책과 일치하는 룰 개수 1차 집계 */
     for (i = 0; i < g_signature_count; i++) {
         ret = strcmp(g_ips_signatures[i].policy_name, policy_name);
         if (0 == ret) {
@@ -146,27 +177,35 @@ static int collect_policy_patterns(const char           *policy_name,
         }
     }
 
+    /* 선택된 룰이 없으면 실패 */
     if (0 == n) {
         return -1;
     }
 
+    /* 선택된 룰 포인터 배열 할당 */
     out->rules = (const IPS_Signature **)malloc(n * sizeof(*out->rules));
     if (NULL == out->rules) {
+        /* 실패 시 출력 구조체 재초기화 */
         memset(out, 0, sizeof(*out));
         return -1;
     }
 
+    /* 최종 룰 개수 저장 */
     out->count = n;
+    /* 실제 채우기 인덱스 초기화 */
     n          = 0;
 
+    /* 선택 정책과 일치하는 룰 포인터 수집 */
     for (i = 0; i < g_signature_count; i++) {
         ret = strcmp(g_ips_signatures[i].policy_name, policy_name);
         if (0 == ret) {
+            /* 선택 룰 배열에 포인터 저장 */
             out->rules[n] = &g_ips_signatures[i];
             n++;
         }
     }
 
+    /* 정책별 룰 집합 수집 성공 */
     return 0;
 }
 
@@ -177,24 +216,33 @@ static int collect_policy_patterns(const char           *policy_name,
  * @return int 0이면 성공, -1이면 실패
  */
 static int collect_all_patterns(policy_pattern_set_t *out) {
+    /* 전체 룰 개수 */
     unsigned int n = (unsigned int)g_signature_count;
+    /* 복사용 인덱스 */
     unsigned int i;
 
+    /* 출력 구조체 초기화 */
     memset(out, 0, sizeof(*out));
+    /* 로드된 룰이 없으면 실패 */
     if (0U == n) {
         return -1;
     }
 
+    /* 전체 룰 포인터 배열 할당 */
     out->rules = (const IPS_Signature **)malloc(n * sizeof(*out->rules));
     if (NULL == out->rules) {
+        /* 실패 시 출력 구조체 재초기화 */
         memset(out, 0, sizeof(*out));
         return -1;
     }
+    /* 전체 룰 개수 저장 */
     out->count = n;
 
     for (i = 0; i < n; i++) {
+        /* 전역 시그니처 포인터 복사 */
         out->rules[i] = &g_ips_signatures[i];
     }
+    /* 전체 룰 수집 성공 */
     return 0;
 }
 
@@ -204,7 +252,9 @@ static int collect_all_patterns(policy_pattern_set_t *out) {
  * @param set 해제할 룰 집합
  */
 static void free_policy_patterns(policy_pattern_set_t *set) {
+    /* 룰 포인터 배열 해제 */
     free(set->rules);
+    /* 구조체 초기화 */
     memset(set, 0, sizeof(*set));
 }
 
@@ -220,52 +270,73 @@ static void free_policy_patterns(policy_pattern_set_t *set) {
  */
 detect_engine_t *detect_engine_create(const char       *policy_name,
                                       detect_jit_mode_t jit_mode) {
+    /* detect 엔진 객체 */
     detect_engine_t     *e;
+    /* 선택된 정책 룰 집합 */
     policy_pattern_set_t set;
+    /* helper 반환값 */
     int                  ret;
 
+    /* 임시 룰 집합 초기화 */
     memset(&set, 0, sizeof(set));
 
+    /* JSONL 시그니처 로드 */
     ret = regex_signatures_load(NULL);
     if (0 != ret) {
         return NULL;
     }
 
+    /* detect 엔진 객체 할당 */
     e = (detect_engine_t *)malloc(sizeof(*e));
     if (NULL == e) {
         return NULL;
     }
+    /* 엔진 객체 0 초기화 */
     memset(e, 0, sizeof(*e));
+    /* 마지막 오류 문자열 초기화 */
     e->last_err[0] = '\0';
 
+    /* policy가 NULL, ALL, all, * 중 하나면 전체 룰 사용 */
     if (NULL == policy_name || '\0' == policy_name[0] ||
         0 == strcmp(policy_name, "ALL") || 0 == strcmp(policy_name, "all") ||
         0 == strcmp(policy_name, "*")) {
+        /* 전체 룰 집합 수집 */
         ret = collect_all_patterns(&set);
         if (0 != ret) {
+            /* 오류 문자열 기록 */
             set_err(e, "no patterns");
+            /* 엔진 객체 정리 */
             detect_engine_destroy(e);
             return NULL;
         }
     } else {
+        /* 지정 정책 룰 집합 수집 */
         ret = collect_policy_patterns(policy_name, &set);
         if (0 != ret) {
+            /* 오류 문자열 기록 */
             set_err(e, "unknown policy");
+            /* 엔진 객체 정리 */
             detect_engine_destroy(e);
             return NULL;
         }
     }
 
+    /* 선택된 룰 집합으로 backend runtime 생성 */
     e->runtime = engine_runtime_create(set.rules, set.count, jit_mode,
                                        e->last_err, sizeof(e->last_err));
     if (NULL == e->runtime) {
+        /* 임시 룰 집합 해제 */
         free_policy_patterns(&set);
+        /* 엔진 객체 정리 */
         detect_engine_destroy(e);
         return NULL;
     }
 
+    /* 선택된 룰 집합 포인터 저장 */
     e->rules      = set.rules;
+    /* 선택된 룰 개수 저장 */
     e->rule_count = set.count;
+    /* detect 엔진 생성 성공 */
     return e;
 }
 
@@ -275,11 +346,15 @@ detect_engine_t *detect_engine_create(const char       *policy_name,
  * @param e 해제할 탐지 엔진
  */
 void detect_engine_destroy(detect_engine_t *e) {
+    /* 엔진 포인터 검사 */
     if (NULL == e) {
         return;
     }
+    /* backend runtime 해제 */
     engine_runtime_destroy(e->runtime);
+    /* 선택된 룰 포인터 배열 해제 */
     free(e->rules);
+    /* detect 엔진 객체 해제 */
     free(e);
 }
 
@@ -296,6 +371,7 @@ void detect_engine_destroy(detect_engine_t *e) {
 int detect_engine_match_ctx(detect_engine_t *e, const uint8_t *data, size_t len,
                             ips_context_t         ctx,
                             const IPS_Signature **matched_rule) {
+    /* 지원하는 detect context인지 검증 */
     switch (ctx) {
     case IPS_CTX_REQUEST_URI:
     case IPS_CTX_ARGS:
@@ -306,22 +382,27 @@ int detect_engine_match_ctx(detect_engine_t *e, const uint8_t *data, size_t len,
     case IPS_CTX_ALL:
         break;
     default:
+        /* 출력 포인터가 있으면 NULL 반환 */
         if (NULL != matched_rule) {
             *matched_rule = NULL;
         }
         if (NULL != e) {
+            /* 오류 문자열 기록 */
             set_err(e, "invalid context");
         }
         return -1;
     }
 
+    /* NULL 엔진은 no-op 처리 */
     if (NULL == e) {
         return 0;
     }
 
+    /* backend에 first match 탐지 위임 */
     int ret =
         engine_runtime_match_first(e->runtime, data, len, ctx, matched_rule,
                                    e->last_err, sizeof(e->last_err));
+    /* backend 반환값 전달 */
     return ret;
 }
 
@@ -338,6 +419,7 @@ int detect_engine_match_ctx(detect_engine_t *e, const uint8_t *data, size_t len,
 int detect_engine_collect_matches_ctx(detect_engine_t *e, const uint8_t *data,
                                       size_t len, ips_context_t ctx,
                                       detect_match_list_t *matches) {
+    /* timed helper를 time 출력 없이 호출 */
     return collect_matches_ctx_timed(e, data, len, ctx, matches, NULL);
 }
 
@@ -358,13 +440,16 @@ int detect_engine_collect_matches_ctx_timed(detect_engine_t *e,
                                             ips_context_t        ctx,
                                             detect_match_list_t *matches,
                                             uint64_t *elapsed_us_sum) {
+    /* timed helper로 실제 매치 수집 수행 */
     return collect_matches_ctx_timed(e, data, len, ctx, matches,
                                      elapsed_us_sum);
 }
 
 int detect_engine_match(detect_engine_t *e, const uint8_t *data, size_t len,
                         const IPS_Signature **matched_rule) {
+    /* 전체 컨텍스트 대상으로 first match 수행 */
     int ret = detect_engine_match_ctx(e, data, len, IPS_CTX_ALL, matched_rule);
+    /* helper 반환값 전달 */
     return ret;
 }
 
@@ -375,9 +460,11 @@ int detect_engine_match(detect_engine_t *e, const uint8_t *data, size_t len,
  * @return const char* backend 이름
  */
 const char *detect_engine_backend_name(const detect_engine_t *e) {
+    /* 엔진 포인터 검사 */
     if (NULL == e) {
         return "-";
     }
+    /* backend 이름 반환 */
     return engine_runtime_backend_name(e->runtime);
 }
 
@@ -388,9 +475,11 @@ const char *detect_engine_backend_name(const detect_engine_t *e) {
  * @return int 활성화면 1, 아니면 0
  */
 int detect_engine_jit_enabled(const detect_engine_t *e) {
+    /* 엔진 포인터 검사 */
     if (NULL == e) {
         return 0;
     }
+    /* backend의 JIT 활성화 여부 반환 */
     return engine_runtime_jit_enabled(e->runtime);
 }
 
@@ -401,11 +490,14 @@ int detect_engine_jit_enabled(const detect_engine_t *e) {
  * @return const char* 마지막 오류 문자열
  */
 const char *detect_engine_last_error(const detect_engine_t *e) {
+    /* NULL 엔진 메시지 반환 */
     if (NULL == e) {
         return "null engine";
     }
+    /* 오류가 없으면 ok 반환 */
     if ('\0' == e->last_err[0]) {
         return "ok";
     }
+    /* 마지막 오류 문자열 반환 */
     return e->last_err;
 }

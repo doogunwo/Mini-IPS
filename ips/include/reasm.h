@@ -1,6 +1,9 @@
 /**
  * @file reasm.h
  * @brief HTTP 게이트웨이 내부 TCP 재조립 인터페이스
+ *
+ * reasm 계층은 TCP sequence 기준으로 payload를 정렬하고 trim하며,
+ * 연속 구간만 상위 HTTP 파서에 전달한다.
  */
 #pragma once
 

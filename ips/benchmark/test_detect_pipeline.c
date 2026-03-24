@@ -31,7 +31,7 @@
 #define DEFAULT_SEGMENT_BYTES 1460U
 #define DEFAULT_RING_SLOT_COUNT 1024U
 #define DEFAULT_BACKEND "pcre2"
-#define TEST_RULES_PATH "rules/generated/rules.jsonl"
+#define TEST_RULES_PATH "rules"
 
 /**
  * @brief 탐지 파이프라인 벤치마크 누적 결과를 저장하는 컨텍스트

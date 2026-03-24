@@ -1,6 +1,9 @@
 /**
  * @file html.c
  * @brief 차단 페이지 HTML 렌더링 및 HTTP 응답 조립 구현
+ *
+ * 탐지 이후 사용자에게 보여줄 차단 페이지를 템플릿 기반으로 렌더링하고,
+ * 이를 실제 403 HTTP 응답으로 감싸는 presentation 계층이다.
  */
 #include "html.h"
 
@@ -16,186 +19,8 @@ typedef struct html_buf {
     size_t cap;
 } html_buf_t;
 
-static int         html_buf_reserve(html_buf_t *sb, size_t need);
-static int         html_buf_append_char(html_buf_t *sb, char c);
-static int         html_buf_append_str(html_buf_t *sb, const char *s);
-static int         html_buf_append_html_escaped(html_buf_t *sb, const char *s);
-static char       *read_text_file(const char *path);
-static char       *read_binary_file(const char *path, size_t *out_len);
-static char       *base64_encode(const unsigned char *data, size_t len);
-static const char *resolve_block_logo_path(void);
-static void        init_logo_image_html_once(void);
-static const char *get_logo_image_html(void);
-
 static pthread_once_t g_logo_image_once = PTHREAD_ONCE_INIT;
 static char          *g_logo_image_html = NULL;
-
-/**
- * @brief 차단 페이지 템플릿에 이벤트 값을 치환해 최종 HTML을 만든다.
- *
- * 템플릿 파일을 읽어 `{{EVENT_ID}}`, `{{TIMESTAMP}}`, `{{CLIENT_IP}}`
- * 토큰을 찾아 HTML escaping 된 값으로 치환한다.
- *
- * @param template_path HTML 템플릿 파일 경로
- * @param event_id 차단 이벤트 식별자
- * @param timestamp 차단 시각 문자열
- * @param client_ip 클라이언트 IP 문자열
- * @return char* 렌더링된 HTML 문자열, 실패 시 NULL
- */
-char *app_render_block_page(const char *template_path, const char *event_id,
-                            const char *timestamp, const char *client_ip) {
-    const char *p;
-    char       *template_text;
-    html_buf_t  out = {0};
-    int         ret;
-
-    /* 템플릿 경로가 없으면 렌더링 자체를 진행할 수 없다. */
-    if (!template_path) {
-        return NULL;
-    }
-
-    /* 템플릿 파일 전체를 메모리로 읽어 토큰 치환 대상으로 사용한다. */
-    template_text = read_text_file(template_path);
-    if (!template_text) {
-        return NULL;
-    }
-
-    /* 템플릿을 한 글자씩 훑으면서 알려진 토큰만 치환한다. */
-    p = template_text;
-    while (*p != '\0') {
-        /* 이벤트 ID는 HTML escape 후 삽입해 XSS 가능성을 줄인다. */
-        ret = strncmp(p, "{{EVENT_ID}}", 12);
-        if (0 == ret) {
-            ret = html_buf_append_html_escaped(&out, event_id ? event_id : "-");
-            if (0 != ret) {
-                free(template_text);
-                free(out.buf);
-                return NULL;
-            }
-            p += 12;
-            continue;
-        }
-
-        /* 차단 시각도 템플릿 토큰과 매칭되면 escape 후 삽입한다. */
-        ret = strncmp(p, "{{TIMESTAMP}}", 13);
-        if (0 == ret) {
-            ret =
-                html_buf_append_html_escaped(&out, timestamp ? timestamp : "-");
-            if (0 != ret) {
-                free(template_text);
-                free(out.buf);
-                return NULL;
-            }
-            p += 13;
-            continue;
-        }
-
-        /* 클라이언트 IP 역시 그대로 출력하지 않고 escape 후 삽입한다. */
-        ret = strncmp(p, "{{CLIENT_IP}}", 13);
-        if (0 == ret) {
-            ret =
-                html_buf_append_html_escaped(&out, client_ip ? client_ip : "-");
-            if (0 != ret) {
-                free(template_text);
-                free(out.buf);
-                return NULL;
-            }
-            p += 13;
-            continue;
-        }
-
-        /*
-         * 로고 이미지는 data URI가 들어간 <img> 마크업 전체를 삽입한다.
-         * 이미지 파일을 찾지 못한 경우엔 빈 문자열로 대체해 깨진 아이콘을
-         * 노출하지 않는다.
-         */
-        ret = strncmp(p, "{{LOGO_IMAGE}}", 14);
-        if (0 == ret) {
-            ret = html_buf_append_str(&out, get_logo_image_html());
-            if (0 != ret) {
-                free(template_text);
-                free(out.buf);
-                return NULL;
-            }
-            p += 14;
-            continue;
-        }
-
-        /* 치환 대상이 아닌 일반 텍스트는 그대로 출력 버퍼에 복사한다. */
-        ret = html_buf_append_char(&out, *p);
-        if (0 != ret) {
-            free(template_text);
-            free(out.buf);
-            return NULL;
-        }
-        p++;
-    }
-
-    free(template_text);
-
-    /* 빈 템플릿이어도 호출자는 NUL 종료 문자열을 기대하므로 빈 문자열을 만든다.
-     */
-    if (!out.buf) {
-        char *empty = (char *)malloc(1U);
-        if (!empty) {
-            return NULL;
-        }
-        empty[0] = '\0';
-        return empty;
-    }
-    return out.buf;
-}
-
-/**
- * @brief 렌더링된 HTML을 403 HTTP 응답 문자열로 감싼다.
- *
- * Content-Length를 계산한 뒤 차단 페이지 HTML을 포함하는 완전한
- * HTTP/1.1 403 응답을 생성한다.
- *
- * @param html_body 응답 body로 사용할 HTML 문자열
- * @param out_len 생성된 응답 길이를 받을 포인터
- * @return char* 완성된 HTTP 응답 문자열, 실패 시 NULL
- */
-char *app_build_block_http_response(const char *html_body, size_t *out_len) {
-    static const char response_fmt[] =
-        "HTTP/1.1 403 Forbidden\r\n"
-        "Content-Type: text/html; charset=UTF-8\r\n"
-        "Cache-Control: no-store\r\n"
-        "Connection: close\r\n"
-        "Content-Length: %zu\r\n"
-        "X-Mini-IPS-Block: 1\r\n"
-        "\r\n"
-        "%s";
-    char  *resp;
-    int    n;
-    size_t body_len;
-    size_t total_len;
-
-    /* body가 없으면 Content-Length 계산과 응답 조립을 할 수 없다. */
-    if (!html_body) {
-        return NULL;
-    }
-
-    /* 응답 본문의 길이를 기준으로 최종 HTTP 응답 길이를 먼저 계산한다. */
-    body_len = strlen(html_body);
-    n        = snprintf(NULL, 0, response_fmt, body_len, html_body);
-    if (0 > n) {
-        return NULL;
-    }
-
-    total_len = (size_t)n;
-    resp      = (char *)malloc(total_len + 1U);
-    if (!resp) {
-        return NULL;
-    }
-
-    /* 계산한 길이만큼 실제 응답 문자열을 조립한다. */
-    snprintf(resp, total_len + 1U, response_fmt, body_len, html_body);
-    if (out_len) {
-        *out_len = total_len;
-    }
-    return resp;
-}
 
 /**
  * @brief html_buf_t가 지정한 길이 이상을 담을 수 있게 버퍼를 확장한다.
@@ -628,4 +453,172 @@ static const char *get_logo_image_html(void) {
         return "";
     }
     return g_logo_image_html;
+}
+
+/* --------------------------- public rendering entrypoints --------------------------- */
+
+/**
+ * @brief 차단 페이지 템플릿에 이벤트 값을 치환해 최종 HTML을 만든다.
+ *
+ * 템플릿 파일을 읽어 `{{EVENT_ID}}`, `{{TIMESTAMP}}`, `{{CLIENT_IP}}`
+ * 토큰을 찾아 HTML escaping 된 값으로 치환한다.
+ *
+ * @param template_path HTML 템플릿 파일 경로
+ * @param event_id 차단 이벤트 식별자
+ * @param timestamp 차단 시각 문자열
+ * @param client_ip 클라이언트 IP 문자열
+ * @return char* 렌더링된 HTML 문자열, 실패 시 NULL
+ */
+char *app_render_block_page(const char *template_path, const char *event_id,
+                            const char *timestamp, const char *client_ip) {
+    const char *p;
+    char       *template_text;
+    html_buf_t  out = {0};
+    int         ret;
+
+    /* 템플릿 경로가 없으면 렌더링 자체를 진행할 수 없다. */
+    if (!template_path) {
+        return NULL;
+    }
+
+    /* 템플릿 파일 전체를 메모리로 읽어 토큰 치환 대상으로 사용한다. */
+    template_text = read_text_file(template_path);
+    if (!template_text) {
+        return NULL;
+    }
+
+    /* 템플릿을 한 글자씩 훑으면서 알려진 토큰만 치환한다. */
+    p = template_text;
+    while (*p != '\0') {
+        /* 이벤트 ID는 HTML escape 후 삽입해 XSS 가능성을 줄인다. */
+        ret = strncmp(p, "{{EVENT_ID}}", 12);
+        if (0 == ret) {
+            ret = html_buf_append_html_escaped(&out, event_id ? event_id : "-");
+            if (0 != ret) {
+                free(template_text);
+                free(out.buf);
+                return NULL;
+            }
+            p += 12;
+            continue;
+        }
+
+        /* 차단 시각도 템플릿 토큰과 매칭되면 escape 후 삽입한다. */
+        ret = strncmp(p, "{{TIMESTAMP}}", 13);
+        if (0 == ret) {
+            ret =
+                html_buf_append_html_escaped(&out, timestamp ? timestamp : "-");
+            if (0 != ret) {
+                free(template_text);
+                free(out.buf);
+                return NULL;
+            }
+            p += 13;
+            continue;
+        }
+
+        /* 클라이언트 IP 역시 그대로 출력하지 않고 escape 후 삽입한다. */
+        ret = strncmp(p, "{{CLIENT_IP}}", 13);
+        if (0 == ret) {
+            ret =
+                html_buf_append_html_escaped(&out, client_ip ? client_ip : "-");
+            if (0 != ret) {
+                free(template_text);
+                free(out.buf);
+                return NULL;
+            }
+            p += 13;
+            continue;
+        }
+
+        /*
+         * 로고 이미지는 data URI가 들어간 <img> 마크업 전체를 삽입한다.
+         * 이미지 파일을 찾지 못한 경우엔 빈 문자열로 대체해 깨진 아이콘을
+         * 노출하지 않는다.
+         */
+        ret = strncmp(p, "{{LOGO_IMAGE}}", 14);
+        if (0 == ret) {
+            ret = html_buf_append_str(&out, get_logo_image_html());
+            if (0 != ret) {
+                free(template_text);
+                free(out.buf);
+                return NULL;
+            }
+            p += 14;
+            continue;
+        }
+
+        /* 치환 대상이 아닌 일반 텍스트는 그대로 출력 버퍼에 복사한다. */
+        ret = html_buf_append_char(&out, *p);
+        if (0 != ret) {
+            free(template_text);
+            free(out.buf);
+            return NULL;
+        }
+        p++;
+    }
+
+    free(template_text);
+
+    /* 빈 템플릿이어도 호출자는 NUL 종료 문자열을 기대하므로 빈 문자열을 만든다. */
+    if (!out.buf) {
+        char *empty = (char *)malloc(1U);
+        if (!empty) {
+            return NULL;
+        }
+        empty[0] = '\0';
+        return empty;
+    }
+    return out.buf;
+}
+
+/**
+ * @brief 렌더링된 HTML을 403 HTTP 응답 문자열로 감싼다.
+ *
+ * Content-Length를 계산한 뒤 차단 페이지 HTML을 포함하는 완전한
+ * HTTP/1.1 403 응답을 생성한다.
+ *
+ * @param html_body 응답 body로 사용할 HTML 문자열
+ * @param out_len 생성된 응답 길이를 받을 포인터
+ * @return char* 완성된 HTTP 응답 문자열, 실패 시 NULL
+ */
+char *app_build_block_http_response(const char *html_body, size_t *out_len) {
+    static const char response_fmt[] =
+        "HTTP/1.1 403 Forbidden\r\n"
+        "Content-Type: text/html; charset=UTF-8\r\n"
+        "Cache-Control: no-store\r\n"
+        "Connection: close\r\n"
+        "Content-Length: %zu\r\n"
+        "X-Mini-IPS-Block: 1\r\n"
+        "\r\n"
+        "%s";
+    char  *resp;
+    int    n;
+    size_t body_len;
+    size_t total_len;
+
+    /* body가 없으면 Content-Length 계산과 응답 조립을 할 수 없다. */
+    if (!html_body) {
+        return NULL;
+    }
+
+    /* 응답 본문의 길이를 기준으로 최종 HTTP 응답 길이를 먼저 계산한다. */
+    body_len = strlen(html_body);
+    n        = snprintf(NULL, 0, response_fmt, body_len, html_body);
+    if (0 > n) {
+        return NULL;
+    }
+
+    total_len = (size_t)n;
+    resp      = (char *)malloc(total_len + 1U);
+    if (!resp) {
+        return NULL;
+    }
+
+    /* 계산한 길이만큼 실제 응답 문자열을 조립한다. */
+    snprintf(resp, total_len + 1U, response_fmt, body_len, html_body);
+    if (out_len) {
+        *out_len = total_len;
+    }
+    return resp;
 }

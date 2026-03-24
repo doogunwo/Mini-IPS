@@ -148,6 +148,19 @@ def parse_text_entry(entry: str) -> tuple[str, str]:
     return "-", entry
 
 
+def render_raw_line_toggle(row: sqlite3.Row) -> str:
+    raw_line = row["raw_line"] or ""
+    if not raw_line:
+        return ""
+    event_id = html.escape(str(row["event_id"] or row["id"] or "-"))
+    return (
+        "<details class='raw-toggle'>"
+        f"<summary>Raw Line ({event_id})</summary>"
+        f"<pre class='raw-log'>{html.escape(raw_line)}</pre>"
+        "</details>"
+    )
+
+
 def render_detail_html(row: sqlite3.Row) -> str:
     event = row["event"] or ""
     if event == "rst_request":
@@ -157,12 +170,20 @@ def render_detail_html(row: sqlite3.Row) -> str:
         rules = split_serialized(row["matched"])
         texts = split_serialized(row["matched_texts"])
         lines = []
-        max_len = max(len(rules), len(texts))
-        for idx in range(max_len):
+        pair_len = min(len(rules), len(texts))
+
+        if pair_len == 0 and rules:
+            pair_len = len(rules)
+
+        for idx in range(pair_len):
             rule_ctx, policy, regex = (
                 parse_rule_entry(rules[idx]) if idx < len(rules) else ("-", "-", "-")
             )
-            text_ctx, matched_text = parse_text_entry(texts[idx]) if idx < len(texts) else (rule_ctx, "-")
+            text_ctx, matched_text = (
+                parse_text_entry(texts[idx])
+                if idx < len(texts)
+                else (rule_ctx, "[matched text unavailable]")
+            )
             context = text_ctx if text_ctx != "-" else rule_ctx
             lines.append(
                 "<div class='detail-line'>"
@@ -172,13 +193,28 @@ def render_detail_html(row: sqlite3.Row) -> str:
                 f"<div><span class='detail-key'>match</span>=<code>{html.escape(matched_text)}</code></div>"
                 "</div>"
             )
+
+        omitted = max(len(rules), len(texts)) - pair_len
+        if omitted > 0:
+            lines.append(
+                "<div class='detail-line'>"
+                "<div><span class='detail-label'>DETAIL</span></div>"
+                f"<div><span class='detail-key'>note</span>=<code>{omitted} additional entries omitted or truncated</code></div>"
+                "</div>"
+            )
         if lines:
-            return f"<div class='detail-stack'>{''.join(lines)}</div>"
+            return (
+                f"<div class='detail-stack'>{''.join(lines)}</div>"
+                f"{render_raw_line_toggle(row)}"
+            )
 
     detail = row["detail"] or row["raw_line"] or row["matched_texts"] or row["matched"] or ""
     if not detail:
         return "<span class='muted-cell'>-</span>"
-    return f"<code>{html.escape(detail)}</code>"
+    return (
+        f"<code>{html.escape(detail)}</code>"
+        f"{render_raw_line_toggle(row)}"
+    )
 
 
 def render_page(overview, summary, rows, selected_event: Optional[str], query: Optional[str], limit: int) -> bytes:
@@ -545,6 +581,38 @@ def render_page(overview, summary, rows, selected_event: Optional[str], query: O
       font-size: 10px;
       text-transform: uppercase;
       letter-spacing: 0.08em;
+    }}
+    .raw-toggle {{
+      margin-top: 8px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(47,111,237,0.12);
+      background: rgba(47,111,237,0.04);
+    }}
+    .raw-toggle summary {{
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+      color: #24456e;
+      list-style: none;
+    }}
+    .raw-toggle summary::-webkit-details-marker {{
+      display: none;
+    }}
+    .raw-log {{
+      margin: 10px 0 0;
+      padding: 12px;
+      max-height: 320px;
+      overflow: auto;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      border-radius: 10px;
+      background: rgba(15, 23, 42, 0.06);
+      color: #17263b;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.5;
     }}
     .event-list {{ display: grid; gap: 10px; }}
     .event-row {{
