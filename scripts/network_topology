@@ -1,0 +1,40 @@
+digraph NetworkTopology {
+	nodesep=0.8 rankdir=TB splines=ortho
+	node [fillcolor="#f9f9f9" fontname=Consolas shape=box style=filled]
+	subgraph cluster_client {
+		fillcolor="#e6f2ff" label=ns_client style=dashed
+		client [label="iface: veth_c
+IP: 20.0.1.100/24
+route: 10.0.1.0/24 via 20.0.1.1"]
+	}
+	subgraph cluster_router {
+		fillcolor="#fff2e6" label="ns_router (라우팅 전담)" style=dashed
+		router_c [label="iface: veth_r_c
+IP: 20.0.1.1/24"]
+		router_p [label="iface: veth_r_p
+IP: 10.0.1.1/24"]
+		router_sysctl [label="sysctl: net.ipv4.ip_forward=1" fillcolor=none shape=plaintext]
+	}
+	subgraph cluster_proxy {
+		fillcolor="#e6ffe6" label="ns_proxy (브리지 + TPROXY 전담)" style=dashed
+		proxy_r [label="port: veth_p_r"]
+		proxy_br0 [label="bridge: br0" shape=ellipse]
+		proxy_s [label="port: veth_p_s"]
+		proxy_rules [label="sysctl: net.ipv4.ip_forward=0
+TPROXY target: 20.0.1.100 -> 10.0.1.100:8080 => local :50080
+ip rule: fwmark 0x1 lookup table 100
+table100: local 0.0.0.0/0 dev lo" fillcolor="#ffffff" shape=note]
+		proxy_r -> proxy_br0 [dir=none]
+		proxy_s -> proxy_br0 [dir=none]
+	}
+	subgraph cluster_server {
+		fillcolor="#ffe6e6" label=ns_server style=dashed
+		server [label="iface: veth_s
+IP: 10.0.1.100/24
+route: 20.0.1.0/24 via 10.0.1.1
+service: TCP 8080"]
+	}
+	client -> router_c [label=" veth pair" dir=both]
+	router_p -> proxy_r [label=" veth pair" dir=both]
+	proxy_s -> server [label=" veth pair" dir=both]
+}

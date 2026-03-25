@@ -10,4 +10,4 @@ if [ -f .env.docker ]; then
   . ./.env.docker
   set +a
 fi
-docker compose stop server ips bot
+docker compose down

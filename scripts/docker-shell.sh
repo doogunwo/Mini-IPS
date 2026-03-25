@@ -2,7 +2,7 @@
 set -e
 
 if [ $# -ne 1 ]; then
-  echo "usage: $0 <server|ips|bot>" >&2
+  echo "usage: $0 <client|server|ips>" >&2
   exit 1
 fi
 

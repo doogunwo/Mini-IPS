@@ -1,143 +1,94 @@
 services:
-  server:
-    build: ./server
-    working_dir: /app
-    command: ["sh", "-c", "trap : TERM INT; sleep infinity & wait"]
-    volumes:
-      - ./runtime-logs/server:/logs
-    environment:
-      TZ: Asia/Seoul
-      SERVER_IP: ${SERVER_CONTAINER_IP:-172.31.0.60}
-      SERVER_PORT: ${SERVER_PORT:-8080}
-      SERVER_GATEWAY: ${IPS_CONTAINER_IP:-172.31.0.59}
-      SERVER_CPU: ${SERVER_CPU:-3}
+  client:
+    build: ./client
+    profiles: ["manual"]
+    networks:
+      client_net:
+        ipv4_address: ${CLIENT_IP:-20.0.1.100}
+    command:
+      - sh
+      - -c
+      - >
+        if command -v ip >/dev/null 2>&1; then
+          ip route replace ${CLIENT_ROUTE_TO_SERVER_SUBNET:-10.0.1.0/24} via ${ROUTER_CLIENT_IP:-20.0.1.254};
+        fi;
+        trap : TERM INT; sleep infinity & wait
     stdin_open: true
     tty: true
     cap_add:
       - NET_ADMIN
-    networks:
-      lan:
-        ipv4_address: ${SERVER_CONTAINER_IP:-172.31.0.60}
-
-  normal1:
-    build: ./normal
-    working_dir: /app
-    command: ["sh", "/app/run.sh"]
-    environment:
-      TZ: Asia/Seoul
-      SERVER_IP: ${SERVER_CONTAINER_IP:-172.31.0.60}
-      SERVER_PORT: ${SERVER_PORT:-8080}
-      CLIENT_VERBOSE: 1
-    networks:
-      lan:
-        ipv4_address: ${NORMAL1_CONTAINER_IP:-172.31.0.61}
-
-  normal2:
-    build: ./normal
-    working_dir: /app
-    command: ["sh", "/app/run.sh"]
-    environment:
-      TZ: Asia/Seoul
-      SERVER_IP: ${SERVER_CONTAINER_IP:-172.31.0.60}
-      SERVER_PORT: ${SERVER_PORT:-8080}
-      CLIENT_VERBOSE: 1
-    networks:
-      lan:
-        ipv4_address: ${NORMAL2_CONTAINER_IP:-172.31.0.62}
-
-  normal3:
-    build: ./normal
-    working_dir: /app
-    command: ["sh", "/app/run.sh"]
-    environment:
-      TZ: Asia/Seoul
-      SERVER_IP: ${SERVER_CONTAINER_IP:-172.31.0.60}
-      SERVER_PORT: ${SERVER_PORT:-8080}
-      CLIENT_VERBOSE: 1
-    networks:
-      lan:
-        ipv4_address: ${NORMAL3_CONTAINER_IP:-172.31.0.63}
-
-  normal4:
-    build: ./normal
-    working_dir: /app
-    command: ["sh", "/app/run.sh"]
-    environment:
-      TZ: Asia/Seoul
-      SERVER_IP: ${SERVER_CONTAINER_IP:-172.31.0.60}
-      SERVER_PORT: ${SERVER_PORT:-8080}
-      CLIENT_VERBOSE: 1
-    networks:
-      lan:
-        ipv4_address: ${NORMAL4_CONTAINER_IP:-172.31.0.64}
-
-  normal5:
-    build: ./normal
-    working_dir: /app
-    command: ["sh", "/app/run.sh"]
-    environment:
-      TZ: Asia/Seoul
-      SERVER_IP: ${SERVER_CONTAINER_IP:-172.31.0.60}
-      SERVER_PORT: ${SERVER_PORT:-8080}
-      CLIENT_VERBOSE: 1
-    networks:
-      lan:
-        ipv4_address: ${NORMAL5_CONTAINER_IP:-172.31.0.65}
-
-  bot:
-    build: ./bot
-    working_dir: /app
-    command: ["sh", "-c", "trap : TERM INT; sleep infinity & wait"]
     volumes:
-      - ./runtime-logs/bot:/logs
-    environment:
-      TZ: Asia/Seoul
-      BOT_IP: ${SERVER_CONTAINER_IP:-172.31.0.60}
-      BOT_PORT: ${SERVER_PORT:-8080}
-      BOT_MODE: ${BOT_MODE:-url}
-      BOT_PAYLOAD: ${BOT_PAYLOAD:-sqli}
-      BOT_URI_SIZE: ${BOT_URI_SIZE:-8192}
-      BOT_BODY_SIZE: ${BOT_BODY_SIZE:-1048576}
-      BOT_HEADER_SIZE: ${BOT_HEADER_SIZE:-4096}
-      BOT_PREFIX: ${BOT_PREFIX:-}
-      BOT_SUFFIX: ${BOT_SUFFIX:-}
-      BOT_SEED: ${BOT_SEED:-10}
-      BOT_VERBOSE: ${BOT_VERBOSE:-1}
-      BOT_COUNT: ${BOT_COUNT:-20}
-      BOT_CPU: ${BOT_CPU:-4}
+      - ./runtime-logs/client:/app/reports
+
+  router:
+    build: ./router
+    profiles: ["manual"]
+    networks:
+      client_net:
+        ipv4_address: ${ROUTER_CLIENT_IP:-20.0.1.254}
+      server_net:
+        ipv4_address: ${ROUTER_SERVER_IP:-10.0.1.254}
+    command: ["/app/start.sh"]
     stdin_open: true
     tty: true
-    networks:
-      lan:
-        ipv4_address: ${BOT_CONTAINER_IP:-172.31.0.58}
+    cap_add:
+      - NET_ADMIN
+    sysctls:
+      net.ipv4.ip_forward: "1"
+
   ips:
     build: ./ips
+    profiles: ["manual"]
+    network_mode: none
     working_dir: /app
     command: ["sh", "-c", "trap : TERM INT; sleep infinity & wait"]
     volumes:
       - ./runtime-logs/ips:/logs
-      - ./ips/DB:/app/DB
-    ports:
-      - "8090:8090"
+      - ./ips:/app
     environment:
       TZ: Asia/Seoul
-      IFACE: ${IPS_IFACE:-eth0}
-      BPF: tcp and host ${SERVER_CONTAINER_IP:-172.31.0.60} and port ${SERVER_PORT:-8080}
-      MODE: ${IPS_MODE:-sniffing}
-      MAIN_CPU: ${MAIN_CPU:-0}
-      INGEST_CPU: ${INGEST_CPU:-1}
-      WEB_CPU: ${WEB_CPU:-2}
     stdin_open: true
     tty: true
     cap_add:
       - NET_ADMIN
       - NET_RAW
+    sysctls:
+      net.ipv4.conf.all.route_localnet: "1"
+      net.ipv4.conf.all.rp_filter: "0"
+
+  server:
+    build: ./server
     networks:
-      lan:
-        ipv4_address: ${IPS_CONTAINER_IP:-172.31.0.59}
+      server_net:
+        ipv4_address: ${SERVER_IP:-10.0.1.100}
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - >
+        if command -v ip >/dev/null 2>&1; then
+          ip route replace ${SERVER_ROUTE_TO_CLIENT_SUBNET:-20.0.1.0/24} via ${ROUTER_SERVER_IP:-10.0.1.254};
+        fi;
+        exec /app/start-log.sh
+    volumes:
+      - ./runtime-logs/server:/logs
+    environment:
+      TZ: Asia/Seoul
+      SERVER_CPU: ${SERVER_CPU:-0}
+      LOG_FILE: ${SERVER_LOG_FILE:-/logs/server.log}
+    stdin_open: true
+    tty: true
+    cap_add:
+      - NET_ADMIN
+
 networks:
-  lan:
+  client_net:
     driver: bridge
     ipam:
       config:
-        - subnet: ${LAN_SUBNET:-172.31.0.0/24}
+        - subnet: ${CLIENT_SUBNET:-20.0.1.0/24}
+  server_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${SERVER_SUBNET:-10.0.1.0/24}

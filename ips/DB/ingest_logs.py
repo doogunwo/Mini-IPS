@@ -35,6 +35,21 @@ PARSE_KEYS = {
     "detect_us",
     "detect_ms",
     "detail",
+    "interval_ms",
+    "worker_count",
+    "pps",
+    "req_ps",
+    "detect_ps",
+    "queue_depth",
+    "reasm_in_order_ps",
+    "reasm_out_of_order_ps",
+    "reasm_trimmed_ps",
+    "total_packets",
+    "total_reqs",
+    "total_detect",
+    "total_reasm_in_order",
+    "total_reasm_out_of_order",
+    "total_reasm_trimmed",
 }
 
 VALUE_LIMITS = {

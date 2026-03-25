@@ -10,4 +10,4 @@ if [ -f .env.docker ]; then
   . ./.env.docker
   set +a
 fi
-docker compose up --build -d server ips bot
+docker compose up --build -d server
