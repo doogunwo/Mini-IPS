@@ -1,0 +1,18 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ContinuationIndentWidth: 4
+
+# Keep braces attached (don't push function brace to next line)
+BreakBeforeBraces: Attach
+
+# Avoid awkward horizontal alignment padding
+AlignAfterOpenBracket: DontAlign
+AlignConsecutiveDeclarations: false
+AlignConsecutiveAssignments: false
+AlignOperands: DontAlign
+
+# Prefer one parameter per wrapped line without extra column alignment
+BinPackParameters: false
+BinPackArguments: false

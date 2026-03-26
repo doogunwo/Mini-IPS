@@ -1,9 +1,10 @@
 /**
  * @file test_packet_ring_full.c
- * @brief 컨슈머를 의도적으로 늦춰서 큐를 자주 가득 채워보기,  busy-wait가 과도한 CPU 사용을 만드는지
- * 
+ * @brief 컨슈머를 의도적으로 늦춰서 큐를 자주 가득 채워보기,  busy-wait가
+ * 과도한 CPU 사용을 만드는지
+ *
  * @copyright Copyright (c) 2026
- * 
+ *
  */
 #include <stdint.h>
 #include <stdio.h>
@@ -21,14 +22,14 @@
 
 int main(void) {
     packet_ring_t ring;
-    uint8_t pkt0[] = {0x10};
-    uint8_t pkt1[] = {0x11};
-    uint8_t pkt2[] = {0x12};
-    uint8_t pkt3[] = {0x13};
-    uint8_t pkt4[] = {0x14};
-    uint8_t out[4];
-    uint32_t out_len = 0;
-    uint64_t out_ts_ns = 0;
+    uint8_t       pkt0[] = {0x10};
+    uint8_t       pkt1[] = {0x11};
+    uint8_t       pkt2[] = {0x12};
+    uint8_t       pkt3[] = {0x13};
+    uint8_t       pkt4[] = {0x14};
+    uint8_t       out[4];
+    uint32_t      out_len   = 0;
+    uint64_t      out_ts_ns = 0;
 
     CHECK(0 == packet_ring_init(&ring, 4, 0), "packet_ring_init failed");
 
@@ -70,14 +71,15 @@ int main(void) {
 
     CHECK(4 == ring.stats.deq_ok, "deq_ok mismatch");
 
-    fprintf(stderr,
-            "[test_packet_ring_full] fill_count=4 drop_full=%llu wait_full=%llu "
-            "enq_ok=%llu deq_ok=%llu last_out=0x%02x last_ts_ns=%llu\n",
-            (unsigned long long)ring.stats.drop_full,
-            (unsigned long long)ring.stats.wait_full,
-            (unsigned long long)ring.stats.enq_ok,
-            (unsigned long long)ring.stats.deq_ok,
-            out[0], (unsigned long long)out_ts_ns);
+    fprintf(
+        stderr,
+        "[test_packet_ring_full] fill_count=4 drop_full=%llu wait_full=%llu "
+        "enq_ok=%llu deq_ok=%llu last_out=0x%02x last_ts_ns=%llu\n",
+        (unsigned long long)ring.stats.drop_full,
+        (unsigned long long)ring.stats.wait_full,
+        (unsigned long long)ring.stats.enq_ok,
+        (unsigned long long)ring.stats.deq_ok, out[0],
+        (unsigned long long)out_ts_ns);
 
     packet_ring_destroy(&ring);
     printf("ok: test_packet_ring_full\n");

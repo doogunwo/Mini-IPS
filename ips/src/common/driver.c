@@ -19,10 +19,11 @@ typedef struct worker_arg {
     /* 공유 driver runtime 포인터 */
     driver_runtime_t *rt;
     /* 담당 worker 인덱스 */
-    uint32_t          index;
+    uint32_t index;
 } worker_arg_t;
 
-/* --------------------------- flow hashing / dispatch --------------------------- */
+/* --------------------------- flow hashing / dispatch
+ * --------------------------- */
 
 /**
  * @brief (ip, port) 두 엔드포인트를 사전식 비교함
@@ -114,14 +115,14 @@ static uint32_t flow_hash_5tuple(uint32_t sip, uint32_t dip, uint16_t sport,
     cmp = endpoint_cmp(sip, sport, dip, dport);
     if (0 < cmp) {
         /* IP swap 임시값 */
-        uint32_t tmp_ip   = sip;
+        uint32_t tmp_ip = sip;
         /* port swap 임시값 */
         uint16_t tmp_port = sport;
         /* source/destination 교체 */
-        sip               = dip;
-        sport             = dport;
-        dip               = tmp_ip;
-        dport             = tmp_port;
+        sip   = dip;
+        sport = dport;
+        dip   = tmp_ip;
+        dport = tmp_port;
     }
 
     /* 정규화된 5-tuple 해시 계산 */
@@ -154,8 +155,8 @@ static uint32_t flow_hash_fragment(uint32_t sip, uint32_t dip, uint16_t ip_id,
         /* IP swap 임시값 */
         uint32_t tmp_ip = sip;
         /* source/destination 교체 */
-        sip             = dip;
-        dip             = tmp_ip;
+        sip = dip;
+        dip = tmp_ip;
     }
 
     /* fragment 해시 계산 */
@@ -189,13 +190,13 @@ static int parse_ipv4_dispatch_key(const uint8_t *pkt, uint32_t len,
     /* 현재 파싱 위치 */
     const uint8_t *p = pkt;
     /* 남은 바이트 수 */
-    uint32_t       n;
+    uint32_t n;
     /* Ethernet type */
-    uint16_t       eth_type;
+    uint16_t eth_type;
     /* IPv4 header length */
-    uint32_t       ihl;
+    uint32_t ihl;
     /* IPv4 total length */
-    uint16_t       total_len;
+    uint16_t total_len;
 
     /* 출력 포인터 유효성 검사 */
     if (!pkt || !l4 || !l4_len || !sip || !dip || !ip_id || !frag_field ||
@@ -257,15 +258,15 @@ static int parse_ipv4_dispatch_key(const uint8_t *pkt, uint32_t len,
     }
 
     /* IPv4 identification 저장 */
-    *ip_id      = (uint16_t)((p[4] << 8) | p[5]);
+    *ip_id = (uint16_t)((p[4] << 8) | p[5]);
     /* fragment field 저장 */
     *frag_field = (uint16_t)((p[6] << 8) | p[7]);
     /* source IPv4 추출 */
-    *sip    = (uint32_t)((p[12] << 24) | (p[13] << 16) | (p[14] << 8) | p[15]);
+    *sip = (uint32_t)((p[12] << 24) | (p[13] << 16) | (p[14] << 8) | p[15]);
     /* destination IPv4 추출 */
-    *dip    = (uint32_t)((p[16] << 24) | (p[17] << 16) | (p[18] << 8) | p[19]);
+    *dip = (uint32_t)((p[16] << 24) | (p[17] << 16) | (p[18] << 8) | p[19]);
     /* L4 시작 포인터 설정 */
-    *l4     = p + ihl;
+    *l4 = p + ihl;
     /* L4 길이 계산 */
     *l4_len = (uint32_t)(total_len - ihl);
     /* 파싱 성공 */
@@ -288,17 +289,17 @@ static int parse_ipv4_5tuple(const uint8_t *pkt, uint32_t len, uint32_t *sip,
                              uint32_t *dip, uint16_t *sport, uint16_t *dport,
                              uint8_t *proto) {
     /* L4 시작 포인터 */
-    const uint8_t *l4         = NULL;
+    const uint8_t *l4 = NULL;
     /* L4 길이 */
-    uint32_t       l4_len     = 0;
+    uint32_t l4_len = 0;
     /* IPv4 identification */
-    uint16_t       ip_id      = 0;
+    uint16_t ip_id = 0;
     /* fragment field */
-    uint16_t       frag_field = 0;
+    uint16_t frag_field = 0;
     /* fragment offset */
-    uint16_t       frag_offset;
+    uint16_t frag_offset;
     /* helper 반환값 */
-    int            ret;
+    int ret;
 
     /* port 출력 포인터 검사 */
     if (NULL == sport || NULL == dport) {
@@ -345,23 +346,23 @@ static int parse_ipv4_5tuple(const uint8_t *pkt, uint32_t len, uint32_t *sip,
 static uint32_t pick_worker_idx(capture_ctx_t *cc, const uint8_t *pkt,
                                 uint32_t len, uint32_t worker_count) {
     /* L4 시작 포인터 */
-    const uint8_t *l4     = NULL;
+    const uint8_t *l4 = NULL;
     /* L4 길이 */
-    uint32_t       l4_len = 0;
+    uint32_t l4_len = 0;
     /* IPv4 source/destination */
-    uint32_t       sip = 0, dip = 0;
+    uint32_t sip = 0, dip = 0;
     /* L4 source/destination port */
-    uint16_t       sport = 0, dport = 0;
+    uint16_t sport = 0, dport = 0;
     /* IPv4 identification */
-    uint16_t       ip_id       = 0;
+    uint16_t ip_id = 0;
     /* fragment field */
-    uint16_t       frag_field  = 0;
+    uint16_t frag_field = 0;
     /* fragment offset */
-    uint16_t       frag_offset = 0;
+    uint16_t frag_offset = 0;
     /* L4 protocol */
-    uint8_t        proto       = 0;
+    uint8_t proto = 0;
     /* helper 반환값 */
-    int            ret;
+    int ret;
 
     /* worker가 없으면 0번 반환 */
     if (0 == worker_count) {
@@ -446,7 +447,7 @@ int capture_create(capture_ctx_t *cc, pcap_ctx_t *pc) {
     cc->handle = NULL;
 
     /* libpcap 오류 버퍼 */
-    char    errbuf[PCAP_ERRBUF_SIZE];
+    char errbuf[PCAP_ERRBUF_SIZE];
     /* pcap handle 생성 결과 */
     pcap_t *h = pcap_create(pc->dev, errbuf);
     if (!h) {
@@ -549,7 +550,7 @@ int capture_poll_once(capture_ctx_t *cc) {
     /* libpcap packet header 포인터 */
     struct pcap_pkthdr *hdr;
     /* libpcap packet data 포인터 */
-    const u_char       *pkt;
+    const u_char *pkt;
 
     /* libpcap에서 실제 패킷 1건을 가져오는 지점이다. */
     int ret = pcap_next_ex(cc->handle, &hdr, &pkt);
@@ -596,7 +597,7 @@ static void *capture_thread_func(void *arg) {
     /* 공유 runtime 포인터 */
     driver_runtime_t *rt = arg;
     /* stop 플래그 스냅샷 */
-    int               stop;
+    int stop;
 
     /* 초기 stop 상태 읽기 */
     stop = atomic_load(&rt->stop);
@@ -640,21 +641,21 @@ static void *capture_thread_func(void *arg) {
  */
 static void *worker_thread_func(void *arg) {
     /* worker 인자 포인터 */
-    worker_arg_t     *wa   = arg;
+    worker_arg_t *wa = arg;
     /* 공유 runtime 포인터 */
-    driver_runtime_t *rt   = wa->rt;
+    driver_runtime_t *rt = wa->rt;
     /* 담당 worker index */
-    uint32_t          idx  = wa->index;
+    uint32_t idx = wa->index;
     /* 담당 ring 포인터 */
-    packet_ring_t    *ring = &rt->queues.q[idx];
+    packet_ring_t *ring = &rt->queues.q[idx];
     /* dequeue payload 임시 버퍼 */
-    uint8_t           buf[PACKET_MAX_BYTES];
+    uint8_t buf[PACKET_MAX_BYTES];
     /* dequeue된 길이 */
-    uint32_t          len;
+    uint32_t len;
     /* dequeue된 timestamp */
-    uint64_t          ts;
+    uint64_t ts;
     /* stop 플래그 스냅샷 */
-    int               stop;
+    int stop;
 
     /* 초기 stop 상태 읽기 */
     stop = atomic_load(&rt->stop);
@@ -719,19 +720,19 @@ int driver_init(driver_runtime_t *rt, int worker_count) {
     }
 
     /* capture handle 초기화 */
-    rt->cc.handle       = NULL;
+    rt->cc.handle = NULL;
     /* queue set 연결 포인터 초기화 */
-    rt->cc.queues       = NULL;
+    rt->cc.queues = NULL;
     /* round-robin 인덱스 초기화 */
-    rt->cc.rr           = 0;
+    rt->cc.rr = 0;
     /* capture thread ID 초기화 */
-    rt->capture_tid     = (pthread_t)0;
+    rt->capture_tid = (pthread_t)0;
     /* worker thread ID 배열 초기화 */
-    rt->worker_tids     = NULL;
+    rt->worker_tids = NULL;
     /* worker arg 배열 초기화 */
-    rt->worker_args     = NULL;
+    rt->worker_args = NULL;
     /* worker 수 초기화 */
-    rt->worker_count    = 0;
+    rt->worker_count = 0;
     /* capture 시작 플래그 초기화 */
     rt->capture_started = 0;
     /* 시작된 worker 수 초기화 */
@@ -743,11 +744,11 @@ int driver_init(driver_runtime_t *rt, int worker_count) {
     /* last_error 초기화 */
     atomic_init(&rt->last_error, 0);
     /* packet 콜백 초기화 */
-    rt->on_packet         = NULL;
+    rt->on_packet = NULL;
     /* 공통 user 포인터 초기화 */
-    rt->on_packet_user    = NULL;
+    rt->on_packet_user = NULL;
     /* worker별 user 배열 초기화 */
-    rt->worker_users      = NULL;
+    rt->worker_users = NULL;
     /* worker별 user 개수 초기화 */
     rt->worker_user_count = 0;
     /* queue set 구조체 초기화 */
@@ -812,7 +813,7 @@ int driver_init(driver_runtime_t *rt, int worker_count) {
     /* capture context에 queue set 연결 */
     rt->cc.queues = &rt->queues;
     /* round-robin 인덱스 초기화 */
-    rt->cc.rr     = 0;
+    rt->cc.rr = 0;
     /* driver init 성공 */
     return 0;
 }
@@ -847,9 +848,9 @@ int driver_start(driver_runtime_t *rt) {
         /* i번째 worker arg 포인터 */
         worker_arg_t *wa = &((worker_arg_t *)rt->worker_args)[i];
         /* runtime 연결 */
-        wa->rt           = rt;
+        wa->rt = rt;
         /* worker index 기록 */
-        wa->index        = (uint32_t)i;
+        wa->index = (uint32_t)i;
 
         /* worker thread 생성 */
         ret = pthread_create(&rt->worker_tids[i], NULL, worker_thread_func, wa);
@@ -924,7 +925,7 @@ int driver_stop(driver_runtime_t *rt) {
         /* capture thread join */
         pthread_join(rt->capture_tid, NULL);
         /* thread ID 초기화 */
-        rt->capture_tid     = (pthread_t)0;
+        rt->capture_tid = (pthread_t)0;
         /* capture 시작 플래그 해제 */
         rt->capture_started = 0;
     }
@@ -969,17 +970,17 @@ void driver_destroy(driver_runtime_t *rt) {
     rt->worker_args = NULL;
 
     /* worker별 user 배열 초기화 */
-    rt->worker_users      = NULL;
+    rt->worker_users = NULL;
     /* worker user 개수 초기화 */
     rt->worker_user_count = 0;
     /* 콜백 초기화 */
-    rt->on_packet         = NULL;
+    rt->on_packet = NULL;
     /* 공통 user 포인터 초기화 */
-    rt->on_packet_user    = NULL;
+    rt->on_packet_user = NULL;
     /* worker 수 초기화 */
-    rt->worker_count      = 0;
+    rt->worker_count = 0;
     /* capture queue 연결 해제 */
-    rt->cc.queues         = NULL;
+    rt->cc.queues = NULL;
     /* handler mutex 정리 */
     pthread_mutex_destroy(&rt->handler_mu);
 
@@ -1035,12 +1036,12 @@ void driver_set_packet_handler(driver_runtime_t *rt, driver_packet_cb cb,
     /* handler 설정 보호 락 획득 */
     pthread_mutex_lock(&rt->handler_mu);
     /* 공통 packet 콜백 저장 */
-    rt->on_packet      = cb;
+    rt->on_packet = cb;
     /* 공통 user 포인터 저장 */
     rt->on_packet_user = user;
 
     /* worker별 user 배열 비활성화 */
-    rt->worker_users      = NULL;
+    rt->worker_users = NULL;
     /* worker별 user 개수 초기화 */
     rt->worker_user_count = 0;
     /* handler 설정 보호 락 해제 */
@@ -1064,9 +1065,9 @@ void driver_set_packet_handler_multi(driver_runtime_t *rt, driver_packet_cb cb,
     /* handler 설정 보호 락 획득 */
     pthread_mutex_lock(&rt->handler_mu);
     /* 공통 packet 콜백 저장 */
-    rt->on_packet         = cb;
+    rt->on_packet = cb;
     /* worker별 user 배열 저장 */
-    rt->worker_users      = users;
+    rt->worker_users = users;
     /* worker별 user 개수 저장 */
     rt->worker_user_count = user_count;
 

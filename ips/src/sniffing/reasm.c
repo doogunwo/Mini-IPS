@@ -35,12 +35,12 @@ typedef struct reasm_seg_node {
  * @brief 방향별 재조립 상태
  */
 typedef struct reasm_dir {
-    uint8_t  has_next;  /**< next_seq가 유효한지 */
-    uint32_t next_seq;  /**< 다음에 와야 하는 sequence */
-    uint8_t  fin_seen;  /**< FIN 관측 여부 */
-    uint8_t  rst_seen;  /**< RST 관측 여부 */
+    uint8_t  has_next; /**< next_seq가 유효한지 */
+    uint32_t next_seq; /**< 다음에 와야 하는 sequence */
+    uint8_t  fin_seen; /**< FIN 관측 여부 */
+    uint8_t  rst_seen; /**< RST 관측 여부 */
 
-    reasm_seg_node_t *head;         /**< seq 정렬된 대기 세그먼트 리스트 */
+    reasm_seg_node_t *head; /**< seq 정렬된 대기 세그먼트 리스트 */
     uint32_t          seg_count;    /**< 대기 세그먼트 개수 */
     uint32_t          bytes_queued; /**< 현재 대기 바이트 수 */
 } reasm_dir_t;
@@ -70,7 +70,8 @@ struct reasm_ctx {
     reasm_stats_t    stats;
 };
 
-/* --------------------------- session / storage helpers --------------------------- */
+/* --------------------------- session / storage helpers
+ * --------------------------- */
 
 /**
  * @brief flow key에 대한 FNV 기반 해시를 계산한다.
@@ -80,7 +81,7 @@ struct reasm_ctx {
  */
 static uint32_t reasm_flow_hash(const flow_key_t *k) {
     /* FNV hash seed */
-    uint32_t       h     = 2166136261u;
+    uint32_t h = 2166136261u;
     /* FNV prime */
     const uint32_t prime = 16777619u;
 
@@ -272,7 +273,7 @@ static reasm_session_t *reasm_get_or_create(reasm_ctx_t *c, const flow_key_t *k,
     /* 조회 또는 생성 결과 세션 */
     reasm_session_t *s;
     /* bucket index */
-    uint32_t         idx;
+    uint32_t idx;
 
     /* 기존 세션이 있으면 그대로 재사용 */
     s = reasm_lookup(c, k, ts_ms);
@@ -288,7 +289,7 @@ static reasm_session_t *reasm_get_or_create(reasm_ctx_t *c, const flow_key_t *k,
     /* 새 세션이 들어갈 bucket index */
     idx = reasm_flow_hash(k) % c->nbuckets;
     /* 세션 본체 할당 */
-    s   = (reasm_session_t *)malloc(sizeof(*s));
+    s = (reasm_session_t *)malloc(sizeof(*s));
     if (NULL == s) {
         return NULL;
     }
@@ -321,7 +322,7 @@ static void reasm_trim_to_next(reasm_dir_t *d, uint32_t *seq,
     /* 현재 세그먼트 끝 seq */
     uint32_t end;
     /* helper 비교 결과 */
-    int      ret;
+    int ret;
 
     /* payload가 없거나 next_seq가 아직 없으면 trim 불필요 */
     if (0 == *len || 0 == d->has_next) {
@@ -332,7 +333,7 @@ static void reasm_trim_to_next(reasm_dir_t *d, uint32_t *seq,
     start = *seq;
     end   = start + *len;
     /* 세그먼트 전체가 이미 소비된 구간이면 버린다 */
-    ret   = SEQ_LEQ(end, d->next_seq);
+    ret = SEQ_LEQ(end, d->next_seq);
     if (0 != ret) {
         *len = 0;
         return;
@@ -363,12 +364,12 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
     /* 삽입 위치를 가리키는 pointer-to-pointer */
     reasm_seg_node_t **pp;
     /* 삽입 직전 노드 */
-    reasm_seg_node_t  *prev      = NULL;
+    reasm_seg_node_t *prev = NULL;
     /* 새 세그먼트 시작/끝 */
-    uint32_t           new_start = seq;
-    uint32_t           new_end   = seq + len;
+    uint32_t new_start = seq;
+    uint32_t new_end   = seq + len;
     /* helper 비교 결과 */
-    int                ret;
+    int ret;
 
     /* 빈 세그먼트는 무시 */
     if (0 == len) {
@@ -427,12 +428,12 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
     /* 뒤쪽 기존 세그먼트와의 겹침/포함 관계를 정리한다 */
     while (NULL != *pp) {
         /* 현재 비교 대상 노드 */
-        reasm_seg_node_t *cur       = *pp;
+        reasm_seg_node_t *cur = *pp;
         /* 현재 노드 구간 */
-        uint32_t          cur_start = cur->seq;
-        uint32_t          cur_end   = cur->seq + cur->len;
+        uint32_t cur_start = cur->seq;
+        uint32_t cur_end   = cur->seq + cur->len;
         /* helper 비교 결과 */
-        int               seq_cmp;
+        int seq_cmp;
 
         /* 더 이상 겹치지 않으면 삽입 준비 완료 */
         seq_cmp = SEQ_LEQ(new_end, cur_start);
@@ -536,9 +537,9 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
         /* 바로 뒤에 연속한 노드는 하나로 병합한다 */
         while (NULL != n->next) {
             /* 다음 인접 노드 */
-            reasm_seg_node_t *nx    = n->next;
+            reasm_seg_node_t *nx = n->next;
             /* 현재 병합 노드 끝 seq */
-            uint32_t          n_end = n->seq + n->len;
+            uint32_t n_end = n->seq + n->len;
 
             /* gap이 있으면 병합 중단 */
             if (n_end != nx->seq) {
@@ -549,7 +550,7 @@ static int reasm_insert_segment(reasm_dir_t *d, uint32_t seq,
                 /* 병합 후 총 길이 */
                 uint32_t merged_len = n->len + nx->len;
                 /* 재할당된 payload 버퍼 */
-                uint8_t *buf        = (uint8_t *)realloc(n->data, merged_len);
+                uint8_t *buf = (uint8_t *)realloc(n->data, merged_len);
 
                 if (NULL == buf) {
                     break;
@@ -777,13 +778,13 @@ int reasm_ingest(reasm_ctx_t *c, const flow_key_t *flow, tcp_dir_t dir,
     /* 대상 재조립 세션 */
     reasm_session_t *s;
     /* 현재 방향 상태 */
-    reasm_dir_t     *d;
+    reasm_dir_t *d;
     /* trim 이후 seq/payload/len */
-    uint32_t         adj_seq;
-    const uint8_t   *adj_pl;
-    uint32_t         adj_len;
+    uint32_t       adj_seq;
+    const uint8_t *adj_pl;
+    uint32_t       adj_len;
     /* helper 반환값 */
-    int              rc;
+    int rc;
 
     /* 필수 입력 검증 */
     if (NULL == c || NULL == flow) {

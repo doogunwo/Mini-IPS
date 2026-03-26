@@ -22,7 +22,7 @@ static IPS_Signature *g_loaded_signatures = NULL;
 
 typedef struct {
     /* 동적 문자열 버퍼 시작 주소 */
-    char  *buf;
+    char *buf;
     /* 현재 사용 길이 */
     size_t len;
     /* 현재 할당 용량 */
@@ -39,7 +39,7 @@ static POLICY policy_from_string(const char *name) {
     /* 정책 테이블 순회 인덱스 */
     size_t i;
     /* 문자열 비교 결과 */
-    int    cmp;
+    int cmp;
     static const struct {
         POLICY      policy;
         const char *name;
@@ -78,7 +78,7 @@ static ips_context_t ctx_from_string(const char *name) {
     /* 입력 문자열 길이 */
     size_t len;
     /* 문자열 비교 결과 */
-    int    cmp;
+    int cmp;
     static const struct {
         ips_context_t context;
         const char   *name;
@@ -119,7 +119,8 @@ static ips_context_t ctx_from_string(const char *name) {
     return IPS_CTX_ALL;
 }
 
-/* --------------------------- JSON parsing helpers --------------------------- */
+/* --------------------------- JSON parsing helpers ---------------------------
+ */
 
 /**
  * @brief 동적 문자열 버퍼 뒤에 문자를 1개 추가한다.
@@ -132,7 +133,7 @@ static ips_context_t ctx_from_string(const char *name) {
  */
 static int strbuf_append_char(strbuf_t *sb, char ch) {
     /* realloc 결과 포인터 */
-    char  *next;
+    char *next;
     /* 다음 확장 용량 */
     size_t next_cap;
 
@@ -149,7 +150,7 @@ static int strbuf_append_char(strbuf_t *sb, char ch) {
     /* 문자 1개 추가 */
     sb->buf[sb->len++] = ch;
     /* 항상 NUL 종료 유지 */
-    sb->buf[sb->len]   = '\0';
+    sb->buf[sb->len] = '\0';
     return 0;
 }
 
@@ -179,14 +180,14 @@ static char *xstrdup(const char *s) {
     /* 원본 문자열 길이 */
     size_t len;
     /* 복사본 버퍼 */
-    char  *copy;
+    char *copy;
 
     /* NULL 입력은 NULL 유지 */
     if (!s) {
         return NULL;
     }
     /* 길이 측정 */
-    len  = strlen(s);
+    len = strlen(s);
     /* NUL 포함 공간 확보 */
     copy = (char *)malloc(len + 1U);
     if (!copy) {
@@ -231,11 +232,11 @@ static int parse_json_string_at(const char **cursor, char **out) {
     /* 현재 cursor 위치 */
     const char *p;
     /* 문자열 누적 버퍼 */
-    strbuf_t    sb;
+    strbuf_t sb;
     /* helper 반환값 */
-    int         ret;
+    int ret;
     /* hex digit 검사 결과 */
-    int         is_hex;
+    int is_hex;
 
     /* 현재 위치와 출력 포인터 초기화 */
     p    = *cursor;
@@ -310,7 +311,7 @@ static int parse_json_string_at(const char **cursor, char **out) {
                 /* hex digit 1개 값 */
                 unsigned int v;
                 /* unicode escape 순회 인덱스 */
-                int          i;
+                int i;
 
                 /* \uXXXX 상위 code point 초기화 */
                 cp = 0U;
@@ -512,11 +513,11 @@ static int parse_json_int_at(const char **cursor, int *out) {
     /* 현재 읽기 위치 */
     const char *p;
     /* strtol 종료 위치 */
-    char       *endptr;
+    char *endptr;
     /* 파싱된 long 값 */
-    long        value;
+    long value;
     /* helper 반환값 */
-    int         ret;
+    int ret;
 
     /* 공백 건너뛴 시작 위치 */
     p = skip_ws(*cursor);
@@ -556,7 +557,7 @@ static __attribute__((unused)) int parse_json_bool_at(const char **cursor,
     /* 현재 읽기 위치 */
     const char *p;
     /* 문자열 비교 결과 */
-    int         ret;
+    int ret;
 
     p = skip_ws(*cursor);
     if (NULL == p) {
@@ -593,17 +594,17 @@ static __attribute__((unused)) int parse_json_bool_at(const char **cursor,
 static __attribute__((unused)) int parse_json_string_array_at(
     const char **cursor, const char ***out_values, size_t *out_count) {
     /* 현재 읽기 위치 */
-    const char  *p;
+    const char *p;
     /* 문자열 포인터 배열 */
     const char **values;
     /* realloc 결과 배열 */
     const char **next_values;
     /* 현재 원소 수 */
-    size_t       count;
+    size_t count;
     /* 현재 배열 용량 */
-    size_t       capacity;
+    size_t capacity;
     /* helper 반환값 */
-    int          ret;
+    int ret;
 
     /* 출력 포인터 초기화 */
     *out_values = NULL;
@@ -707,11 +708,11 @@ static int skip_json_nested(const char **cursor, char open_ch, char close_ch) {
     /* 현재 읽기 위치 */
     const char *p;
     /* 중첩 깊이 */
-    int         depth;
+    int depth;
     /* 문자열 내부 여부 */
-    int         in_string;
+    int in_string;
     /* 직전 문자가 escape인지 여부 */
-    int         escaped;
+    int escaped;
 
     /* 시작 문자가 기대한 중첩 시작 문자인지 확인 */
     p = *cursor;
@@ -766,11 +767,11 @@ static int skip_json_value(const char **cursor) {
     /* 현재 읽기 위치 */
     const char *p;
     /* 숫자 파싱 종료 위치 */
-    char       *endptr;
+    char *endptr;
     /* 임시 문자열 버퍼 */
-    char       *tmp;
+    char *tmp;
     /* helper 반환값 */
-    int         ret;
+    int ret;
 
     /* 시작 위치 정렬 */
     p = skip_ws(*cursor);
@@ -850,32 +851,32 @@ static int skip_json_value(const char **cursor) {
  */
 static int regex_signature_parse(const char *line, IPS_Signature *sig) {
     /* top-level object cursor */
-    const char  *cursor;
+    const char *cursor;
     /* 현재 key 이름 */
-    char        *key;
+    char *key;
     /* 개별 필드 문자열 */
-    char        *pname;
-    char        *pat;
-    char        *ctx;
-    char        *source;
+    char *pname;
+    char *pat;
+    char *ctx;
+    char *source;
     /* 점수/식별자 필드 */
-    int          score;
-    int          rid;
+    int score;
+    int rid;
     /* helper 비교/파싱 반환값 */
-    int          cmp;
-    int          parse_ret;
+    int cmp;
+    int parse_ret;
 
     /* 출력 시그니처 zero-init */
     memset(sig, 0, sizeof(*sig));
 
     /* 필드별 임시 포인터 초기화 */
-    key              = NULL;
-    pname            = NULL;
-    pat              = NULL;
-    ctx              = NULL;
-    source           = NULL;
-    score            = 0;
-    rid              = 0;
+    key    = NULL;
+    pname  = NULL;
+    pat    = NULL;
+    ctx    = NULL;
+    source = NULL;
+    score  = 0;
+    rid    = 0;
 
     /* top-level object 시작 확인 */
     cursor = skip_ws(line);
@@ -1070,7 +1071,7 @@ ips_operator_t ips_operator_from_string(const char *name) {
     /* operator 테이블 순회 인덱스 */
     size_t i;
     /* 문자열 비교 결과 */
-    int    cmp;
+    int cmp;
     static const struct {
         ips_operator_t op;
         const char    *name;
@@ -1221,7 +1222,7 @@ static int regex_signature_append(IPS_Signature **items, int *count,
     /* realloc 결과 배열 */
     IPS_Signature *next;
     /* 다음 배열 용량 */
-    int            next_cap;
+    int next_cap;
 
     /* 배열이 꽉 차면 용량을 늘린다 */
     if (*count == *capacity) {
@@ -1288,12 +1289,12 @@ static int try_load_file_append(const char *path, IPS_Signature **items,
  */
 static int try_load_file(const char *path) {
     /* 동적 시그니처 배열 */
-    IPS_Signature *items    = NULL;
+    IPS_Signature *items = NULL;
     /* 현재 원소 수와 용량 */
-    int            count    = 0;
-    int            capacity = 0;
+    int count    = 0;
+    int capacity = 0;
     /* helper 반환값 */
-    int            ret;
+    int ret;
 
     ret = try_load_file_append(path, &items, &count, &capacity);
     if (-1 == ret) {
@@ -1376,7 +1377,7 @@ int regex_signatures_load(const char *jsonl_path) {
     /* 환경변수 fallback 경로 */
     const char *env_path;
     /* helper 반환값 */
-    int         ret;
+    int ret;
     /* 기본 split rules 경로 후보 */
     static const char *const default_dirs[] = {
         "rules",

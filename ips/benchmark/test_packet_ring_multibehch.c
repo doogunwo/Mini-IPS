@@ -1,6 +1,7 @@
 /**
  * @file test_packet_ring_multibehch.c
- * @brief producer 1개와 consumer 여러 개를 사용해 worker_count 확장 효과를 측정한다.
+ * @brief producer 1개와 consumer 여러 개를 사용해 worker_count 확장 효과를
+ * 측정한다.
  */
 #include <pthread.h>
 #include <stdint.h>
@@ -161,12 +162,12 @@ static uint32_t benchmark_flow_hash_5tuple(uint32_t sip, uint32_t dip,
     uint32_t h = 2166136261u;
 
     if (endpoint_cmp(sip, sport, dip, dport) > 0) {
-        uint32_t tmp_ip = sip;
+        uint32_t tmp_ip   = sip;
         uint16_t tmp_port = sport;
 
-        sip = dip;
+        sip   = dip;
         sport = dport;
-        dip = tmp_ip;
+        dip   = tmp_ip;
         dport = tmp_port;
     }
 
@@ -190,7 +191,7 @@ static uint32_t benchmark_flow_hash_5tuple(uint32_t sip, uint32_t dip,
  */
 static int build_dispatch_flows(dispatch_flow_t *flows, uint32_t worker_count) {
     uint32_t attempts = 0;
-    uint32_t filled = 0;
+    uint32_t filled   = 0;
 
     if (NULL == flows || 0U == worker_count) {
         return -1;
@@ -201,8 +202,8 @@ static int build_dispatch_flows(dispatch_flow_t *flows, uint32_t worker_count) {
         uint32_t        worker_idx;
         int             duplicate = 0;
 
-        flow.sip = 0x0A000001u + attempts;
-        flow.dip = 0x0A100001u + attempts;
+        flow.sip   = 0x0A000001u + attempts;
+        flow.dip   = 0x0A100001u + attempts;
         flow.sport = (uint16_t)(10000U + attempts);
         flow.dport = (uint16_t)(20000U + attempts);
         flow.proto = 6U;
@@ -218,7 +219,7 @@ static int build_dispatch_flows(dispatch_flow_t *flows, uint32_t worker_count) {
         }
         if (0 == duplicate) {
             flow.worker_idx = worker_idx;
-            flows[filled] = flow;
+            flows[filled]   = flow;
             filled++;
         }
 
@@ -292,31 +293,31 @@ static void *producer_thread(void *arg) {
         return NULL;
     }
 
-    total_packets = ctx->worker_count * ctx->iterations_per_worker;
+    total_packets      = ctx->worker_count * ctx->iterations_per_worker;
     ctx->wall_start_ns = now_ns();
-    ctx->cpu_start_ns = now_thread_cpu_ns();
+    ctx->cpu_start_ns  = now_thread_cpu_ns();
 
     for (uint32_t i = 0; i < total_packets; i++) {
-        const dispatch_flow_t *flow = &ctx->flows[i % ctx->worker_count];
+        const dispatch_flow_t *flow       = &ctx->flows[i % ctx->worker_count];
         uint32_t               worker_idx = flow->worker_idx;
-        uint32_t               seq = seq_per_worker[worker_idx]++;
-        int      rc;
+        uint32_t               seq        = seq_per_worker[worker_idx]++;
+        int                    rc;
 
         payload_set_meta(payload, worker_idx, seq, ctx->payload_len);
         rc = packet_ring_enq(&ctx->queues->q[worker_idx], payload,
                              ctx->payload_len, now_ns());
         if (0 != rc) {
-            ctx->rc = rc;
+            ctx->rc          = rc;
             ctx->wall_end_ns = now_ns();
-            ctx->cpu_end_ns = now_thread_cpu_ns();
+            ctx->cpu_end_ns  = now_thread_cpu_ns();
             free(seq_per_worker);
             return NULL;
         }
     }
 
     ctx->wall_end_ns = now_ns();
-    ctx->cpu_end_ns = now_thread_cpu_ns();
-    ctx->rc = 0;
+    ctx->cpu_end_ns  = now_thread_cpu_ns();
+    ctx->rc          = 0;
     free(seq_per_worker);
     return NULL;
 }
@@ -333,11 +334,11 @@ static void *consumer_thread(void *arg) {
     uint8_t         out[PACKET_MAX_BYTES];
 
     ctx->wall_start_ns = now_ns();
-    ctx->cpu_start_ns = now_thread_cpu_ns();
+    ctx->cpu_start_ns  = now_thread_cpu_ns();
 
     for (uint32_t expected_seq = 0; expected_seq < ctx->iterations;
          expected_seq++) {
-        uint32_t len = 0;
+        uint32_t len   = 0;
         uint64_t ts_ns = 0;
         uint64_t dequeue_ns;
         uint64_t latency_ns;
@@ -347,30 +348,30 @@ static void *consumer_thread(void *arg) {
 
         rc = packet_ring_deq(ctx->ring, out, sizeof(out), &len, &ts_ns);
         if (0 != rc) {
-            ctx->rc = rc;
+            ctx->rc          = rc;
             ctx->wall_end_ns = now_ns();
-            ctx->cpu_end_ns = now_thread_cpu_ns();
+            ctx->cpu_end_ns  = now_thread_cpu_ns();
             return NULL;
         }
         if (ctx->payload_len != len) {
-            ctx->rc = -2;
+            ctx->rc          = -2;
             ctx->wall_end_ns = now_ns();
-            ctx->cpu_end_ns = now_thread_cpu_ns();
+            ctx->cpu_end_ns  = now_thread_cpu_ns();
             return NULL;
         }
 
         worker_idx = payload_get_worker(out);
-        seq = payload_get_seq(out);
+        seq        = payload_get_seq(out);
         if (ctx->worker_idx != worker_idx) {
-            ctx->rc = -3;
+            ctx->rc          = -3;
             ctx->wall_end_ns = now_ns();
-            ctx->cpu_end_ns = now_thread_cpu_ns();
+            ctx->cpu_end_ns  = now_thread_cpu_ns();
             return NULL;
         }
         if (expected_seq != seq) {
-            ctx->rc = -4;
+            ctx->rc          = -4;
             ctx->wall_end_ns = now_ns();
-            ctx->cpu_end_ns = now_thread_cpu_ns();
+            ctx->cpu_end_ns  = now_thread_cpu_ns();
             return NULL;
         }
 
@@ -384,16 +385,18 @@ static void *consumer_thread(void *arg) {
     }
 
     ctx->wall_end_ns = now_ns();
-    ctx->cpu_end_ns = now_thread_cpu_ns();
-    ctx->rc = 0;
+    ctx->cpu_end_ns  = now_thread_cpu_ns();
+    ctx->rc          = 0;
     return NULL;
 }
 
 /**
- * @brief producer 1개와 consumer 여러 개를 두고 worker 확장 효과를 보는 메인 함수
+ * @brief producer 1개와 consumer 여러 개를 두고 worker 확장 효과를 보는 메인
+ * 함수
  *
  * @param argc
- * @param argv argv[1]=worker_count argv[2]=iterations_per_worker argv[3]=payload_len argv[4]=slot_count
+ * @param argv argv[1]=worker_count argv[2]=iterations_per_worker
+ * argv[3]=payload_len argv[4]=slot_count
  * @return int
  */
 int main(int argc, char **argv) {
@@ -401,24 +404,24 @@ int main(int argc, char **argv) {
     pthread_t          producer_tid;
     pthread_t         *consumer_tids = NULL;
     producer_arg_t     producer_arg;
-    consumer_arg_t    *consumer_args = NULL;
-    dispatch_flow_t   *dispatch_flows = NULL;
-    uint32_t           worker_count = DEFAULT_WORKER_COUNT;
+    consumer_arg_t    *consumer_args         = NULL;
+    dispatch_flow_t   *dispatch_flows        = NULL;
+    uint32_t           worker_count          = DEFAULT_WORKER_COUNT;
     uint32_t           iterations_per_worker = DEFAULT_ITERATIONS_PER_WORKER;
-    uint32_t           slot_count = DEFAULT_BENCH_SLOT_COUNT;
-    uint32_t           payload_len = DEFAULT_PAYLOAD_LEN;
+    uint32_t           slot_count            = DEFAULT_BENCH_SLOT_COUNT;
+    uint32_t           payload_len           = DEFAULT_PAYLOAD_LEN;
     uint64_t           total_start_ns;
     uint64_t           total_end_ns;
     uint64_t           process_cpu_start_ns;
     uint64_t           process_cpu_end_ns;
     uint64_t           total_packets;
-    uint64_t           total_bytes = 0;
+    uint64_t           total_bytes      = 0;
     uint64_t           total_latency_ns = 0;
-    uint64_t           max_latency_ns = 0;
-    uint64_t           total_enq_ok = 0;
-    uint64_t           total_deq_ok = 0;
-    uint64_t           total_drop_full = 0;
-    uint64_t           total_wait_full = 0;
+    uint64_t           max_latency_ns   = 0;
+    uint64_t           total_enq_ok     = 0;
+    uint64_t           total_deq_ok     = 0;
+    uint64_t           total_drop_full  = 0;
+    uint64_t           total_wait_full  = 0;
     double             total_ms;
     double             process_cpu_ms;
     double             producer_ms;
@@ -464,8 +467,7 @@ int main(int argc, char **argv) {
     rc = packet_queue_set_init(&queues, worker_count, slot_count, 1);
     CHECK(0 == rc, "packet_queue_set_init failed");
 
-    consumer_tids =
-        (pthread_t *)calloc(worker_count, sizeof(*consumer_tids));
+    consumer_tids = (pthread_t *)calloc(worker_count, sizeof(*consumer_tids));
     consumer_args =
         (consumer_arg_t *)calloc(worker_count, sizeof(*consumer_args));
     dispatch_flows =
@@ -476,22 +478,22 @@ int main(int argc, char **argv) {
     CHECK(0 == build_dispatch_flows(dispatch_flows, worker_count),
           "build_dispatch_flows failed");
 
-    producer_arg.queues = &queues;
-    producer_arg.flows = dispatch_flows;
-    producer_arg.worker_count = worker_count;
+    producer_arg.queues                = &queues;
+    producer_arg.flows                 = dispatch_flows;
+    producer_arg.worker_count          = worker_count;
     producer_arg.iterations_per_worker = iterations_per_worker;
-    producer_arg.payload_len = payload_len;
+    producer_arg.payload_len           = payload_len;
 
     total_packets = (uint64_t)worker_count * (uint64_t)iterations_per_worker;
 
     for (uint32_t i = 0; i < worker_count; i++) {
-        consumer_args[i].ring = &queues.q[i];
-        consumer_args[i].worker_idx = i;
-        consumer_args[i].iterations = iterations_per_worker;
+        consumer_args[i].ring        = &queues.q[i];
+        consumer_args[i].worker_idx  = i;
+        consumer_args[i].iterations  = iterations_per_worker;
         consumer_args[i].payload_len = payload_len;
     }
 
-    total_start_ns = now_ns();
+    total_start_ns       = now_ns();
     process_cpu_start_ns = now_process_cpu_ns();
 
     for (uint32_t i = 0; i < worker_count; i++) {
@@ -503,13 +505,14 @@ int main(int argc, char **argv) {
                               &producer_arg),
           "producer pthread_create failed");
 
-    CHECK(0 == pthread_join(producer_tid, NULL), "producer pthread_join failed");
+    CHECK(0 == pthread_join(producer_tid, NULL),
+          "producer pthread_join failed");
     for (uint32_t i = 0; i < worker_count; i++) {
         CHECK(0 == pthread_join(consumer_tids[i], NULL),
               "consumer pthread_join failed");
     }
 
-    total_end_ns = now_ns();
+    total_end_ns       = now_ns();
     process_cpu_end_ns = now_process_cpu_ns();
 
     CHECK(0 == producer_arg.rc, "producer failed");
@@ -544,12 +547,11 @@ int main(int argc, char **argv) {
     producer_cpu_pct =
         100.0 * (double)(producer_arg.cpu_end_ns - producer_arg.cpu_start_ns) /
         (double)(producer_arg.wall_end_ns - producer_arg.wall_start_ns);
-    process_cpu_pct =
-        100.0 * (double)(process_cpu_end_ns - process_cpu_start_ns) /
-        (double)(total_end_ns - total_start_ns);
-    pipeline_pps =
-        ((double)total_packets * 1000000000.0) /
-        (double)(total_end_ns - total_start_ns);
+    process_cpu_pct = 100.0 *
+                      (double)(process_cpu_end_ns - process_cpu_start_ns) /
+                      (double)(total_end_ns - total_start_ns);
+    pipeline_pps = ((double)total_packets * 1000000000.0) /
+                   (double)(total_end_ns - total_start_ns);
     throughput_mib_s =
         ((double)total_bytes * 1000000000.0) /
         ((double)(total_end_ns - total_start_ns) * 1024.0 * 1024.0);
@@ -582,31 +584,34 @@ int main(int argc, char **argv) {
     table_row_u64("total_wait_full", total_wait_full);
     table_line();
 
-    puts("| worker | wall_ms  | cpu_ms   | cpu_pct | avg_lat_us | max_lat_us |");
-    puts("+--------+----------+----------+---------+------------+------------+");
+    puts(
+        "| worker | wall_ms  | cpu_ms   | cpu_pct | avg_lat_us | max_lat_us |");
+    puts(
+        "+--------+----------+----------+---------+------------+------------+");
     for (uint32_t i = 0; i < worker_count; i++) {
-        double worker_ms =
-            (double)(consumer_args[i].wall_end_ns - consumer_args[i].wall_start_ns) /
-            1000000.0;
-        double worker_cpu_ms =
-            (double)(consumer_args[i].cpu_end_ns - consumer_args[i].cpu_start_ns) /
-            1000000.0;
-        double worker_cpu_pct =
-            100.0 *
-            (double)(consumer_args[i].cpu_end_ns - consumer_args[i].cpu_start_ns) /
-            (double)(consumer_args[i].wall_end_ns - consumer_args[i].wall_start_ns);
-        double worker_avg_lat_us =
-            ((double)consumer_args[i].latency_sum_ns /
-             (double)consumer_args[i].iterations) /
-            1000.0;
+        double worker_ms = (double)(consumer_args[i].wall_end_ns -
+                                    consumer_args[i].wall_start_ns) /
+                           1000000.0;
+        double worker_cpu_ms = (double)(consumer_args[i].cpu_end_ns -
+                                        consumer_args[i].cpu_start_ns) /
+                               1000000.0;
+        double worker_cpu_pct = 100.0 *
+                                (double)(consumer_args[i].cpu_end_ns -
+                                         consumer_args[i].cpu_start_ns) /
+                                (double)(consumer_args[i].wall_end_ns -
+                                         consumer_args[i].wall_start_ns);
+        double worker_avg_lat_us = ((double)consumer_args[i].latency_sum_ns /
+                                    (double)consumer_args[i].iterations) /
+                                   1000.0;
         double worker_max_lat_us =
             (double)consumer_args[i].latency_max_ns / 1000.0;
 
-        printf("| %6u | %8.3f | %8.3f | %7.3f | %10.3f | %10.3f |\n",
-               i, worker_ms, worker_cpu_ms, worker_cpu_pct, worker_avg_lat_us,
+        printf("| %6u | %8.3f | %8.3f | %7.3f | %10.3f | %10.3f |\n", i,
+               worker_ms, worker_cpu_ms, worker_cpu_pct, worker_avg_lat_us,
                worker_max_lat_us);
     }
-    puts("+--------+----------+----------+---------+------------+------------+");
+    puts(
+        "+--------+----------+----------+---------+------------+------------+");
 
     packet_queue_set_destroy(&queues);
     free(dispatch_flows);

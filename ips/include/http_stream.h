@@ -15,13 +15,13 @@
  * @brief HTTP stream parser 반환하는 상태 코드 집합
  */
 typedef enum {
-    HTTP_STREAM_OK         = 0, /* dequeue 성공 또는 요청 파싱 */
-    HTTP_STREAM_NEED_MORE  = 1, /* HTTP 메시지 완성이 불가능 아직 */
+    HTTP_STREAM_OK        = 0, /* dequeue 성공 또는 요청 파싱 */
+    HTTP_STREAM_NEED_MORE = 1, /* HTTP 메시지 완성이 불가능 아직 */
     HTTP_STREAM_NO_MESSAGE = 2, /* poll시 꺼낼 파싱 완료 메시지가 없음 */
-    HTTP_STREAM_EINVAL     = -1, /* 잘못된 인자 또는 호출 */
-    HTTP_STREAM_ENOMEM     = -2, /* 동적 메모리 할당 실패 */
-    HTTP_STREAM_EPROTO     = -3, /* HTTP 문법 오류 또는 비정상 메시지 */
-    HTTP_STREAM_EOVERFLOW  = -4 /* 내부 버퍼 길이 제한 초과 */
+    HTTP_STREAM_EINVAL = -1, /* 잘못된 인자 또는 호출 */
+    HTTP_STREAM_ENOMEM = -2, /* 동적 메모리 할당 실패 */
+    HTTP_STREAM_EPROTO = -3, /* HTTP 문법 오류 또는 비정상 메시지 */
+    HTTP_STREAM_EOVERFLOW = -4 /* 내부 버퍼 길이 제한 초과 */
 } http_stream_rc_t;
 
 /** 한 HTTP 방향에서 공유하는 스트림 파서 제한값이다. */
@@ -32,22 +32,22 @@ typedef struct {
 
 /** 스트림 파서가 생성한 HTTP 메시지 결과 구조체이다. */
 typedef struct {
-    int  is_request;     /**< 요청 메시지면 1, 응답 메시지면 0 */
-    char method[16];     /**< 요청 메서드 */
-    char uri[1048576];   /**< 요청 URI */
-    char version[16];    /**< HTTP 버전 문자열 */
-    int  status_code;    /**< 응답 상태 코드 */
-    char reason[64];     /**< 응답 reason phrase */
+    int  is_request;   /**< 요청 메시지면 1, 응답 메시지면 0 */
+    char method[16];   /**< 요청 메서드 */
+    char uri[1048576]; /**< 요청 URI */
+    char version[16];  /**< HTTP 버전 문자열 */
+    int  status_code;  /**< 응답 상태 코드 */
+    char reason[64];   /**< 응답 reason phrase */
 
-    int       chunked;        /**< Transfer-Encoding: chunked 여부 */
-    long long content_length; /**< Content-Length 값, 없으면 -1 계열 */
+    int       chunked;           /**< Transfer-Encoding: chunked 여부 */
+    long long content_length;    /**< Content-Length 값, 없으면 -1 계열 */
     char      content_type[200]; /**< Content-Type 헤더 값 */
 
-    uint8_t *headers_raw;    /**< 헤더 블록 원문 */
+    uint8_t *headers_raw;     /**< 헤더 블록 원문 */
     size_t   headers_raw_len; /**< 헤더 블록 길이 */
-    uint8_t *body;           /**< body 포인터 */
-    size_t   body_len;       /**< body 길이 */
-    uint8_t *owned_storage;  /**< headers/body를 함께 보관하는 소유 메모리 */
+    uint8_t *body;            /**< body 포인터 */
+    size_t   body_len;        /**< body 길이 */
+    uint8_t *owned_storage; /**< headers/body를 함께 보관하는 소유 메모리 */
 } http_message_t;
 
 /** HTTP 스트림 파서 내부 구조를 숨기는 핸들 타입이다. */

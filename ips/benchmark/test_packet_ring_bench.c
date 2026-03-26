@@ -122,7 +122,7 @@ static void *bench_producer_thread(void *arg) {
     bench_thread_arg_t *ctx = (bench_thread_arg_t *)arg;
     uint8_t             payload[BENCH_PAYLOAD_LEN];
 
-    ctx->start_ns = now_ns();
+    ctx->start_ns     = now_ns();
     ctx->cpu_start_ns = now_thread_cpu_ns();
 
     for (uint32_t i = 0; i < ctx->iterations; i++) {
@@ -131,15 +131,15 @@ static void *bench_producer_thread(void *arg) {
         payload_set_seq(payload, i, ctx->payload_len);
         rc = packet_ring_enq(ctx->ring, payload, ctx->payload_len, now_ns());
         if (0 != rc) {
-            ctx->rc = rc;
+            ctx->rc     = rc;
             ctx->end_ns = now_ns();
             return NULL;
         }
     }
 
-    ctx->end_ns = now_ns();
+    ctx->end_ns     = now_ns();
     ctx->cpu_end_ns = now_thread_cpu_ns();
-    ctx->rc = 0;
+    ctx->rc         = 0;
     return NULL;
 }
 
@@ -154,35 +154,35 @@ static void *bench_consumer_thread(void *arg) {
     bench_thread_arg_t *ctx = (bench_thread_arg_t *)arg;
     uint8_t             out[PACKET_MAX_BYTES];
 
-    ctx->start_ns = now_ns();
+    ctx->start_ns     = now_ns();
     ctx->cpu_start_ns = now_thread_cpu_ns();
 
     for (uint32_t i = 0; i < ctx->iterations; i++) {
-        uint32_t len = 0;
+        uint32_t len   = 0;
         uint64_t ts_ns = 0;
         uint64_t dequeue_ns;
         uint64_t latency_ns;
         uint32_t seq;
-        int rc;
+        int      rc;
 
         rc = packet_ring_deq(ctx->ring, out, sizeof(out), &len, &ts_ns);
         if (0 != rc) {
-            ctx->rc = rc;
-            ctx->end_ns = now_ns();
+            ctx->rc         = rc;
+            ctx->end_ns     = now_ns();
             ctx->cpu_end_ns = now_thread_cpu_ns();
             return NULL;
         }
         if (ctx->payload_len != len) {
-            ctx->rc = -2;
-            ctx->end_ns = now_ns();
+            ctx->rc         = -2;
+            ctx->end_ns     = now_ns();
             ctx->cpu_end_ns = now_thread_cpu_ns();
             return NULL;
         }
 
         seq = payload_get_seq(out);
         if (i != seq) {
-            ctx->rc = -3;
-            ctx->end_ns = now_ns();
+            ctx->rc         = -3;
+            ctx->end_ns     = now_ns();
             ctx->cpu_end_ns = now_thread_cpu_ns();
             return NULL;
         }
@@ -195,9 +195,9 @@ static void *bench_consumer_thread(void *arg) {
         }
     }
 
-    ctx->end_ns = now_ns();
+    ctx->end_ns     = now_ns();
     ctx->cpu_end_ns = now_thread_cpu_ns();
-    ctx->rc = 0;
+    ctx->rc         = 0;
     return NULL;
 }
 
@@ -207,31 +207,31 @@ static void *bench_consumer_thread(void *arg) {
  * @return int
  */
 int main(void) {
-    packet_ring_t     ring;
-    pthread_t         producer_tid;
-    pthread_t         consumer_tid;
+    packet_ring_t      ring;
+    pthread_t          producer_tid;
+    pthread_t          consumer_tid;
     bench_thread_arg_t producer_arg;
     bench_thread_arg_t consumer_arg;
-    uint64_t          total_start_ns;
-    uint64_t          total_end_ns;
-    uint64_t          process_cpu_start_ns;
-    uint64_t          process_cpu_end_ns;
-    uint64_t          total_bytes;
-    double            producer_ms;
-    double            consumer_ms;
-    double            total_ms;
-    double            producer_cpu_ms;
-    double            consumer_cpu_ms;
-    double            process_cpu_ms;
-    double            producer_pps;
-    double            consumer_pps;
-    double            pipeline_pps;
-    double            throughput_mib_s;
-    double            avg_queue_latency_us;
-    double            max_queue_latency_us;
-    double            producer_cpu_pct;
-    double            consumer_cpu_pct;
-    double            process_cpu_pct;
+    uint64_t           total_start_ns;
+    uint64_t           total_end_ns;
+    uint64_t           process_cpu_start_ns;
+    uint64_t           process_cpu_end_ns;
+    uint64_t           total_bytes;
+    double             producer_ms;
+    double             consumer_ms;
+    double             total_ms;
+    double             producer_cpu_ms;
+    double             consumer_cpu_ms;
+    double             process_cpu_ms;
+    double             producer_pps;
+    double             consumer_pps;
+    double             pipeline_pps;
+    double             throughput_mib_s;
+    double             avg_queue_latency_us;
+    double             max_queue_latency_us;
+    double             producer_cpu_pct;
+    double             consumer_cpu_pct;
+    double             process_cpu_pct;
 
     CHECK(BENCH_PAYLOAD_LEN <= PACKET_MAX_BYTES,
           "BENCH_PAYLOAD_LEN exceeds PACKET_MAX_BYTES");
@@ -242,15 +242,15 @@ int main(void) {
     CHECK(0 == packet_ring_init(&ring, BENCH_SLOT_COUNT, 1),
           "packet_ring_init failed");
 
-    producer_arg.ring = &ring;
-    producer_arg.iterations = BENCH_ITERATIONS;
+    producer_arg.ring        = &ring;
+    producer_arg.iterations  = BENCH_ITERATIONS;
     producer_arg.payload_len = BENCH_PAYLOAD_LEN;
 
-    consumer_arg.ring = &ring;
-    consumer_arg.iterations = BENCH_ITERATIONS;
+    consumer_arg.ring        = &ring;
+    consumer_arg.iterations  = BENCH_ITERATIONS;
     consumer_arg.payload_len = BENCH_PAYLOAD_LEN;
 
-    total_start_ns = now_ns();
+    total_start_ns       = now_ns();
     process_cpu_start_ns = now_process_cpu_ns();
 
     CHECK(0 == pthread_create(&producer_tid, NULL, bench_producer_thread,
@@ -260,10 +260,12 @@ int main(void) {
                               &consumer_arg),
           "consumer pthread_create failed");
 
-    CHECK(0 == pthread_join(producer_tid, NULL), "producer pthread_join failed");
-    CHECK(0 == pthread_join(consumer_tid, NULL), "consumer pthread_join failed");
+    CHECK(0 == pthread_join(producer_tid, NULL),
+          "producer pthread_join failed");
+    CHECK(0 == pthread_join(consumer_tid, NULL),
+          "consumer pthread_join failed");
 
-    total_end_ns = now_ns();
+    total_end_ns       = now_ns();
     process_cpu_end_ns = now_process_cpu_ns();
 
     CHECK(0 == producer_arg.rc, "producer failed");
@@ -285,15 +287,12 @@ int main(void) {
         1000000.0;
     process_cpu_ms =
         (double)(process_cpu_end_ns - process_cpu_start_ns) / 1000000.0;
-    producer_pps =
-        ((double)BENCH_ITERATIONS * 1000000000.0) /
-        (double)(producer_arg.end_ns - producer_arg.start_ns);
-    consumer_pps =
-        ((double)BENCH_ITERATIONS * 1000000000.0) /
-        (double)(consumer_arg.end_ns - consumer_arg.start_ns);
-    pipeline_pps =
-        ((double)BENCH_ITERATIONS * 1000000000.0) /
-        (double)(total_end_ns - total_start_ns);
+    producer_pps = ((double)BENCH_ITERATIONS * 1000000000.0) /
+                   (double)(producer_arg.end_ns - producer_arg.start_ns);
+    consumer_pps = ((double)BENCH_ITERATIONS * 1000000000.0) /
+                   (double)(consumer_arg.end_ns - consumer_arg.start_ns);
+    pipeline_pps = ((double)BENCH_ITERATIONS * 1000000000.0) /
+                   (double)(total_end_ns - total_start_ns);
     throughput_mib_s =
         ((double)total_bytes * 1000000000.0) /
         ((double)(total_end_ns - total_start_ns) * 1024.0 * 1024.0);
@@ -307,9 +306,9 @@ int main(void) {
     consumer_cpu_pct =
         100.0 * (double)(consumer_arg.cpu_end_ns - consumer_arg.cpu_start_ns) /
         (double)(consumer_arg.end_ns - consumer_arg.start_ns);
-    process_cpu_pct =
-        100.0 * (double)(process_cpu_end_ns - process_cpu_start_ns) /
-        (double)(total_end_ns - total_start_ns);
+    process_cpu_pct = 100.0 *
+                      (double)(process_cpu_end_ns - process_cpu_start_ns) /
+                      (double)(total_end_ns - total_start_ns);
 
     puts("[benchmark_ring_only]");
     table_line();

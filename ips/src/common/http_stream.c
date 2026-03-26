@@ -81,9 +81,9 @@ static void http_stream_buffer_compact(http_stream_t *s) {
 static int http_stream_buffer_reserve_append(http_stream_t *s,
                                              size_t         append_len) {
     /* append 후 필요한 총 unread 길이 */
-    size_t   need;
+    size_t need;
     /* 다음 버퍼 용량 */
-    size_t   ncap;
+    size_t ncap;
     /* realloc 결과 버퍼 */
     uint8_t *nb;
 
@@ -169,7 +169,7 @@ int http_stream_peek_buffer(const http_stream_t *s, const uint8_t **out_data,
     /* 현재 unread window 시작 주소 반환 */
     *out_data = s->buf + s->start;
     /* 현재 unread 길이 반환 */
-    *out_len  = s->len;
+    *out_len = s->len;
     return 0;
 }
 
@@ -188,7 +188,7 @@ static int http_stream_buffer_find_crlf(const uint8_t *p, size_t len,
     /* memchr hit 위치 */
     const uint8_t *hit;
     /* 남은 탐색 길이 */
-    size_t         remain;
+    size_t remain;
 
     cur    = p;
     remain = len;
@@ -230,7 +230,7 @@ static int http_stream_buffer_find_header_end(const uint8_t *p, size_t len,
     /* memchr hit 위치 */
     const uint8_t *hit;
     /* 남은 탐색 길이 */
-    size_t         remain;
+    size_t remain;
 
     cur    = p;
     remain = len;
@@ -322,8 +322,8 @@ static int http_stream_token_equals_ci(const uint8_t *a, size_t an,
     /* 비교 문자열 길이 */
     size_t bn = strlen(b);
     /* 현재 비교 문자 */
-    int    ca;
-    int    cb;
+    int ca;
+    int cb;
 
     /* 길이가 다르면 바로 불일치 */
     if (an != bn) {
@@ -355,8 +355,8 @@ static int http_stream_token_contains_ci(const uint8_t *a, size_t an,
     /* needle 길이 */
     size_t nn = strlen(needle);
     /* 현재 비교 문자 */
-    int    ca;
-    int    cb;
+    int ca;
+    int cb;
     /* 빈 needle 또는 더 긴 needle은 불일치 */
     if (0 == nn || nn > an) {
         return 0;
@@ -366,7 +366,7 @@ static int http_stream_token_contains_ci(const uint8_t *a, size_t an,
         /* needle 내부 순회 인덱스 */
         size_t j;
         /* 현재 시작 위치가 일치하는지 여부 */
-        int    ok = 1;
+        int ok = 1;
         for (j = 0; j < nn; j++) {
             ca = tolower((unsigned char)a[i + j]);
             cb = tolower((unsigned char)needle[j]);
@@ -402,9 +402,9 @@ static http_stream_rc_t http_stream_start_line_parse(http_message_t *m,
     /* 임시 cursor */
     const uint8_t *p;
     /* helper 반환값 */
-    int            ret;
+    int ret;
     /* 숫자 여부 검사 결과 */
-    int            is_digit;
+    int is_digit;
 
     /* 현재 줄 끝 주소 계산 */
     end = line + n;
@@ -433,7 +433,7 @@ static http_stream_rc_t http_stream_start_line_parse(http_message_t *m,
         }
 
         /* status code 시작 위치 */
-        p   = sp1 + 1;
+        p = sp1 + 1;
         /* reason phrase 앞 공백 위치 */
         sp2 = (const uint8_t *)memchr(p, ' ', (size_t)(end - p));
         if (NULL == sp2) {
@@ -461,7 +461,7 @@ static http_stream_rc_t http_stream_start_line_parse(http_message_t *m,
             (int)((p[0] - '0') * 100 + (p[1] - '0') * 10 + (p[2] - '0'));
 
         /* reason phrase 시작 위치 */
-        p   = sp2 + 1;
+        p = sp2 + 1;
         /* reason phrase 원문 복사 */
         ret = http_stream_token_copy(m->reason, sizeof(m->reason), p,
                                      (size_t)(end - p));
@@ -527,9 +527,9 @@ static http_stream_rc_t http_stream_headers_parse_meta(http_message_t *m,
     /* 현재 파싱 위치 */
     size_t pos;
     /* start-line 파싱 여부 */
-    int    first_line_done;
+    int first_line_done;
     /* helper 반환값 */
-    int    ret;
+    int ret;
 
     /* pos는 아직 해석하지 않은 현재 줄의 시작 위치를 가리킨다. */
     pos             = 0;
@@ -549,11 +549,11 @@ static http_stream_rc_t http_stream_headers_parse_meta(http_message_t *m,
      * 첫 줄은 start-line, 그 이후는 header field로 해석한다.
      */
     while (pos < headers_len) {
-        size_t         line_end;
+        size_t line_end;
         /* 현재 줄 시작 주소 */
         const uint8_t *line;
         /* 현재 줄 길이 */
-        size_t         line_len;
+        size_t line_len;
         /* ':' 위치 */
         const uint8_t *colon;
         /* header name 끝 위치 */
@@ -636,9 +636,9 @@ static http_stream_rc_t http_stream_headers_parse_meta(http_message_t *m,
                                           "content-length");
         if (1 == ret) {
             /* content-length 값 길이 */
-            size_t    vn;
+            size_t vn;
             /* 숫자 순회 인덱스 */
-            size_t    i;
+            size_t i;
             /* 누적 body 길이 */
             long long v;
 
@@ -692,7 +692,7 @@ static http_stream_rc_t http_stream_headers_parse_meta(http_message_t *m,
                     size_t vn;
 
                     /* value 길이 계산 */
-                    vn  = (size_t)(val_end - val);
+                    vn = (size_t)(val_end - val);
                     /* content_type 버퍼로 원문 복사 */
                     ret = http_stream_token_copy(
                         m->content_type, sizeof(m->content_type), val, vn);
@@ -730,9 +730,9 @@ static http_stream_rc_t http_stream_body_append(uint8_t **buf, size_t *len,
                                                 const uint8_t *data, size_t n,
                                                 size_t max_body_bytes) {
     /* append 후 필요한 총 길이 */
-    size_t   need;
+    size_t need;
     /* 확장 후 새 용량 */
-    size_t   new_cap;
+    size_t new_cap;
     /* realloc 결과 버퍼 */
     uint8_t *nb;
 
@@ -805,13 +805,13 @@ static http_stream_rc_t http_stream_body_parse_chunked(
     const uint8_t *p, size_t n, size_t max_body_bytes, size_t *consumed,
     uint8_t **body, size_t *body_len) {
     /* 현재 chunk 파싱 위치 */
-    size_t           pos;
+    size_t pos;
     /* helper 반환값 */
-    int              ret;
+    int ret;
     /* body append 결과 */
     http_stream_rc_t rc;
     /* body 버퍼 용량 */
-    size_t           body_cap;
+    size_t body_cap;
 
     pos       = 0;
     *body     = NULL;
@@ -939,41 +939,41 @@ static void http_stream_buffer_consume_front(http_stream_t *s, size_t n) {
 static http_stream_rc_t http_stream_message_parse_one(http_stream_t *s,
                                                       int           *produced) {
     /* CRLFCRLF 위치 */
-    size_t           hdr_end_pos;
+    size_t hdr_end_pos;
     /* 헤더 포함 총 길이 */
-    size_t           msg_hdr_len;
+    size_t msg_hdr_len;
     /* start-line 종료 위치 */
-    size_t           start_line_end;
+    size_t start_line_end;
     /* start-line 제외 헤더 시작 오프셋 */
-    size_t           headers_only_off;
+    size_t headers_only_off;
     /* start-line 제외 헤더 길이 */
-    size_t           headers_only_len;
+    size_t headers_only_len;
     /* 임시 메시지 구조체 */
-    http_message_t   m;
+    http_message_t m;
     /* body 시작 오프셋 */
-    size_t           body_off;
+    size_t body_off;
     /* 현재 메시지가 소비한 총 길이 */
-    size_t           consumed;
+    size_t consumed;
     /* unread window 시작 주소 */
-    const uint8_t   *base;
+    const uint8_t *base;
     /* helper 결과 */
     http_stream_rc_t rc;
     int              ret;
     /* queue 노드 전체 할당 크기 */
-    size_t           total_size;
+    size_t total_size;
     /* queue 노드 */
-    msg_node_t      *node;
+    msg_node_t *node;
     /* owned storage 내부 쓰기 cursor */
-    uint8_t         *cursor;
+    uint8_t *cursor;
 
     /* produced 기본값은 아직 메시지 없음 */
     *produced = 0;
     /* 현재 unread window 시작 주소 */
-    base      = s->buf + s->start;
+    base = s->buf + s->start;
     /* 소비 길이 초기화 */
-    consumed  = 0;
+    consumed = 0;
     /* queue 노드 포인터 초기화 */
-    node      = NULL;
+    node = NULL;
 
     /* 헤더 끝(CRLFCRLF)을 아직 못 찾으면 메시지가 덜 들어온 상태다. */
     ret = http_stream_buffer_find_header_end(base, s->len, &hdr_end_pos);
@@ -1081,7 +1081,7 @@ static http_stream_rc_t http_stream_message_parse_one(http_stream_t *s,
             memcpy(cursor, m.body, m.body_len);
             free(m.body);
             m.body = NULL;
-        /* non-chunked body는 현재 입력 버퍼에서 직접 복사 */
+            /* non-chunked body는 현재 입력 버퍼에서 직접 복사 */
         } else {
             memcpy(cursor, base + body_off, m.body_len);
         }
@@ -1115,9 +1115,9 @@ http_stream_t *http_stream_create(const http_stream_cfg_t *cfg) {
     /* 생성될 스트림 객체 */
     http_stream_t *s;
     /* 기본 최대 버퍼 크기 */
-    size_t         max_buf  = 12 * 1024 * 1024;
+    size_t max_buf = 12 * 1024 * 1024;
     /* 기본 최대 body 크기 */
-    size_t         max_body = 12 * 1024 * 1024;
+    size_t max_body = 12 * 1024 * 1024;
 
     /* 설정이 없으면 보수적인 기본 최대치로 생성한다. */
     if (NULL != cfg) {
@@ -1235,9 +1235,9 @@ void http_stream_destroy(http_stream_t *s) {
 http_stream_rc_t http_stream_feed(http_stream_t *s, const uint8_t *data,
                                   size_t len) {
     /* message_parse_one produced 플래그 */
-    int              produced;
+    int produced;
     /* helper 반환값 */
-    int              ret;
+    int ret;
     /* 파싱 결과 코드 */
     http_stream_rc_t rc;
 

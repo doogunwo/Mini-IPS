@@ -62,14 +62,15 @@ static int run_case(detect_engine_t *det, const detect_case_t *tc) {
 
     run_detect_metrics_get(&metrics);
 
-    printf("%-20s | total=%2llu | uri=%llu | args_name=%llu | args=%llu | "
-           "headers=%llu | body=%llu | score=%d\n",
-           tc->label, (unsigned long long)metrics.total_collect_calls,
-           (unsigned long long)metrics.uri_calls,
-           (unsigned long long)metrics.args_names_calls,
-           (unsigned long long)metrics.args_calls,
-           (unsigned long long)metrics.headers_calls,
-           (unsigned long long)metrics.body_calls, score);
+    printf(
+        "%-20s | total=%2llu | uri=%llu | args_name=%llu | args=%llu | "
+        "headers=%llu | body=%llu | score=%d\n",
+        tc->label, (unsigned long long)metrics.total_collect_calls,
+        (unsigned long long)metrics.uri_calls,
+        (unsigned long long)metrics.args_names_calls,
+        (unsigned long long)metrics.args_calls,
+        (unsigned long long)metrics.headers_calls,
+        (unsigned long long)metrics.body_calls, score);
 
     return 0;
 }
@@ -108,10 +109,12 @@ int main(void) {
     det = detect_engine_create("ALL", DETECT_JIT_AUTO);
     CHECK(det != NULL, "detect_engine_create failed");
 
-    printf("case                 | total | uri | args_name | args | headers | "
-           "body | score\n");
-    printf("----------------------------------------------------------------"
-           "-----------\n");
+    printf(
+        "case                 | total | uri | args_name | args | headers | "
+        "body | score\n");
+    printf(
+        "----------------------------------------------------------------"
+        "-----------\n");
 
     for (i = 0; i < (sizeof(cases) / sizeof(cases[0])); i++) {
         CHECK(run_case(det, &cases[i]) == 0, "case execution failed");

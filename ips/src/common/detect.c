@@ -19,7 +19,7 @@ typedef struct policy_pattern_set {
     /* 선택된 룰 포인터 배열 */
     const IPS_Signature **rules;
     /* 선택된 룰 개수 */
-    unsigned int          count;
+    unsigned int count;
 } policy_pattern_set_t;
 
 /** detect 엔진 최상위 핸들. 선택한 룰 집합과 backend runtime을 함께 가진다. */
@@ -153,9 +153,9 @@ void detect_match_list_free(detect_match_list_t *matches) {
 static int collect_policy_patterns(const char           *policy_name,
                                    policy_pattern_set_t *out) {
     /* 시그니처 순회 인덱스 */
-    int          i;
+    int i;
     /* 문자열 비교 결과 */
-    int          ret;
+    int ret;
     /* 선택된 룰 개수 */
     unsigned int n = 0;
 
@@ -193,7 +193,7 @@ static int collect_policy_patterns(const char           *policy_name,
     /* 최종 룰 개수 저장 */
     out->count = n;
     /* 실제 채우기 인덱스 초기화 */
-    n          = 0;
+    n = 0;
 
     /* 선택 정책과 일치하는 룰 포인터 수집 */
     for (i = 0; i < g_signature_count; i++) {
@@ -271,11 +271,11 @@ static void free_policy_patterns(policy_pattern_set_t *set) {
 detect_engine_t *detect_engine_create(const char       *policy_name,
                                       detect_jit_mode_t jit_mode) {
     /* detect 엔진 객체 */
-    detect_engine_t     *e;
+    detect_engine_t *e;
     /* 선택된 정책 룰 집합 */
     policy_pattern_set_t set;
     /* helper 반환값 */
-    int                  ret;
+    int ret;
 
     /* 임시 룰 집합 초기화 */
     memset(&set, 0, sizeof(set));
@@ -333,7 +333,7 @@ detect_engine_t *detect_engine_create(const char       *policy_name,
     }
 
     /* 선택된 룰 집합 포인터 저장 */
-    e->rules      = set.rules;
+    e->rules = set.rules;
     /* 선택된 룰 개수 저장 */
     e->rule_count = set.count;
     /* detect 엔진 생성 성공 */

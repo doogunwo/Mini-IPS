@@ -44,7 +44,7 @@ static inline int32_t seq_diff(uint32_t a, uint32_t b) {
  * 을 모두 묶는 coordinator 역할을 한다.
  */
 struct httgw {
-    reasm_ctx_t      *reasm;      /* TCP 재조립 엔진 */
+    reasm_ctx_t *reasm;           /* TCP 재조립 엔진 */
     http_stream_cfg_t stream_cfg; /* 세션 생성 시 사용할 HTTP 파서 설정 */
     httgw_callbacks_t cbs;        /* 상위 요청/오류 콜백 */
 
@@ -56,7 +56,7 @@ struct httgw {
     void             *tx_ctx;      /* raw L3 송신 컨텍스트 */
     httgw_send_rst_fn tx_send_rst; /* 실제 RST 송신 함수 포인터 */
 
-    httgw_session_t **sess_buckets;    /* flow 기반 세션 해시 테이블 */
+    httgw_session_t **sess_buckets; /* flow 기반 세션 해시 테이블 */
     uint32_t          sess_bucket_count; /* 해시 버킷 수 */
     uint32_t          sess_count;        /* 현재 live 세션 수 */
 };
@@ -80,16 +80,16 @@ struct httgw_session {
     flow_key_t     flow;       /* 정규화된 5-tuple key */
     http_stream_t *streams[2]; /* 방향별 HTTP 스트림 파서 */
 
-    uint32_t base_seq_ab; /* AB 방향에서 처음 본 seq */
-    uint32_t base_seq_ba; /* BA 방향에서 처음 본 seq */
-    uint32_t last_seq_ab; /* 최근 AB 세그먼트의 시작 seq */
-    uint32_t next_seq_ab; /* 최근 AB 세그먼트 기준 다음 seq */
-    uint32_t last_ack_ab; /* 최근 AB 방향 ack */
-    uint32_t last_seq_ba; /* 최근 BA 세그먼트의 시작 seq */
-    uint32_t next_seq_ba; /* 최근 BA 세그먼트 기준 다음 seq */
-    uint32_t last_ack_ba; /* 최근 BA 방향 ack */
-    uint16_t win_ab;      /* 최근 AB advertised window */
-    uint16_t win_ba;      /* 최근 BA advertised window */
+    uint32_t base_seq_ab;  /* AB 방향에서 처음 본 seq */
+    uint32_t base_seq_ba;  /* BA 방향에서 처음 본 seq */
+    uint32_t last_seq_ab;  /* 최근 AB 세그먼트의 시작 seq */
+    uint32_t next_seq_ab;  /* 최근 AB 세그먼트 기준 다음 seq */
+    uint32_t last_ack_ab;  /* 최근 AB 방향 ack */
+    uint32_t last_seq_ba;  /* 최근 BA 세그먼트의 시작 seq */
+    uint32_t next_seq_ba;  /* 최근 BA 세그먼트 기준 다음 seq */
+    uint32_t last_ack_ba;  /* 최근 BA 방향 ack */
+    uint16_t win_ab;       /* 최근 AB advertised window */
+    uint16_t win_ba;       /* 최근 BA advertised window */
     uint8_t  win_scale_ab; /* AB SYN에서 관측한 window scale */
     uint8_t  win_scale_ba; /* BA SYN에서 관측한 window scale */
 
@@ -128,7 +128,8 @@ static void sess_destroy(httgw_session_t *s) {
     free(s);
 }
 
-/* --------------------------- flow/session helpers --------------------------- */
+/* --------------------------- flow/session helpers ---------------------------
+ */
 
 /**
  * @brief flow key를 세션 해시 테이블 인덱스로 매핑한다.
@@ -140,9 +141,9 @@ static uint32_t sess_flow_hash(const flow_key_t *k) {
     /* FNV 계열 해시 상수 */
     const uint32_t prime = 16777619u;
     /* FNV offset basis */
-    uint32_t       h     = 2166136261u;
+    uint32_t h = 2166136261u;
     /* 포트 쌍을 32비트로 묶은 값 */
-    uint32_t       ports;
+    uint32_t ports;
 
     /* src/dst 포트를 한 번에 결합 */
     ports = ((uint32_t)k->src_port << 16) | k->dst_port;
@@ -231,11 +232,11 @@ static httgw_session_t *sess_find(const httgw_t *gw, const flow_key_t *flow) {
 static httgw_session_t *sess_remove_internal(httgw_t          *gw,
                                              const flow_key_t *flow) {
     /* 제거 대상이 속한 버킷 인덱스 */
-    uint32_t          idx;
+    uint32_t idx;
     /* unlink를 위한 이전 next 포인터 주소 */
     httgw_session_t **pp;
     /* flow 비교 결과 */
-    int               eq;
+    int eq;
 
     /* 기본 인자 검증 */
     if (NULL == gw || NULL == flow) {
@@ -245,7 +246,7 @@ static httgw_session_t *sess_remove_internal(httgw_t          *gw,
     /* flow 해시로 버킷 선택 */
     idx = sess_flow_hash(flow) % gw->sess_bucket_count;
     /* 단일 연결 리스트 unlink 시작점 */
-    pp  = &gw->sess_buckets[idx];
+    pp = &gw->sess_buckets[idx];
     while (*pp) {
         /* 현재 세션이 제거 대상인지 비교 */
         eq = sess_flow_eq(&(*pp)->flow, flow);
@@ -280,7 +281,7 @@ static httgw_session_t *sess_get_or_create_internal(httgw_t          *gw,
     /* flow 해시로 버킷 선택 */
     uint32_t idx = sess_flow_hash(flow) % gw->sess_bucket_count;
     /* flow 비교 결과 */
-    int      eq;
+    int eq;
 
     /* 기존 세션 탐색 */
     for (httgw_session_t *s = gw->sess_buckets[idx]; s; s = s->next) {
@@ -310,8 +311,8 @@ static httgw_session_t *sess_get_or_create_internal(httgw_t          *gw,
     }
 
     /* flow key와 관측 시각 저장 */
-    s->flow               = *flow;
-    s->last_ts_ms         = ts_ms;
+    s->flow       = *flow;
+    s->last_ts_ms = ts_ms;
     /* 버킷 체인 앞에 연결 */
     s->next               = gw->sess_buckets[idx];
     gw->sess_buckets[idx] = s;
@@ -385,25 +386,25 @@ static int parse_ipv4_tcp_payload(const uint8_t *pkt, uint32_t caplen,
     /* 현재 파싱 위치 */
     const uint8_t *p = pkt;
     /* 현재 남은 바이트 수 */
-    uint32_t       n = caplen;
+    uint32_t n = caplen;
     /* Ethernet type */
-    uint16_t       eth_type;
+    uint16_t eth_type;
     /* IPv4 header length */
-    uint32_t       ip_hl;
+    uint32_t ip_hl;
     /* IPv4 total length */
-    uint32_t       ip_len;
+    uint32_t ip_len;
     /* TCP header length */
-    uint32_t       tcp_hl;
+    uint32_t tcp_hl;
     /* IPv4 total_len 필드 */
-    uint16_t       total_len;
+    uint16_t total_len;
     /* IP protocol */
-    uint8_t        proto;
+    uint8_t proto;
     /* src/dst IPv4 */
-    uint32_t       sip;
-    uint32_t       dip;
+    uint32_t sip;
+    uint32_t dip;
     /* src/dst TCP port */
-    uint16_t       sport;
-    uint16_t       dport;
+    uint16_t sport;
+    uint16_t dport;
 
     /* 최소 Ethernet 헤더 길이 검사 */
     if (14 > n) {
@@ -473,11 +474,11 @@ static int parse_ipv4_tcp_payload(const uint8_t *pkt, uint32_t caplen,
     }
 
     /* TCP 포트 추출 */
-    sport  = (uint16_t)((p[0] << 8) | p[1]);
-    dport  = (uint16_t)((p[2] << 8) | p[3]);
+    sport = (uint16_t)((p[0] << 8) | p[1]);
+    dport = (uint16_t)((p[2] << 8) | p[3]);
     /* TCP seq/ack 추출 */
-    *seq   = (uint32_t)((p[4] << 24) | (p[5] << 16) | (p[6] << 8) | p[7]);
-    *ack   = (uint32_t)((p[8] << 24) | (p[9] << 16) | (p[10] << 8) | p[11]);
+    *seq = (uint32_t)((p[4] << 24) | (p[5] << 16) | (p[6] << 8) | p[7]);
+    *ack = (uint32_t)((p[8] << 24) | (p[9] << 16) | (p[10] << 8) | p[11]);
     /* TCP data offset를 바이트 단위로 환산 */
     tcp_hl = (uint32_t)((p[12] >> 4) & 0x0F) * 4U;
     /* TCP header 길이 유효성 검사 */
@@ -505,16 +506,16 @@ static int parse_ipv4_tcp_payload(const uint8_t *pkt, uint32_t caplen,
     /* TCP payload 길이 계산 */
     *payload_len = ip_len - ip_hl - tcp_hl;
     /* payload 시작 포인터 반환 */
-    *payload     = p + tcp_hl;
+    *payload = p + tcp_hl;
 
     /* SYN 패킷이면 window scale option을 추가로 스캔한다 */
     if (NULL != win_scale && 0 != (p[13] & TCP_SYN) && 20 < tcp_hl) {
         /* TCP option 전체 길이 */
-        uint32_t       opt_len = tcp_hl - 20;
+        uint32_t opt_len = tcp_hl - 20;
         /* option 시작 포인터 */
-        const uint8_t *opt     = p + 20;
+        const uint8_t *opt = p + 20;
         /* option 순회 인덱스 */
-        uint32_t       i       = 0;
+        uint32_t i = 0;
         while (i < opt_len) {
             /* 현재 option kind */
             uint8_t kind = opt[i];
@@ -579,9 +580,9 @@ static void drain_http(httgw_t *gw, const flow_key_t *flow, tcp_dir_t dir) {
     /* 현재 flow의 live session 조회 */
     httgw_session_t *sess = sess_find(gw, flow);
     /* 방향별 HTTP 스트림 핸들 */
-    http_stream_t   *s;
+    http_stream_t *s;
     /* poll로 꺼낼 HTTP 메시지 */
-    http_message_t   msg;
+    http_message_t msg;
     /* stream poll 반환값 */
     http_stream_rc_t rc;
 
@@ -628,17 +629,17 @@ static void drain_http(httgw_t *gw, const flow_key_t *flow, tcp_dir_t dir) {
 
 static char *httgw_build_stream_error_detail(http_stream_t *stream) {
     /* http_stream 마지막 오류 문자열 */
-    const char  *err;
+    const char *err;
     /* 현재 파서 버퍼 포인터 */
     const uint8_t *buf;
     /* 현재 파서 버퍼 길이 */
-    size_t       len;
+    size_t len;
     /* 오류 prefix 길이 */
-    size_t       prefix_len;
+    size_t prefix_len;
     /* 버퍼 순회 인덱스 */
-    size_t       i;
+    size_t i;
     /* 최종 detail 문자열 */
-    char        *detail;
+    char *detail;
 
     /* stream 없으면 detail 생성 불가 */
     if (NULL == stream) {
@@ -811,10 +812,10 @@ static void on_stream_data(const flow_key_t *flow, tcp_dir_t dir,
          */
         if (NULL != gw->cbs.on_error) {
             detail = httgw_build_stream_error_detail(stream);
-            gw->cbs.on_error("http_stream_feed",
-                             NULL != detail ? detail
-                                            : http_stream_last_error(stream),
-                             gw->user);
+            gw->cbs.on_error(
+                "http_stream_feed",
+                NULL != detail ? detail : http_stream_last_error(stream),
+                gw->user);
         }
         free(detail);
         http_stream_reset(stream);
@@ -970,27 +971,27 @@ void httgw_destroy(httgw_t *gw) {
 int httgw_ingest_packet(httgw_t *gw, const uint8_t *pkt, uint32_t caplen,
                         uint64_t ts_ms) {
     /* 정규화된 TCP flow key */
-    flow_key_t       flow;
+    flow_key_t flow;
     /* 패킷이 속한 정규화 방향 */
-    tcp_dir_t        dir;
+    tcp_dir_t dir;
     /* TCP sequence 번호 */
-    uint32_t         seq         = 0;
+    uint32_t seq = 0;
     /* TCP ack 번호 */
-    uint32_t         ack         = 0;
+    uint32_t ack = 0;
     /* TCP flags */
-    uint8_t          flags       = 0;
+    uint8_t flags = 0;
     /* TCP payload 시작 포인터 */
-    const uint8_t   *payload     = NULL;
+    const uint8_t *payload = NULL;
     /* TCP payload 길이 */
-    uint32_t         payload_len = 0;
+    uint32_t payload_len = 0;
     /* SYN/FIN까지 반영한 다음 seq */
-    uint32_t         next_seq    = 0;
+    uint32_t next_seq = 0;
     /* advertised window */
-    uint16_t         window      = 0;
+    uint16_t window = 0;
     /* SYN option에서 추출한 window scale */
-    uint8_t          win_scale   = 0;
+    uint8_t win_scale = 0;
     /* 내부 함수 반환값 */
-    int              rc;
+    int rc;
     /* 현재 flow의 live session */
     httgw_session_t *sess;
 
@@ -1279,8 +1280,8 @@ static int ci_eq(const uint8_t *a, size_t an, const char *b) {
         /* 비교 기준 문자 */
         unsigned char cb = (unsigned char)b[i];
         /* 소문자 정규화 결과 */
-        int           fa;
-        int           fb;
+        int fa;
+        int fb;
 
         fa = tolower(ca);
         fb = tolower(cb);
@@ -1414,7 +1415,7 @@ int httgw_extract_query(const http_message_t *msg, const char **q,
     /* '#' 위치 */
     const char *hash;
     /* query 길이 */
-    size_t      len;
+    size_t len;
 
     /* 출력 포인터 초기화 */
     if (NULL != q) {
@@ -1490,11 +1491,11 @@ static uint16_t checksum16(const void *data, size_t len) {
 static uint16_t tcp_checksum(uint32_t src_be, uint32_t dst_be,
                              const uint8_t *tcp, size_t tcp_len) {
     /* pseudo header + TCP 누적 합 */
-    uint32_t       sum = 0;
+    uint32_t sum = 0;
     /* 현재 순회 포인터 */
     const uint8_t *p;
     /* 남은 길이 */
-    size_t         len;
+    size_t len;
 
     /* source IP 반영 */
     p = (const uint8_t *)&src_be;
@@ -1641,18 +1642,18 @@ static int tx_send_tcp_segment(void *tx_ctx, const flow_key_t *flow,
     /* raw 송신 컨텍스트 */
     tx_ctx_t *tx = (tx_ctx_t *)tx_ctx;
     /* 실제 송신/수신 IPv4 */
-    uint32_t  sip, dip;
+    uint32_t sip, dip;
     /* 실제 송신/수신 TCP port */
-    uint16_t  sport, dport;
+    uint16_t sport, dport;
     /* 전체 패킷 길이 */
-    size_t    total_len;
+    size_t total_len;
     /* raw 패킷 버퍼 */
-    uint8_t  *buf;
+    uint8_t *buf;
     /* 버퍼 위 IPv4/TCP 헤더 뷰 */
-    IPHDR    *ip;
-    TCPHDR   *tcp;
+    IPHDR  *ip;
+    TCPHDR *tcp;
     /* 하위 송신 반환값 */
-    int       rc;
+    int rc;
     /* 송신 컨텍스트, 하위 L3 송신 함수, flow 입력이 유효한지 확인한다. */
     if (!tx || !tx->send_l3 || !flow) {
         return -1;
@@ -1848,18 +1849,18 @@ int httgw_request_rst_with_snapshot(httgw_t *gw, const flow_key_t *flow,
                                     tcp_dir_t                    dir,
                                     const httgw_sess_snapshot_t *snap) {
     /* 현재 flow의 live session */
-    httgw_session_t             *sess;
+    httgw_session_t *sess;
     /* snapshot이 없을 때 사용할 임시 복사본 */
-    httgw_sess_snapshot_t        live_snap;
+    httgw_sess_snapshot_t live_snap;
     /* 실제 계산에 사용할 snapshot 포인터 */
     const httgw_sess_snapshot_t *rst_snap;
     /* burst 기준 seq/ack/window */
-    uint32_t                     seq_base = 0;
-    uint32_t                     ack      = 0;
-    uint32_t                     win      = 0;
+    uint32_t seq_base = 0;
+    uint32_t ack      = 0;
+    uint32_t win      = 0;
     /* 성공 송신 개수와 마지막 오류 */
-    int                          sent_ok  = 0;
-    int                          last_err = -1;
+    int sent_ok  = 0;
+    int last_err = -1;
 
     /* 기본 인자와 방향값이 정상인지 먼저 확인한다. */
     if (NULL == gw || NULL == flow) {
@@ -1990,11 +1991,11 @@ int httgw_inject_block_response_with_snapshot(httgw_t                     *gw,
     /* 현재 flow의 live session */
     httgw_session_t *sess;
     /* 응답 주입 기준 seq/ack */
-    uint32_t         seq_base;
-    uint32_t         ack;
+    uint32_t seq_base;
+    uint32_t ack;
     /* 누적 전송 바이트와 마지막 오류 */
-    size_t           sent     = 0;
-    int              last_err = -1;
+    size_t sent     = 0;
+    int    last_err = -1;
 
     /* 기본 인자와 payload 길이가 정상인지 먼저 확인한다. */
     if (NULL == gw || NULL == flow || NULL == snap || NULL == payload ||

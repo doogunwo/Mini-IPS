@@ -1,9 +1,10 @@
 /**
  * @file test_packet_ring_empty.c
- * @brief 프로듀서를 늦춰서 컨슈머가 빈 큐를 자주 만나게 함, cpu spin이 심하지 않은지 체크
- * 
+ * @brief 프로듀서를 늦춰서 컨슈머가 빈 큐를 자주 만나게 함, cpu spin이 심하지
+ * 않은지 체크
+ *
  * @copyright Copyright (c) 2026
- * 
+ *
  */
 #include <pthread.h>
 #include <stdatomic.h>
@@ -40,14 +41,14 @@ static uint64_t now_ns(void) {
 static void *empty_wait_thread(void *arg) {
     empty_wait_arg_t *ctx = (empty_wait_arg_t *)arg;
 
-    ctx->rc = packet_ring_deq(ctx->ring, NULL, 0, &ctx->out_len,
-                              &ctx->out_ts_ns);
+    ctx->rc =
+        packet_ring_deq(ctx->ring, NULL, 0, &ctx->out_len, &ctx->out_ts_ns);
     return NULL;
 }
 
 static int test_nonblocking_empty_returns_failure(void) {
     packet_ring_t ring;
-    uint32_t      out_len = 0;
+    uint32_t      out_len   = 0;
     uint64_t      out_ts_ns = 0;
     uint64_t      start_ns;
     uint64_t      end_ns;
@@ -57,7 +58,7 @@ static int test_nonblocking_empty_returns_failure(void) {
     start_ns = now_ns();
     CHECK(-1 == packet_ring_deq(&ring, NULL, 0, &out_len, &out_ts_ns),
           "empty nonblocking dequeue should return -1");
-    end_ns = now_ns();
+    end_ns     = now_ns();
     elapsed_ms = (double)(end_ns - start_ns) / 1000000.0;
     fprintf(stderr,
             "[test_packet_ring_empty] case=nonblocking_empty elapsed_ms=%.6f "
@@ -68,12 +69,12 @@ static int test_nonblocking_empty_returns_failure(void) {
 }
 
 static int test_blocking_empty_can_be_cancelled(void) {
-    packet_ring_t ring;
-    pthread_t       tid;
+    packet_ring_t    ring;
+    pthread_t        tid;
     empty_wait_arg_t arg;
-    uint64_t        start_ns;
-    uint64_t        end_ns;
-    double          elapsed_ms;
+    uint64_t         start_ns;
+    uint64_t         end_ns;
+    double           elapsed_ms;
 
     memset(&arg, 0, sizeof(arg));
     CHECK(0 == packet_ring_init(&ring, 4, 1), "packet_ring_init failed");
@@ -89,14 +90,13 @@ static int test_blocking_empty_can_be_cancelled(void) {
 
     CHECK(0 == pthread_join(tid, NULL), "pthread_join failed");
     CHECK(-1 == arg.rc, "cancelled blocking dequeue should return -1");
-    end_ns = now_ns();
+    end_ns     = now_ns();
     elapsed_ms = (double)(end_ns - start_ns) / 1000000.0;
 
     fprintf(stderr,
             "[test_packet_ring_empty] case=blocking_cancel elapsed_ms=%.3f "
             "rc=%d out_len=%u out_ts_ns=%llu use_blocking=%d\n",
-            elapsed_ms, arg.rc, arg.out_len,
-            (unsigned long long)arg.out_ts_ns,
+            elapsed_ms, arg.rc, arg.out_len, (unsigned long long)arg.out_ts_ns,
             atomic_load_explicit(&ring.use_blocking, memory_order_relaxed));
 
     packet_ring_destroy(&ring);

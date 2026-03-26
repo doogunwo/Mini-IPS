@@ -114,7 +114,7 @@ static void table_row_f64(const char *metric, double value,
 }
 
 static uint16_t checksum16(const void *data, size_t len) {
-    const uint8_t *p = (const uint8_t *)data;
+    const uint8_t *p   = (const uint8_t *)data;
     uint32_t       sum = 0;
 
     while (len > 1U) {
@@ -153,7 +153,7 @@ static uint16_t tcp_checksum_ipv4(const IPHDR *ip, const TCPHDR *tcp,
     ph.proto   = IPPROTO_TCP;
     ph.tcp_len = htons(tcp_len);
 
-    p = (const uint8_t *)&ph;
+    p   = (const uint8_t *)&ph;
     len = sizeof(ph);
     while (len > 1U) {
         sum += (uint16_t)((p[0] << 8) | p[1]);
@@ -161,7 +161,7 @@ static uint16_t tcp_checksum_ipv4(const IPHDR *ip, const TCPHDR *tcp,
         len -= 2;
     }
 
-    p = (const uint8_t *)tcp;
+    p   = (const uint8_t *)tcp;
     len = TCP_HDR_SIZE;
     while (len > 1U) {
         sum += (uint16_t)((p[0] << 8) | p[1]);
@@ -169,7 +169,7 @@ static uint16_t tcp_checksum_ipv4(const IPHDR *ip, const TCPHDR *tcp,
         len -= 2;
     }
 
-    p = payload;
+    p   = payload;
     len = payload_len;
     while (len > 1U) {
         sum += (uint16_t)((p[0] << 8) | p[1]);
@@ -214,27 +214,27 @@ static int build_tcp_packet(uint8_t *out, size_t out_cap,
 
     memset(out, 0, total);
 
-    eth = (struct ether_header *)out;
+    eth             = (struct ether_header *)out;
     eth->ether_type = htons(ETHERTYPE_IP);
 
-    ip = (IPHDR *)(out + sizeof(struct ether_header));
-    IP_VER(ip) = 4;
-    IP_IHL(ip) = 5;
+    ip               = (IPHDR *)(out + sizeof(struct ether_header));
+    IP_VER(ip)       = 4;
+    IP_IHL(ip)       = 5;
     IP_TTL_FIELD(ip) = 64;
-    IP_PROTO(ip) = IPPROTO_TCP;
+    IP_PROTO(ip)     = IPPROTO_TCP;
     IP_TOTLEN(ip) =
         htons((uint16_t)(IP_HDR_SIZE + TCP_HDR_SIZE + sp->payload_len));
     IP_SADDR(ip) = htonl(sp->sip);
     IP_DADDR(ip) = htonl(sp->dip);
     IP_CHECK(ip) = checksum16(ip, sizeof(*ip));
 
-    tcp = (TCPHDR *)((uint8_t *)ip + IP_HDR_SIZE);
+    tcp            = (TCPHDR *)((uint8_t *)ip + IP_HDR_SIZE);
     TCP_SPORT(tcp) = htons(sp->sport);
     TCP_DPORT(tcp) = htons(sp->dport);
-    TCP_SEQ(tcp) = htonl(sp->seq);
-    TCP_ACK(tcp) = htonl(sp->ack);
-    TCP_DOFF(tcp) = 5;
-    TCP_WIN(tcp) = htons(sp->win);
+    TCP_SEQ(tcp)   = htonl(sp->seq);
+    TCP_ACK(tcp)   = htonl(sp->ack);
+    TCP_DOFF(tcp)  = 5;
+    TCP_WIN(tcp)   = htons(sp->win);
     TCP_SET_FLAGS(tcp, sp->flags);
 
     if (0U != sp->payload_len && NULL != sp->payload) {
@@ -315,20 +315,19 @@ static void on_error_cb(const char *stage, const char *detail, void *user) {
 static int feed_request(packet_ring_t *ring, httgw_t *gw, reasm_ctx_t *ctx,
                         const uint8_t *request, size_t request_len,
                         uint32_t segment_payload_len, uint32_t base_seq,
-                        uint64_t *ts_ms,
-                        uint64_t *packet_count) {
+                        uint64_t *ts_ms, uint64_t *packet_count) {
     tcp_pkt_spec_t sp;
     uint8_t        pkt[2048];
     uint32_t       pkt_len;
     size_t         off = 0;
 
     memset(&sp, 0, sizeof(sp));
-    sp.sip = 0x0A000001;
+    sp.sip   = 0x0A000001;
     sp.sport = 12345;
-    sp.dip = 0x0A000002;
+    sp.dip   = 0x0A000002;
     sp.dport = 8080;
-    sp.ack = 1;
-    sp.win = 502;
+    sp.ack   = 1;
+    sp.win   = 502;
 
     ctx->current_request_start_ns = now_ns();
 
@@ -340,10 +339,9 @@ static int feed_request(packet_ring_t *ring, httgw_t *gw, reasm_ctx_t *ctx,
             chunk = segment_payload_len;
         }
 
-        sp.seq = base_seq + (uint32_t)off;
-        sp.flags = (off + chunk == request_len) ? (TCP_ACK | TCP_PSH)
-                                                : TCP_ACK;
-        sp.payload = request + off;
+        sp.seq   = base_seq + (uint32_t)off;
+        sp.flags = (off + chunk == request_len) ? (TCP_ACK | TCP_PSH) : TCP_ACK;
+        sp.payload     = request + off;
         sp.payload_len = (uint32_t)chunk;
 
         if (build_tcp_packet(pkt, sizeof(pkt), &sp, &pkt_len) != 0) {
@@ -367,28 +365,29 @@ static int feed_request(packet_ring_t *ring, httgw_t *gw, reasm_ctx_t *ctx,
  * @brief 재조립 + HTTP 파싱 경로 처리량과 요청 완성 지연을 측정하는 메인 함수
  *
  * @param argc
- * @param argv argv[1]=request_count argv[2]=uri_pad_len argv[3]=segment_payload_len
+ * @param argv argv[1]=request_count argv[2]=uri_pad_len
+ * argv[3]=segment_payload_len
  * @return int
  */
 int main(int argc, char **argv) {
-    uint32_t          request_count = DEFAULT_REQUEST_COUNT;
-    uint32_t          uri_pad_len = DEFAULT_URI_PAD_LEN;
+    uint32_t          request_count       = DEFAULT_REQUEST_COUNT;
+    uint32_t          uri_pad_len         = DEFAULT_URI_PAD_LEN;
     uint32_t          segment_payload_len = DEFAULT_SEGMENT_BYTES;
     reasm_ctx_t       ctx;
     httgw_cfg_t       hcfg;
     httgw_callbacks_t cbs;
     httgw_t          *gw = NULL;
     packet_ring_t     ring;
-    char             *request = NULL;
+    char             *request     = NULL;
     size_t            request_len = 0;
     size_t            segments_per_request;
     uint64_t          total_start_ns;
     uint64_t          total_end_ns;
     uint64_t          process_cpu_start_ns;
     uint64_t          process_cpu_end_ns;
-    uint64_t          ts_ms = 1;
+    uint64_t          ts_ms         = 1;
     uint64_t          total_packets = 0;
-    uint32_t          next_seq = 1;
+    uint32_t          next_seq      = 1;
     double            total_ms;
     double            process_cpu_ms;
     double            process_cpu_pct;
@@ -420,10 +419,10 @@ int main(int argc, char **argv) {
     memset(&ring, 0, sizeof(ring));
 
     hcfg.max_buffer_bytes = 12U * 1024U * 1024U;
-    hcfg.max_body_bytes = 12U * 1024U * 1024U;
-    hcfg.reasm_mode = REASM_MODE_LATE_START;
-    cbs.on_request = on_request_cb;
-    cbs.on_error = on_error_cb;
+    hcfg.max_body_bytes   = 12U * 1024U * 1024U;
+    hcfg.reasm_mode       = REASM_MODE_LATE_START;
+    cbs.on_request        = on_request_cb;
+    cbs.on_error          = on_error_cb;
 
     gw = httgw_create(&hcfg, &cbs, &ctx);
     CHECK(NULL != gw, "httgw_create failed");
@@ -433,18 +432,16 @@ int main(int argc, char **argv) {
     request = build_pipeline_http_request(uri_pad_len, &request_len);
     CHECK(NULL != request, "build_pipeline_http_request failed");
 
-    segments_per_request =
-        (request_len + (size_t)segment_payload_len - 1U) /
-        (size_t)segment_payload_len;
+    segments_per_request = (request_len + (size_t)segment_payload_len - 1U) /
+                           (size_t)segment_payload_len;
 
-    total_start_ns = now_ns();
+    total_start_ns       = now_ns();
     process_cpu_start_ns = now_process_cpu_ns();
 
     for (uint32_t i = 0; i < request_count; i++) {
         if (0 != feed_request(&ring, gw, &ctx, (const uint8_t *)request,
-                              request_len,
-                              segment_payload_len, next_seq, &ts_ms,
-                              &total_packets)) {
+                              request_len, segment_payload_len, next_seq,
+                              &ts_ms, &total_packets)) {
             fprintf(stderr, "feed_request failed at request=%u\n", i);
             free(request);
             packet_ring_destroy(&ring);
@@ -454,7 +451,7 @@ int main(int argc, char **argv) {
         next_seq += (uint32_t)request_len;
     }
 
-    total_end_ns = now_ns();
+    total_end_ns       = now_ns();
     process_cpu_end_ns = now_process_cpu_ns();
 
     CHECK(ctx.request_count == request_count, "request_count mismatch");
@@ -462,23 +459,20 @@ int main(int argc, char **argv) {
     total_ms = (double)(total_end_ns - total_start_ns) / 1000000.0;
     process_cpu_ms =
         (double)(process_cpu_end_ns - process_cpu_start_ns) / 1000000.0;
-    process_cpu_pct =
-        100.0 * (double)(process_cpu_end_ns - process_cpu_start_ns) /
-        (double)(total_end_ns - total_start_ns);
-    packet_pps =
-        ((double)total_packets * 1000000000.0) /
-        (double)(total_end_ns - total_start_ns);
-    request_rps =
-        ((double)request_count * 1000000000.0) /
-        (double)(total_end_ns - total_start_ns);
+    process_cpu_pct = 100.0 *
+                      (double)(process_cpu_end_ns - process_cpu_start_ns) /
+                      (double)(total_end_ns - total_start_ns);
+    packet_pps = ((double)total_packets * 1000000000.0) /
+                 (double)(total_end_ns - total_start_ns);
+    request_rps = ((double)request_count * 1000000000.0) /
+                  (double)(total_end_ns - total_start_ns);
     payload_mib_s =
         ((double)request_len * (double)request_count * 1000000000.0) /
         ((double)(total_end_ns - total_start_ns) * 1024.0 * 1024.0);
-    avg_reasm_us = (0U == ctx.request_count)
-                       ? 0.0
-                       : ((double)ctx.total_reasm_ns /
-                          (double)ctx.request_count) /
-                             1000.0;
+    avg_reasm_us =
+        (0U == ctx.request_count)
+            ? 0.0
+            : ((double)ctx.total_reasm_ns / (double)ctx.request_count) / 1000.0;
 
     puts("[benchmark_ring_reasm]");
     table_line();

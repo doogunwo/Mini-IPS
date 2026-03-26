@@ -37,8 +37,8 @@ static void *producer_thread(void *arg) {
 
     for (uint32_t i = 0; i < TEST_PACKET_COUNT; i++) {
         uint32_t payload = i;
-        int rc = packet_ring_enq(ctx->ring, (const uint8_t *)&payload,
-                                 sizeof(payload), (uint64_t)(1000U + i));
+        int      rc      = packet_ring_enq(ctx->ring, (const uint8_t *)&payload,
+                                           sizeof(payload), (uint64_t)(1000U + i));
         if (0 != rc) {
             ctx->rc = rc;
             return NULL;
@@ -54,10 +54,10 @@ static void *consumer_thread(void *arg) {
 
     for (uint32_t i = 0; i < TEST_PACKET_COUNT; i++) {
         uint32_t payload = 0;
-        uint32_t len = 0;
-        uint64_t ts_ns = 0;
-        int rc = packet_ring_deq(ctx->ring, (uint8_t *)&payload,
-                                 sizeof(payload), &len, &ts_ns);
+        uint32_t len     = 0;
+        uint64_t ts_ns   = 0;
+        int      rc      = packet_ring_deq(ctx->ring, (uint8_t *)&payload,
+                                           sizeof(payload), &len, &ts_ns);
         if (0 != rc) {
             ctx->rc = rc;
             return NULL;
@@ -81,15 +81,15 @@ static void *consumer_thread(void *arg) {
 }
 
 static int test_spsc_roundtrip_preserves_order(void) {
-    packet_ring_t    ring;
-    pthread_t        producer;
-    pthread_t        consumer;
+    packet_ring_t     ring;
+    pthread_t         producer;
+    pthread_t         consumer;
     ring_thread_arg_t producer_arg;
     ring_thread_arg_t consumer_arg;
-    uint64_t         start_ns;
-    uint64_t         end_ns;
-    double           elapsed_ms;
-    double           packets_per_sec;
+    uint64_t          start_ns;
+    uint64_t          end_ns;
+    double            elapsed_ms;
+    double            packets_per_sec;
 
     memset(&producer_arg, 0, sizeof(producer_arg));
     memset(&consumer_arg, 0, sizeof(consumer_arg));
@@ -112,10 +112,10 @@ static int test_spsc_roundtrip_preserves_order(void) {
     CHECK(TEST_PACKET_COUNT == ring.stats.enq_ok, "enq_ok mismatch");
     CHECK(TEST_PACKET_COUNT == ring.stats.deq_ok, "deq_ok mismatch");
 
-    end_ns = now_ns();
-    elapsed_ms = (double)(end_ns - start_ns) / 1000000.0;
-    packets_per_sec =
-        ((double)TEST_PACKET_COUNT * 1000000000.0) / (double)(end_ns - start_ns);
+    end_ns          = now_ns();
+    elapsed_ms      = (double)(end_ns - start_ns) / 1000000.0;
+    packets_per_sec = ((double)TEST_PACKET_COUNT * 1000000000.0) /
+                      (double)(end_ns - start_ns);
     fprintf(stderr,
             "[test_packet_ring_spsc] case=spsc_roundtrip packets=%u "
             "elapsed_ms=%.3f pps=%.0f enq_ok=%llu deq_ok=%llu drop_full=%llu "
@@ -140,11 +140,12 @@ static int test_queue_set_init_allocates_all_rings(void) {
     CHECK(8 == set.q[0].slot_count, "slot_count mismatch");
     CHECK(7 == set.q[0].mask, "mask mismatch");
 
-    fprintf(stderr,
-            "[test_packet_ring_spsc] case=queue_set_init qcount=%u slot_count=%u "
-            "mask=%u use_blocking=%d\n",
-            set.qcount, set.q[0].slot_count, set.q[0].mask,
-            atomic_load_explicit(&set.q[0].use_blocking, memory_order_relaxed));
+    fprintf(
+        stderr,
+        "[test_packet_ring_spsc] case=queue_set_init qcount=%u slot_count=%u "
+        "mask=%u use_blocking=%d\n",
+        set.qcount, set.q[0].slot_count, set.q[0].mask,
+        atomic_load_explicit(&set.q[0].use_blocking, memory_order_relaxed));
 
     packet_queue_set_destroy(&set);
     return 0;

@@ -122,13 +122,13 @@ static void bench_pair(const char *name,
                        int (*baseline)(const uint8_t *, size_t, size_t *),
                        int (*candidate)(const uint8_t *, size_t, size_t *),
                        const uint8_t *buf, size_t len, uint64_t iterations) {
-    uint64_t       t0;
-    uint64_t       t1;
-    size_t         idx;
-    uint64_t       i;
+    uint64_t        t0;
+    uint64_t        t1;
+    size_t          idx;
+    uint64_t        i;
     volatile size_t sink;
-    double         baseline_ns;
-    double         candidate_ns;
+    double          baseline_ns;
+    double          candidate_ns;
 
     sink = 0;
 
@@ -139,7 +139,7 @@ static void bench_pair(const char *name,
         }
         sink ^= idx;
     }
-    t1 = monotonic_ns();
+    t1          = monotonic_ns();
     baseline_ns = (double)(t1 - t0);
 
     t0 = monotonic_ns();
@@ -149,7 +149,7 @@ static void bench_pair(const char *name,
         }
         sink ^= idx;
     }
-    t1 = monotonic_ns();
+    t1           = monotonic_ns();
     candidate_ns = (double)(t1 - t0);
 
     printf("[%s]\n", name);
@@ -198,7 +198,7 @@ int main(int argc, char **argv) {
         header_len = 4U;
     }
 
-    crlf_buf = (uint8_t *)malloc(crlf_len);
+    crlf_buf   = (uint8_t *)malloc(crlf_len);
     header_buf = (uint8_t *)malloc(header_len);
     if (NULL == crlf_buf || NULL == header_buf) {
         fprintf(stderr, "allocation failed\n");

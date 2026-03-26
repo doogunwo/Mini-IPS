@@ -4,7 +4,8 @@
  *
  * 본 파일은 패킷 한 건에서 flow 키를 추출하고, TCP 로그 출력을 보조하며,
  * HTTP 요청 단위 탐지와 차단 후속 동작을 연결하는 런타임 helper를 담는다.
- * 즉 `main.c`와 `detect.c/html.c/logging.c` 사이를 이어 주는 glue code 성격이다.
+ * 즉 `main.c`와 `detect.c/html.c/logging.c` 사이를 이어 주는 glue code
+ * 성격이다.
  */
 #include <ctype.h>
 #include <inttypes.h>
@@ -19,7 +20,8 @@
 
 static run_detect_metrics_t g_run_detect_metrics;
 
-/* --------------------------- packet / flow parsing helpers --------------------------- */
+/* --------------------------- packet / flow parsing helpers
+ * --------------------------- */
 
 /**
  * @brief 네트워크 바이트 순서 16비트 값을 host order로 읽는다.
@@ -124,19 +126,19 @@ int parse_flow_dir_and_flags(const uint8_t *data, uint32_t len,
     /* 현재 파싱 위치 */
     const uint8_t *p = data;
     /* Ethernet 이후 남은 바이트 수 */
-    uint32_t       n;
+    uint32_t n;
     /* Ethernet type */
-    uint16_t       eth_type;
+    uint16_t eth_type;
     /* IPv4 header length */
-    uint32_t       ihl;
+    uint32_t ihl;
     /* IPv4 total length */
-    uint16_t       total_len;
+    uint16_t total_len;
     /* src/dst IPv4 */
-    uint32_t       sip;
-    uint32_t       dip;
+    uint32_t sip;
+    uint32_t dip;
     /* src/dst TCP port */
-    uint16_t       sport;
-    uint16_t       dport;
+    uint16_t sport;
+    uint16_t dport;
 
     if (NULL == data || (14 + 20 + 20) > len) {
         return 0;
@@ -353,55 +355,55 @@ void log_tcp_packet_line(const app_ctx_t *app, const uint8_t *data,
                          uint32_t                     len,
                          const httgw_sess_snapshot_t *fallback_snap) {
     /* 현재 Ethernet/IP 파싱 위치 */
-    const uint8_t        *p;
+    const uint8_t *p;
     /* Ethernet type */
-    uint16_t              eth_type;
+    uint16_t eth_type;
     /* Ethernet 이후 남은 바이트 수 */
-    uint32_t              n;
+    uint32_t n;
     /* IPv4 header length */
-    uint32_t              ihl;
+    uint32_t ihl;
     /* IPv4 total length */
-    uint16_t              total_len;
+    uint16_t total_len;
     /* src/dst IPv4 */
-    uint32_t              sip;
-    uint32_t              dip;
+    uint32_t sip;
+    uint32_t dip;
     /* TCP 헤더 시작 포인터 */
-    const uint8_t        *tcp;
+    const uint8_t *tcp;
     /* IPv4 payload 길이 */
-    uint32_t              ip_payload_len;
+    uint32_t ip_payload_len;
     /* src/dst TCP port */
-    uint16_t              sport;
-    uint16_t              dport;
+    uint16_t sport;
+    uint16_t dport;
     /* raw seq/ack */
-    uint32_t              seq;
-    uint32_t              ack;
+    uint32_t seq;
+    uint32_t ack;
     /* TCP header length */
-    uint32_t              thl;
+    uint32_t thl;
     /* TCP payload 길이 */
-    uint32_t              payload_len;
+    uint32_t payload_len;
     /* TCP timestamp option 값 */
-    uint32_t              tsval   = 0;
-    uint32_t              tsecr   = 0;
+    uint32_t tsval = 0;
+    uint32_t tsecr = 0;
     /* timestamp option 존재 여부 */
-    int                   has_ts  = 0;
+    int has_ts = 0;
     /* snapshot 기준 상대 seq/ack/end */
-    uint32_t              rel_seq = 0;
-    uint32_t              rel_ack = 0;
-    uint32_t              rel_end = 0;
+    uint32_t rel_seq = 0;
+    uint32_t rel_ack = 0;
+    uint32_t rel_end = 0;
     /* 정규화 flow와 방향 */
-    flow_key_t            flow;
-    tcp_dir_t             dir = DIR_AB;
+    flow_key_t flow;
+    tcp_dir_t  dir = DIR_AB;
     /* live session snapshot */
     httgw_sess_snapshot_t snap;
     /* snapshot 확보 여부 */
-    int                   have_snap = 0;
+    int have_snap = 0;
     /* 로그용 IP 문자열 */
-    char                  src_ip[32];
-    char                  dst_ip[32];
+    char src_ip[32];
+    char dst_ip[32];
     /* 로그용 TCP options 문자열 */
-    char                  opts[96];
+    char opts[96];
     /* helper 반환값 */
-    int                   ret;
+    int ret;
 
     /* 디버그 로그가 꺼져 있으면 파싱 자체를 생략한다 */
     if (NULL == app || NULL == app->shared ||
@@ -480,7 +482,8 @@ void log_tcp_packet_line(const app_ctx_t *app, const uint8_t *data,
     ip4_to_str(sip, src_ip, sizeof(src_ip));
     ip4_to_str(dip, dst_ip, sizeof(dst_ip));
 
-    /* live session 또는 fallback snapshot을 기준으로 상대 seq/ack를 계산한다. */
+    /* live session 또는 fallback snapshot을 기준으로 상대 seq/ack를 계산한다.
+     */
     normalize_flow(sip, sport, dip, dport, &flow, &dir);
     ret = -1;
     /* live session snapshot을 우선 사용한다 */
@@ -545,10 +548,10 @@ void request_rst_both(app_ctx_t *app, const flow_key_t *flow,
     /* 현재 세션 snapshot */
     httgw_sess_snapshot_t snap;
     /* 양방향 RST 요청 결과 */
-    int                   rc_ab;
-    int                   rc_ba;
+    int rc_ab;
+    int rc_ba;
     /* helper 반환값 */
-    int                   ret;
+    int ret;
 
     /* app/flow가 없으면 차단 동작 자체를 수행할 수 없다 */
     if (NULL == app || NULL == flow) {
@@ -597,14 +600,14 @@ void request_block_action_v2(app_ctx_t *app, const flow_key_t *flow,
     /* 현재 세션 snapshot */
     httgw_sess_snapshot_t snap;
     /* 주입할 HTTP 403 응답 문자열 */
-    char                 *response     = NULL;
+    char *response = NULL;
     /* 응답 전체 길이 */
-    size_t                response_len = 0;
+    size_t response_len = 0;
     /* AB 방향 RST, BA 방향 응답 주입 결과 */
-    int                   rc_ab;
-    int                   rc_ba;
+    int rc_ab;
+    int rc_ba;
     /* helper 반환값 */
-    int                   ret;
+    int ret;
 
     /* app/flow가 없으면 주입이나 RST fallback을 진행할 수 없다 */
     if (NULL == app || NULL == flow) {
@@ -840,11 +843,11 @@ static int collect_matches_for_slice(detect_engine_t *det, const uint8_t *data,
                                      uint64_t            *detect_elapsed_us,
                                      int decode_before_match, int *score) {
     /* 하위 탐지 함수 반환값 */
-    int      rc;
+    int rc;
     /* 이번 slice의 regex 시간 */
     uint64_t regex_elapsed_us = 0;
     /* 탐지 전 매치 개수 */
-    size_t   prev_count       = matches ? matches->count : 0;
+    size_t prev_count = matches ? matches->count : 0;
 
     /* 빈 slice 건너뜀 */
     if (NULL == data || 0 == len) {
@@ -888,26 +891,26 @@ static __attribute__((unused)) int collect_query_pairs(
     detect_engine_t *det, const char *data, size_t len,
     detect_match_list_t *matches, uint64_t *detect_elapsed_us, int *score) {
     /* 현재 세그먼트 시작 포인터 */
-    const char *p   = data;
+    const char *p = data;
     /* 입력 끝 포인터 */
     const char *end = data + len;
 
     /* query/body를 '&' 단위 세그먼트로 순회 */
     while (p < end) {
         /* '&' 위치 */
-        const char *amp     = memchr(p, '&', (size_t)(end - p));
+        const char *amp = memchr(p, '&', (size_t)(end - p));
         /* 현재 key=value 세그먼트 끝 */
         const char *seg_end = amp ? amp : end;
         /* 현재 세그먼트의 '=' 위치 */
-        const char *eq      = memchr(p, '=', (size_t)(seg_end - p));
+        const char *eq = memchr(p, '=', (size_t)(seg_end - p));
         /* 하위 탐지 함수 반환값 */
-        int         rc;
+        int rc;
 
         if (eq) {
             /* parameter 이름 길이 */
             size_t name_len = (size_t)(eq - p);
             /* parameter 값 길이 */
-            size_t val_len  = (size_t)(seg_end - (eq + 1));
+            size_t val_len = (size_t)(seg_end - (eq + 1));
 
             /* parameter 이름 검사 */
             rc = collect_matches_for_slice(det, (const uint8_t *)p, name_len,
@@ -968,9 +971,9 @@ static const IPS_Signature *select_representative_rule(
     /* 정책별 누적 버킷 */
     policy_bucket_t buckets[POLICY_MAX];
     /* 매치 순회 인덱스 */
-    size_t          i;
+    size_t i;
     /* 현재까지 선택된 대표 정책 인덱스 */
-    int             best_idx = -1;
+    int best_idx = -1;
 
     if (NULL == matches || 0 == matches->count) {
         return NULL;
@@ -1077,7 +1080,8 @@ int run_detect(detect_engine_t *det, const http_message_t *msg, int *out_score,
         return rc;
     }
 
-    /* query/form 파라미터를 ARGS/ARGS_NAMES로 재분해하는 추가 탐지는 생략한다 */
+    /* query/form 파라미터를 ARGS/ARGS_NAMES로 재분해하는 추가 탐지는 생략한다
+     */
 
     /* raw header block 검사 */
     rc = collect_matches_for_slice(det, msg->headers_raw, msg->headers_raw_len,

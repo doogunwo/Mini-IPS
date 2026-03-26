@@ -12,8 +12,8 @@ typedef struct event_loop event_loop_t;
 
 /** 이벤트 루프 생성 시 필요한 기본 설정 */
 typedef struct {
-    int worker_id;      /**< worker 식별자 */
-    int epoll_timeout;  /**< epoll_wait timeout(ms) */
+    int worker_id;     /**< worker 식별자 */
+    int epoll_timeout; /**< epoll_wait timeout(ms) */
 } event_loop_cfg_t;
 
 /** 이벤트 루프 생성 */

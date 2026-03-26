@@ -10,10 +10,10 @@
 
 #include <stddef.h>
 
-#define POLICY_LIST                                    \
-    X(POLICY_SQL_INJECTION, "SQL_INJECTION")           \
-    X(POLICY_XSS, "XSS")                               \
-    X(POLICY_RCE, "RCE")                               \
+#define POLICY_LIST                          \
+    X(POLICY_SQL_INJECTION, "SQL_INJECTION") \
+    X(POLICY_XSS, "XSS")                     \
+    X(POLICY_RCE, "RCE")                     \
     X(POLICY_DIRECTORY_TRAVERS, "DIRECTORY_TRAVERSAL")
 
 /** 정규식 시그니처 테이블에서 사용하는 정책 식별자이다. */

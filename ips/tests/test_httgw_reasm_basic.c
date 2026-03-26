@@ -534,9 +534,10 @@ static int test_gap_fill(void) {
 
     CHECK(ctx.req_count == 1, "Gap filled, request should be complete");
 
-    fprintf(stderr,
-            "[test_httgw_reasm_basic] case=gap_fill req_count=%d err_count=%d\n",
-            ctx.req_count, ctx.err_count);
+    fprintf(
+        stderr,
+        "[test_httgw_reasm_basic] case=gap_fill req_count=%d err_count=%d\n",
+        ctx.req_count, ctx.err_count);
 
     httgw_destroy(gw);
     return 0;

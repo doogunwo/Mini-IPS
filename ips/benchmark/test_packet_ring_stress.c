@@ -92,24 +92,24 @@ static void table_row_f64(const char *metric, double value,
 static void *stress_producer_thread(void *arg) {
     stress_thread_arg_t *ctx = (stress_thread_arg_t *)arg;
 
-    ctx->start_ns = now_ns();
+    ctx->start_ns     = now_ns();
     ctx->cpu_start_ns = now_thread_cpu_ns();
 
     for (uint32_t i = 0; i < ctx->iterations; i++) {
         uint32_t payload = i;
-        int rc = packet_ring_enq(ctx->ring, (const uint8_t *)&payload,
-                                 sizeof(payload), (uint64_t)(1000000U + i));
+        int      rc      = packet_ring_enq(ctx->ring, (const uint8_t *)&payload,
+                                           sizeof(payload), (uint64_t)(1000000U + i));
         if (0 != rc) {
-            ctx->rc = rc;
-            ctx->end_ns = now_ns();
+            ctx->rc         = rc;
+            ctx->end_ns     = now_ns();
             ctx->cpu_end_ns = now_thread_cpu_ns();
             return NULL;
         }
     }
 
-    ctx->end_ns = now_ns();
+    ctx->end_ns     = now_ns();
     ctx->cpu_end_ns = now_thread_cpu_ns();
-    ctx->rc = 0;
+    ctx->rc         = 0;
     return NULL;
 }
 
@@ -123,44 +123,44 @@ static void *stress_producer_thread(void *arg) {
 static void *stress_consumer_thread(void *arg) {
     stress_thread_arg_t *ctx = (stress_thread_arg_t *)arg;
 
-    ctx->start_ns = now_ns();
+    ctx->start_ns     = now_ns();
     ctx->cpu_start_ns = now_thread_cpu_ns();
 
     for (uint32_t i = 0; i < ctx->iterations; i++) {
         uint32_t payload = 0;
-        uint32_t len = 0;
-        uint64_t ts_ns = 0;
-        int rc = packet_ring_deq(ctx->ring, (uint8_t *)&payload,
-                                 sizeof(payload), &len, &ts_ns);
+        uint32_t len     = 0;
+        uint64_t ts_ns   = 0;
+        int      rc      = packet_ring_deq(ctx->ring, (uint8_t *)&payload,
+                                           sizeof(payload), &len, &ts_ns);
         if (0 != rc) {
-            ctx->rc = rc;
-            ctx->end_ns = now_ns();
+            ctx->rc         = rc;
+            ctx->end_ns     = now_ns();
             ctx->cpu_end_ns = now_thread_cpu_ns();
             return NULL;
         }
         if (sizeof(payload) != len) {
-            ctx->rc = -2;
-            ctx->end_ns = now_ns();
+            ctx->rc         = -2;
+            ctx->end_ns     = now_ns();
             ctx->cpu_end_ns = now_thread_cpu_ns();
             return NULL;
         }
         if (i != payload) {
-            ctx->rc = -3;
-            ctx->end_ns = now_ns();
+            ctx->rc         = -3;
+            ctx->end_ns     = now_ns();
             ctx->cpu_end_ns = now_thread_cpu_ns();
             return NULL;
         }
         if ((uint64_t)(1000000U + i) != ts_ns) {
-            ctx->rc = -4;
-            ctx->end_ns = now_ns();
+            ctx->rc         = -4;
+            ctx->end_ns     = now_ns();
             ctx->cpu_end_ns = now_thread_cpu_ns();
             return NULL;
         }
     }
 
-    ctx->end_ns = now_ns();
+    ctx->end_ns     = now_ns();
     ctx->cpu_end_ns = now_thread_cpu_ns();
-    ctx->rc = 0;
+    ctx->rc         = 0;
     return NULL;
 }
 
@@ -170,25 +170,25 @@ static void *stress_consumer_thread(void *arg) {
  * @return int
  */
 int main(void) {
-    packet_ring_t     ring;
-    pthread_t         producer_tid;
-    pthread_t         consumer_tid;
+    packet_ring_t       ring;
+    pthread_t           producer_tid;
+    pthread_t           consumer_tid;
     stress_thread_arg_t producer_arg;
     stress_thread_arg_t consumer_arg;
-    uint64_t          start_ns;
-    uint64_t          end_ns;
-    uint64_t          process_cpu_start_ns;
-    uint64_t          process_cpu_end_ns;
-    double            elapsed_ms;
-    double            producer_ms;
-    double            consumer_ms;
-    double            producer_cpu_ms;
-    double            consumer_cpu_ms;
-    double            process_cpu_ms;
-    double            packets_per_sec;
-    double            producer_cpu_pct;
-    double            consumer_cpu_pct;
-    double            process_cpu_pct;
+    uint64_t            start_ns;
+    uint64_t            end_ns;
+    uint64_t            process_cpu_start_ns;
+    uint64_t            process_cpu_end_ns;
+    double              elapsed_ms;
+    double              producer_ms;
+    double              consumer_ms;
+    double              producer_cpu_ms;
+    double              consumer_cpu_ms;
+    double              process_cpu_ms;
+    double              packets_per_sec;
+    double              producer_cpu_pct;
+    double              consumer_cpu_pct;
+    double              process_cpu_pct;
 
     memset(&producer_arg, 0, sizeof(producer_arg));
     memset(&consumer_arg, 0, sizeof(consumer_arg));
@@ -196,13 +196,13 @@ int main(void) {
     CHECK(0 == packet_ring_init(&ring, STRESS_SLOT_COUNT, 1),
           "packet_ring_init failed");
 
-    producer_arg.ring = &ring;
+    producer_arg.ring       = &ring;
     producer_arg.iterations = STRESS_ITERATIONS;
 
-    consumer_arg.ring = &ring;
+    consumer_arg.ring       = &ring;
     consumer_arg.iterations = STRESS_ITERATIONS;
 
-    start_ns = now_ns();
+    start_ns             = now_ns();
     process_cpu_start_ns = now_process_cpu_ns();
     CHECK(0 == pthread_create(&producer_tid, NULL, stress_producer_thread,
                               &producer_arg),
@@ -211,24 +211,24 @@ int main(void) {
                               &consumer_arg),
           "consumer pthread_create failed");
 
-    CHECK(0 == pthread_join(producer_tid, NULL), "producer pthread_join failed");
-    CHECK(0 == pthread_join(consumer_tid, NULL), "consumer pthread_join failed");
+    CHECK(0 == pthread_join(producer_tid, NULL),
+          "producer pthread_join failed");
+    CHECK(0 == pthread_join(consumer_tid, NULL),
+          "consumer pthread_join failed");
 
     CHECK(0 == producer_arg.rc, "producer failed");
     CHECK(0 == consumer_arg.rc, "consumer failed");
-    CHECK((uint64_t)STRESS_ITERATIONS == ring.stats.enq_ok,
-          "enq_ok mismatch");
-    CHECK((uint64_t)STRESS_ITERATIONS == ring.stats.deq_ok,
-          "deq_ok mismatch");
+    CHECK((uint64_t)STRESS_ITERATIONS == ring.stats.enq_ok, "enq_ok mismatch");
+    CHECK((uint64_t)STRESS_ITERATIONS == ring.stats.deq_ok, "deq_ok mismatch");
     CHECK(0 == ring.stats.drop_full, "drop_full should stay zero");
 
-    end_ns = now_ns();
+    end_ns             = now_ns();
     process_cpu_end_ns = now_process_cpu_ns();
-    elapsed_ms = (double)(end_ns - start_ns) / 1000000.0;
-    producer_ms = (double)(producer_arg.end_ns - producer_arg.start_ns) /
-                  1000000.0;
-    consumer_ms = (double)(consumer_arg.end_ns - consumer_arg.start_ns) /
-                  1000000.0;
+    elapsed_ms         = (double)(end_ns - start_ns) / 1000000.0;
+    producer_ms =
+        (double)(producer_arg.end_ns - producer_arg.start_ns) / 1000000.0;
+    consumer_ms =
+        (double)(consumer_arg.end_ns - consumer_arg.start_ns) / 1000000.0;
     producer_cpu_ms =
         (double)(producer_arg.cpu_end_ns - producer_arg.cpu_start_ns) /
         1000000.0;
@@ -237,18 +237,17 @@ int main(void) {
         1000000.0;
     process_cpu_ms =
         (double)(process_cpu_end_ns - process_cpu_start_ns) / 1000000.0;
-    packets_per_sec =
-        ((double)STRESS_ITERATIONS * 1000000000.0) /
-        (double)(end_ns - start_ns);
+    packets_per_sec = ((double)STRESS_ITERATIONS * 1000000000.0) /
+                      (double)(end_ns - start_ns);
     producer_cpu_pct =
         100.0 * (double)(producer_arg.cpu_end_ns - producer_arg.cpu_start_ns) /
         (double)(producer_arg.end_ns - producer_arg.start_ns);
     consumer_cpu_pct =
         100.0 * (double)(consumer_arg.cpu_end_ns - consumer_arg.cpu_start_ns) /
         (double)(consumer_arg.end_ns - consumer_arg.start_ns);
-    process_cpu_pct =
-        100.0 * (double)(process_cpu_end_ns - process_cpu_start_ns) /
-        (double)(end_ns - start_ns);
+    process_cpu_pct = 100.0 *
+                      (double)(process_cpu_end_ns - process_cpu_start_ns) /
+                      (double)(end_ns - start_ns);
 
     puts("[test_packet_ring_stress]");
     table_line();

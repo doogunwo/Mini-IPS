@@ -11,7 +11,6 @@ ColumnLimit: 80
 IndentWidth: 4
 TabWidth: 4
 UseTab: Never
-
 # 4. 조건문 및 BRACES (K&R 스타일)
 BreakBeforeBraces: Attach # 여는 중괄호를 같은 줄에 배치 (K&R)
 AllowShortIfStatementsOnASingleLine: false # 단일 구문도 항상 여러 줄로

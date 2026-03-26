@@ -64,11 +64,11 @@ static void read_huge_meminfo(unsigned long long *total,
 }
 
 int main(void) {
-    packet_ring_t       ring;
-    unsigned long long  huge_total;
-    unsigned long long  huge_free;
-    unsigned long long  huge_size_kb;
-    size_t              slot_bytes;
+    packet_ring_t      ring;
+    unsigned long long huge_total;
+    unsigned long long huge_free;
+    unsigned long long huge_size_kb;
+    size_t             slot_bytes;
 
     memset(&ring, 0, sizeof(ring));
     read_huge_meminfo(&huge_total, &huge_free, &huge_size_kb);

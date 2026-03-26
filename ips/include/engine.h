@@ -51,6 +51,6 @@ int engine_runtime_collect_matches_timed(engine_runtime_t *runtime,
 /** runtime이 실제로 사용하는 backend 이름을 반환한다. */
 const char *engine_runtime_backend_name(const engine_runtime_t *runtime);
 /** runtime에 대해 JIT이 활성화됐는지 반환한다. */
-int         engine_runtime_jit_enabled(const engine_runtime_t *runtime);
+int engine_runtime_jit_enabled(const engine_runtime_t *runtime);
 
 #endif

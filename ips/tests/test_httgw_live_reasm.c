@@ -241,7 +241,7 @@ static void test_large_request_two_segments(void) {
     assert(feed_segment(gw, &sp, 1001) == 0);
 
     assert(ctx.err_count == 0);
-   assert(ctx.req_count == 1);
+    assert(ctx.req_count == 1);
     assert(strcmp(ctx.last_method, "GET") == 0);
     assert(ctx.last_uri_len > 3600U);
 

@@ -26,10 +26,10 @@ typedef struct detect_engine detect_engine_t;
 
 /** 한 번의 탐지에서 얻은 단일 매치 결과이다. */
 typedef struct {
-    const IPS_Signature *rule;         /**< 매치된 시그니처 */
-    ips_context_t        context;      /**< 어느 HTTP 컨텍스트에서 매치됐는지 */
-    char                *matched_text; /**< 로그 출력을 위해 복사한 매치 문자열 */
-    uint64_t             elapsed_us;   /**< 이 매치 평가에 사용된 누적 시간 */
+    const IPS_Signature *rule; /**< 매치된 시그니처 */
+    ips_context_t context; /**< 어느 HTTP 컨텍스트에서 매치됐는지 */
+    char *matched_text; /**< 로그 출력을 위해 복사한 매치 문자열 */
+    uint64_t elapsed_us; /**< 이 매치 평가에 사용된 누적 시간 */
 } detect_match_t;
 
 /** 매치 결과를 동적 배열로 모으는 컨테이너이다. */
@@ -72,6 +72,6 @@ const char *detect_engine_last_error(const detect_engine_t *e);
 /** 현재 detect 엔진이 사용 중인 backend 이름을 반환한다. */
 const char *detect_engine_backend_name(const detect_engine_t *e);
 /** 현재 detect 엔진에서 JIT이 활성화됐는지 반환한다. */
-int         detect_engine_jit_enabled(const detect_engine_t *e);
+int detect_engine_jit_enabled(const detect_engine_t *e);
 
 #endif

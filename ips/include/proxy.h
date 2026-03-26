@@ -11,11 +11,7 @@
 struct conn;
 
 /** 프록시 동작 결과 코드 */
-typedef enum {
-    PROXY_OK = 0,
-    PROXY_BLOCKED = 1,
-    PROXY_ERROR = -1
-} proxy_rc_t;
+typedef enum { PROXY_OK = 0, PROXY_BLOCKED = 1, PROXY_ERROR = -1 } proxy_rc_t;
 
 /** 클라이언트에서 읽은 바이트를 upstream 또는 탐지 경로로 전달 */
 proxy_rc_t proxy_handle_client_data(struct conn *c, const uint8_t *buf,

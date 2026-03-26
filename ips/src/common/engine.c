@@ -46,14 +46,14 @@ typedef struct {
 } hs_scan_ctx_t;
 
 struct engine_runtime {
-    compiled_rule_t     *compiled_rules; /* rule_count 길이의 컴파일 결과 배열 */
+    compiled_rule_t *compiled_rules; /* rule_count 길이의 컴파일 결과 배열 */
     unsigned int         compiled_count; /* 전체 룰 수 */
     regex_backend_t      backend;        /* 선택된 backend */
     int                  jit_enabled;    /* PCRE2 JIT 활성화 여부 */
     pcre2_jit_stack     *jit_stack;      /* PCRE2 JIT용 stack */
     pcre2_match_context *match_ctx;      /* PCRE2 match context */
     hs_scratch_t        *hs_scratch;     /* Hyperscan scan scratch */
-    hs_group_t           hs_groups[IPS_CTX_RESPONSE_BODY + 1]; /**< ctx별 HS DB */
+    hs_group_t hs_groups[IPS_CTX_RESPONSE_BODY + 1]; /**< ctx별 HS DB */
 };
 
 static regex_backend_t g_selected_backend = REGEX_BACKEND_PCRE2;
@@ -246,7 +246,8 @@ static void hs_release(engine_runtime_t *runtime) {
     }
 
     for (i = 0; i < runtime->compiled_count; i++) {
-        /* HS backend에서는 개별 룰 객체를 소유하지 않으므로 포인터만 정리한다. */
+        /* HS backend에서는 개별 룰 객체를 소유하지 않으므로 포인터만 정리한다.
+         */
         if (NULL != runtime->compiled_rules[i].re) {
             runtime->compiled_rules[i].re = NULL;
         }
@@ -417,7 +418,8 @@ static int compile_pcre2_rule(engine_runtime_t *runtime, compiled_rule_t *slot,
         return 0;
     }
 
-    /* JIT compile이 실패해도 AUTO 모드면 일반 PCRE2 경로로 fallback 가능하다. */
+    /* JIT compile이 실패해도 AUTO 모드면 일반 PCRE2 경로로 fallback 가능하다.
+     */
     jit_rc = pcre2_jit_compile(slot->re, PCRE2_JIT_COMPLETE);
     if (0 != jit_rc) {
         if (DETECT_JIT_ON == jit_mode) {
@@ -526,7 +528,8 @@ static int compile_hs_group(engine_runtime_t *runtime, hs_group_t *group,
             IPS_OP_RX != runtime->compiled_rules[i].rule->op) {
             continue;
         }
-        /* Hyperscan DB에 넣을 패턴 문자열과 rule 인덱스를 같은 순서로 채운다. */
+        /* Hyperscan DB에 넣을 패턴 문자열과 rule 인덱스를 같은 순서로 채운다.
+         */
         patterns[count]            = runtime->compiled_rules[i].rule->pattern;
         flags[count]               = 0;
         ids[count]                 = i;
@@ -917,7 +920,8 @@ static int engine_match_hs(engine_runtime_t *runtime, ips_context_t ctx,
         return 0;
     }
 
-    /* first-match API에서는 룰 존재 여부만 중요하므로 offset은 사용하지 않는다. */
+    /* first-match API에서는 룰 존재 여부만 중요하므로 offset은 사용하지 않는다.
+     */
     *match_off = 0;
     *match_len = 0;
     return 1;
@@ -1144,7 +1148,8 @@ int engine_runtime_collect_matches_timed(engine_runtime_t *runtime,
         }
         memset(seen, 0, runtime->compiled_count * sizeof(*seen));
 
-        /* callback이 matches에 직접 결과를 append 하도록 scan context를 채운다. */
+        /* callback이 matches에 직접 결과를 append 하도록 scan context를 채운다.
+         */
         memset(&scan_ctx, 0, sizeof(scan_ctx));
         scan_ctx.runtime  = runtime;
         scan_ctx.matches  = matches;
@@ -1173,7 +1178,8 @@ int engine_runtime_collect_matches_timed(engine_runtime_t *runtime,
          * 쪼갤 수 없다. 따라서 이번 컨텍스트 scan 전체 시간을 새로 생성된
          * match 항목들에 일괄 기록한다.
          */
-        /* HS는 룰별 시간이 아니라 컨텍스트 scan 전체 시간을 새 매치에 일괄 부여한다. */
+        /* HS는 룰별 시간이 아니라 컨텍스트 scan 전체 시간을 새 매치에 일괄
+         * 부여한다. */
         if (0 != scan_ctx.matched_any) {
             /* 그래서 스캔된 항목들 중 0이면서 컨텍스트인 것*/
             /* 해당 컨텍스트의 전체 스캔 시간을 구한 뒤 */

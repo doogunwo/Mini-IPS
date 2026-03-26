@@ -1,9 +1,9 @@
-#include "regex.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#include "regex.h"
 
 #ifndef REGEX_LOAD_FN
 #define REGEX_LOAD_FN regex_signatures_load
@@ -29,29 +29,30 @@ static int write_test_rules(const char *path) {
      * 104: \q 같은 잘못된 escape는 malformed line으로 skip되어야 함
      * 105: 알 수 없는 중첩 객체/배열 key가 있어도 known field는 정상 적재
      */
-    if (0 > fprintf(
-                fp,
-                "{\"pid\":\"p100\",\"pname\":\"SQL_INJECTION\","
-                "\"pat\":\"\\uAC00\",\"ctx\":\"URI\",\"op\":\"rx\","
-                "\"rid\":100,\"source\":\"unicode-pattern\"}\n"
-                "{\"pid\":\"p101\",\"pname\":\"XSS\","
-                "\"pat\":\"plain\",\"ctx\":\"URI\",\"op\":\"pmFromFile\","
-                "\"rid\":101,\"data_values\":[\"\\uAC00\",\"plain\"],"
-                "\"source\":\"unicode-array\"}\n"
-                "{\"pid\":\"p102\",\"pname\":\"XSS\","
-                "\"pat\":\"ctx-check\",\"ctx\":\"U\",\"op\":\"rx\","
-                "\"rid\":102}\n"
-                "{\"pid\":\"p103\",\"pname\":\"XSS\","
-                "\"pat\":\"broken-array\",\"ctx\":\"URI\",\"op\":\"pmFromFile\","
-                "\"rid\":103,\"data_values\":[\"a\",\"b\"\n"
-                "{\"pid\":\"p104\",\"pname\":\"XSS\","
-                "\"pat\":\"\\q\",\"ctx\":\"URI\",\"op\":\"rx\","
-                "\"rid\":104}\n"
-                "{\"pid\":\"p105\",\"pname\":\"SCANNER\","
-                "\"pat\":\"kept\",\"ctx\":\"REQUEST_BODY\","
-                "\"op\":\"contains\",\"rid\":105,"
-                "\"unknown\":{\"nested\":[1,2,{\"x\":true}]},"
-                "\"source\":\"with-unknown\"}\n")) {
+    if (0 >
+        fprintf(
+            fp,
+            "{\"pid\":\"p100\",\"pname\":\"SQL_INJECTION\","
+            "\"pat\":\"\\uAC00\",\"ctx\":\"URI\",\"op\":\"rx\","
+            "\"rid\":100,\"source\":\"unicode-pattern\"}\n"
+            "{\"pid\":\"p101\",\"pname\":\"XSS\","
+            "\"pat\":\"plain\",\"ctx\":\"URI\",\"op\":\"pmFromFile\","
+            "\"rid\":101,\"data_values\":[\"\\uAC00\",\"plain\"],"
+            "\"source\":\"unicode-array\"}\n"
+            "{\"pid\":\"p102\",\"pname\":\"XSS\","
+            "\"pat\":\"ctx-check\",\"ctx\":\"U\",\"op\":\"rx\","
+            "\"rid\":102}\n"
+            "{\"pid\":\"p103\",\"pname\":\"XSS\","
+            "\"pat\":\"broken-array\",\"ctx\":\"URI\",\"op\":\"pmFromFile\","
+            "\"rid\":103,\"data_values\":[\"a\",\"b\"\n"
+            "{\"pid\":\"p104\",\"pname\":\"XSS\","
+            "\"pat\":\"\\q\",\"ctx\":\"URI\",\"op\":\"rx\","
+            "\"rid\":104}\n"
+            "{\"pid\":\"p105\",\"pname\":\"SCANNER\","
+            "\"pat\":\"kept\",\"ctx\":\"REQUEST_BODY\","
+            "\"op\":\"contains\",\"rid\":105,"
+            "\"unknown\":{\"nested\":[1,2,{\"x\":true}]},"
+            "\"source\":\"with-unknown\"}\n")) {
         fclose(fp);
         return -1;
     }
@@ -151,9 +152,9 @@ static int expect_loaded(int rid) {
 }
 
 int main(void) {
-    char                 path_template[] = "/tmp/regex_rules_XXXXXX.jsonl";
-    int                  fd;
-    unsigned char        utf8_ga[] = {0xEA, 0xB0, 0x80, 0x00};
+    char          path_template[] = "/tmp/regex_rules_XXXXXX.jsonl";
+    int           fd;
+    unsigned char utf8_ga[] = {0xEA, 0xB0, 0x80, 0x00};
 
     fd = mkstemps(path_template, 6);
     if (fd < 0) {
@@ -177,10 +178,8 @@ int main(void) {
     if (0 != expect_signature_count(4) ||
         0 != expect_pattern_utf8(100, utf8_ga) ||
         0 != expect_array_utf8(101, 0, utf8_ga) ||
-        0 != expect_context(102, IPS_CTX_ALL) ||
-        0 != expect_missing(103) ||
-        0 != expect_missing(104) ||
-        0 != expect_loaded(105)) {
+        0 != expect_context(102, IPS_CTX_ALL) || 0 != expect_missing(103) ||
+        0 != expect_missing(104) || 0 != expect_loaded(105)) {
         REGEX_UNLOAD_FN();
         unlink(path_template);
         return 1;

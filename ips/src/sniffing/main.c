@@ -91,12 +91,11 @@ static int set_resolved_path(char *dst, size_t dst_len, const char *base,
  * @return const char * 읽을 수 있는 템플릿 경로, 없으면 기본 상대 경로
  */
 static const char *resolve_block_page_template_path(void) {
-    static char              resolved[PATH_MAX];
-    /* 프로세스 실행이 ./ips/build/main ./main ./build/main 이런식이여도 상대 경로 호환되기 위해 설정 */
+    static char resolved[PATH_MAX];
+    /* 프로세스 실행이 ./ips/build/main ./main ./build/main 이런식이여도 상대
+     * 경로 호환되기 위해 설정 */
     static const char *const cwd_candidates[] = {
-        "DB/index.html",
-        "../DB/index.html",
-        "../../DB/index.html",
+        "DB/index.html", "../DB/index.html", "../../DB/index.html",
         NULL, /* 배열의 끝 표시 순회할때 NYLL != 체크있음*/
     };
 
@@ -160,7 +159,7 @@ static const char *resolve_block_page_template_path(void) {
  * 환경변수 alias를 지원하려는 헬퍼함수
  * @param first 환경변수 첫번째
  * @param second 환경변수 두번째
- * @return const char* 
+ * @return const char*
  */
 static const char *first_nonempty_env(const char *first, const char *second) {
     const char *value;
@@ -196,7 +195,6 @@ static const char *first_nonempty_env(const char *first, const char *second) {
 static void on_request(const flow_key_t *flow, tcp_dir_t dir,
                        const http_message_t *msg, const char *query,
                        size_t query_len, void *user) {
-
     app_ctx_t           *app  = (app_ctx_t *)user;
     const IPS_Signature *rule = NULL;
     detect_match_list_t  matches;
@@ -235,7 +233,8 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
     rc = run_detect(app->det, msg, &score, query, query_len, &rule, &matches,
                     &detect_us);
     detect_ms = (long)((detect_us + 999ULL) / 1000ULL);
-    /* flow->src_ip에 들어있는 ipv4 주소를 사람이 읽을 수 있는 문자열로 바꾸는 함수이다. */
+    /* flow->src_ip에 들어있는 ipv4 주소를 사람이 읽을 수 있는 문자열로 바꾸는
+     * 함수이다. */
     ip4_to_str(flow->src_ip, ip, sizeof(ip));
 
     if (0 > rc) {
@@ -251,7 +250,8 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
         char from[256];
         /* 이번 차단 이벤트를 식별할 고유 event_id를 생성한다. */
         ret = app_make_event_id(app->shared, event_id, sizeof(event_id));
-        /* 이벤트 아이디 생성 실패해도 후속 로직 깨지지않게 fallback 문자열을 넣는다. */
+        /* 이벤트 아이디 생성 실패해도 후속 로직 깨지지않게 fallback 문자열을
+         * 넣는다. */
         if (0 != ret) {
             memcpy(event_id, "evt-unavailable", sizeof("evt-unavailable"));
         }
@@ -273,8 +273,10 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
          * 차단 페이지와 로그에 같은 event_id를 넣어 이후 분석 시 연결 가능하게
          * 한다.
          */
-        /* 템플릿 파일을 읽어서 id, ts, ip를 채워넣은 새 차단 페이지 문자열 생성 */
-        block_page_html = app_render_block_page(g_block_page_template_path, event_id, event_ts, ip);
+        /* 템플릿 파일을 읽어서 id, ts, ip를 채워넣은 새 차단 페이지 문자열 생성
+         */
+        block_page_html = app_render_block_page(g_block_page_template_path,
+                                                event_id, event_ts, ip);
         /* 이전에 만든게 있다면 해제 */
         free(app->last_block_page_html);
         /* 최신 페이지를 전달함 */
@@ -293,7 +295,8 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
                 "event=block_page_render_failed event_id=%s template=%s",
                 event_id, g_block_page_template_path);
         }
-        /* 로그용 요청 출처 문자열을 "METHOD URI" 형태로 길이 제한해 조합한다. */
+        /* 로그용 요청 출처 문자열을 "METHOD URI" 형태로 길이 제한해 조합한다.
+         */
         snprintf(from, sizeof(from), "%.31s %.200s",
                  msg->method[0] ? msg->method : "UNKNOWN",
                  msg->uri[0] ? msg->uri : "/");
@@ -330,7 +333,8 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
 
             /* escape에 성공한 경우에만 허용 요청 로그를 기록한다. */
             if (NULL != uri_esc) {
-                /* 탐지 임계치 미만으로 통과한 HTTP 요청 한 건을 INFO 로그로 남긴다. */
+                /* 탐지 임계치 미만으로 통과한 HTTP 요청 한 건을 INFO 로그로
+                 * 남긴다. */
                 app_log_write(app->shared, "INFO",
                               "event=http_pass where=request "
                               "method=%s uri=\"%s\" src_ip=%s "
@@ -368,9 +372,9 @@ static void on_error(const char *stage, const char *detail, void *user) {
     /* worker app context 포인터 */
     app_ctx_t *app = (app_ctx_t *)user;
     /* 로그용 detail escape 복사본 */
-    char      *detail_esc;
+    char *detail_esc;
     /* stage 비교 결과 */
-    int        ret;
+    int ret;
 
     /* 공유 상태 유효성 검사 */
     if (!app || !app->shared) {
@@ -402,7 +406,8 @@ static void on_error(const char *stage, const char *detail, void *user) {
     }
 }
 
-/* --------------------------- packet callback / monitor --------------------------- */
+/* --------------------------- packet callback / monitor
+ * --------------------------- */
 
 /**
  * @brief 주기적으로 monitor.log에 성능/상태 통계를 기록한다.
@@ -448,14 +453,16 @@ static void maybe_emit_monitor_stats(app_ctx_t *app, uint64_t ts_ms) {
         return;
     }
 
-    /* 마지막 출력 시각을 읽고, 아직 1초가 지나지 않았으면 이번 호출은 건너뛴다. */
+    /* 마지막 출력 시각을 읽고, 아직 1초가 지나지 않았으면 이번 호출은 건너뛴다.
+     */
     last_emit_ms = atomic_load_explicit(&shared->monitor_last_emit_ms,
                                         memory_order_relaxed);
     if (0 != last_emit_ms && 1000ULL > (ts_ms - (uint64_t)last_emit_ms)) {
         return;
     }
 
-    /* 이번 시각으로 출력 권한을 선점한 worker만 실제 monitor 로그를 작성한다. */
+    /* 이번 시각으로 출력 권한을 선점한 worker만 실제 monitor 로그를 작성한다.
+     */
     expected  = last_emit_ms;
     exchanged = atomic_compare_exchange_strong_explicit(
         &shared->monitor_last_emit_ms, &expected, ts_ms, memory_order_relaxed,
@@ -464,7 +471,8 @@ static void maybe_emit_monitor_stats(app_ctx_t *app, uint64_t ts_ms) {
         return;
     }
 
-    /* 직전 출력 시점과의 간격을 구해 초당 rate 환산의 기준 구간으로 사용한다. */
+    /* 직전 출력 시점과의 간격을 구해 초당 rate 환산의 기준 구간으로 사용한다.
+     */
     interval_ms = (0 != last_emit_ms && ts_ms > (uint64_t)last_emit_ms)
                       ? (ts_ms - (uint64_t)last_emit_ms)
                       : 1000ULL;
@@ -505,21 +513,24 @@ static void maybe_emit_monitor_stats(app_ctx_t *app, uint64_t ts_ms) {
         queue_depth += (uint64_t)(tail - head);
     }
 
-    /* 직전 누적치와 현재 누적치의 차이를 interval_ms 기준 초당 처리량으로 환산한다. */
-    pps = ((packets - shared->monitor_prev_packets) * 1000ULL) / interval_ms;
+    /* 직전 누적치와 현재 누적치의 차이를 interval_ms 기준 초당 처리량으로
+     * 환산한다. */
+    pps    = ((packets - shared->monitor_prev_packets) * 1000ULL) / interval_ms;
     req_ps = ((reqs - shared->monitor_prev_reqs) * 1000ULL) / interval_ms;
     detect_ps =
         ((detects - shared->monitor_prev_detects) * 1000ULL) / interval_ms;
     reasm_in_order_ps =
         ((total_reasm.in_order_pkts - shared->monitor_prev_reasm_in_order) *
-         1000ULL) / interval_ms;
-    reasm_out_of_order_ps =
-        ((total_reasm.out_of_order_pkts -
-          shared->monitor_prev_reasm_out_of_order) *
-         1000ULL) / interval_ms;
+         1000ULL) /
+        interval_ms;
+    reasm_out_of_order_ps = ((total_reasm.out_of_order_pkts -
+                              shared->monitor_prev_reasm_out_of_order) *
+                             1000ULL) /
+                            interval_ms;
     reasm_trimmed_ps =
         ((total_reasm.trimmed_pkts - shared->monitor_prev_reasm_trimmed) *
-         1000ULL) / interval_ms;
+         1000ULL) /
+        interval_ms;
 
     /* 계산한 rate와 누적치를 monitor.log 한 줄로 기록한다. */
     app_monitor_write(
@@ -606,7 +617,8 @@ static void on_packet(const uint8_t *data, uint32_t len, uint64_t ts_ns,
          */
         int rc = httgw_ingest_packet(app->gw, data, len, ts_ms);
 
-        /* idle session, reassembly state가 무한히 쌓이지 않도록 주기 GC를 돈다. */
+        /* idle session, reassembly state가 무한히 쌓이지 않도록 주기 GC를 돈다.
+         */
         if (0 == app->last_gc_ms || 1000ULL <= (ts_ms - app->last_gc_ms)) {
             httgw_gc(app->gw, ts_ms);
             app->last_gc_ms = ts_ms;
@@ -620,8 +632,8 @@ static void on_packet(const uint8_t *data, uint32_t len, uint64_t ts_ns,
         }
 
         /*
-         * 기능 경로와 별개로, 운영 관찰을 위해 패킷 단위 TCP 로그와 모니터 통계를
-         * 병행 기록한다.
+         * 기능 경로와 별개로, 운영 관찰을 위해 패킷 단위 TCP 로그와 모니터
+         * 통계를 병행 기록한다.
          */
         log_tcp_packet_line(app, data, len, fallback_snap);
         maybe_emit_monitor_stats(app, ts_ms);
@@ -682,8 +694,6 @@ static void usage(const char *prog) {
             "env: IFACE|IPS_IFACE, BPF|IPS_BPF, ENGINE|IPS_ENGINE\n",
             prog ? prog : "main");
 }
-
-
 
 /**
  * @brief 캡처/탐지/게이트웨이 런타임을 구성하고 패킷 처리를 시작한다.
@@ -807,14 +817,16 @@ int main(int argc, char **argv) {
         sa.sa_handler = on_sigint;
         sigemptyset(&sa.sa_mask);
         sa.sa_flags = 0;
-        /* sigaction은 어떤 핸들러, 시그널, 플래그를 쓸지 명시적으로 설정 가능하다. */
+        /* sigaction은 어떤 핸들러, 시그널, 플래그를 쓸지 명시적으로 설정
+         * 가능하다. */
         sigaction(SIGINT, &sa, NULL);
     }
 
     memset(&rt, 0, sizeof(rt));
     memset(&shared, 0, sizeof(shared));
 
-    /* 로그 파일과 monitor 로그 파일을 연다. 이후 오류도 모두 이 채널로 남긴다. */
+    /* 로그 파일과 monitor 로그 파일을 연다. 이후 오류도 모두 이 채널로 남긴다.
+     */
     ret = app_log_open(&shared);
     if (0 != ret) {
         fprintf(stderr, "log init failed\n");
@@ -944,18 +956,20 @@ int main(int argc, char **argv) {
      */
     memset(&cbs, 0, sizeof(cbs));
     /*
-     * on_request: 정상적으로 완성된 HTTP 요청을 받아 탐지와 차단을 수행함 
+     * on_request: 정상적으로 완성된 HTTP 요청을 받아 탐지와 차단을 수행함
      * on_error: 재조립/파싱 과정의 오류를 받아 로그와 통계에 반영
      */
     cbs.on_request = on_request;
     cbs.on_error   = on_error;
 
-    /* 현재 구조상으로는 worker_count = 1 고정이라서 단일 포인터 방식으로 충분하다. */
+    /* 현재 구조상으로는 worker_count = 1 고정이라서 단일 포인터 방식으로
+     * 충분하다. */
     /* worker별 독립 context를 따로 두어 detect/gateway 상태를 분리한다. */
     /* workers: 실제 worker 상태 구조체 배열 */
     workers = (app_ctx_t *)malloc((size_t)worker_count * sizeof(*workers));
     /* worker_users는 그 worker 들을 가르키는 user 포인터 배열이다. */
-    worker_users =(void **)malloc((size_t)worker_count * sizeof(*worker_users));
+    worker_users =
+        (void **)malloc((size_t)worker_count * sizeof(*worker_users));
     if (NULL == workers || NULL == worker_users) {
         fprintf(stderr, "worker alloc failed\n");
         app_log_write(&shared, "ERROR", "worker alloc failed");
@@ -986,7 +1000,7 @@ int main(int argc, char **argv) {
         memset(w, 0, sizeof(*w));
         w->shared = &shared;
         /* 정책별 룰 집합과 backend runtime을 가지는 탐지 엔진 생성 */
-        w->det    = detect_engine_create(policy, DETECT_JIT_AUTO);
+        w->det = detect_engine_create(policy, DETECT_JIT_AUTO);
         if (!w->det) {
             fprintf(stderr, "detect_engine_create failed\n");
             app_log_write(&shared, "ERROR", "detect_engine_create failed");
@@ -1024,7 +1038,8 @@ int main(int argc, char **argv) {
 
         /*
          * 차단 시 RST/403 주입을 위해 raw L3 송신 소켓을 worker마다 준비한다.
-         * 이 단계가 실패하면 탐지는 가능해도 차단이 불완전해지므로 시작을 중단한다.
+         * 이 단계가 실패하면 탐지는 가능해도 차단이 불완전해지므로 시작을
+         * 중단한다.
          */
         ret = tx_ctx_init(&w->rst_tx);
         if (0 != ret) {

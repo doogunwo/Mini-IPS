@@ -39,6 +39,7 @@
 /* Packet Filter Header*/
 #include <stdbool.h>
 #include <stddef.h>
+
 #include "packet_ring.h"
 
 typedef void (*driver_packet_cb)(const uint8_t *data, uint32_t len,
@@ -49,7 +50,7 @@ typedef void (*driver_packet_cb)(const uint8_t *data, uint32_t len,
 typedef struct capture_ctx {
     pcap_t             *handle; /**< 활성화된 libpcap capture handle */
     packet_queue_set_t *queues; /**< worker별 ring queue 집합 */
-    uint32_t            rr;     /**< 비정상 패킷 fallback용 round-robin 인덱스 */
+    uint32_t rr; /**< 비정상 패킷 fallback용 round-robin 인덱스 */
 } capture_ctx_t;
 
 /** libpcap 활성화에 필요한 설정 묶음이다. */
@@ -90,31 +91,31 @@ typedef struct driver_runtime {
     int capture_started; /**< capture thread 시작 여부 */
     int workers_started; /**< worker thread 시작 여부 */
 
-    atomic_bool stop;       /**< 전체 종료 요청 플래그 */
-    atomic_bool failed;     /**< capture/worker 중 하나라도 실패했는지 */
+    atomic_bool stop;   /**< 전체 종료 요청 플래그 */
+    atomic_bool failed; /**< capture/worker 중 하나라도 실패했는지 */
     atomic_int  last_error; /**< 최근 오류 코드 */
 
-    pthread_mutex_t  handler_mu;       /**< 핸들러 교체 시점 보호용 mutex */
-    driver_packet_cb on_packet;        /**< worker가 호출할 최종 패킷 콜백 */
-    void            *on_packet_user;   /**< 단일 user 포인터 모드 */
-    void           **worker_users;     /**< worker별 user 포인터 배열 */
+    pthread_mutex_t  handler_mu; /**< 핸들러 교체 시점 보호용 mutex */
+    driver_packet_cb on_packet; /**< worker가 호출할 최종 패킷 콜백 */
+    void            *on_packet_user;    /**< 단일 user 포인터 모드 */
+    void           **worker_users;      /**< worker별 user 포인터 배열 */
     size_t           worker_user_count; /**< worker_users 길이 */
 
     packet_queue_set_t queues; /**< capture->worker SPSC 큐 집합 */
 } driver_runtime_t;
 
 /** queue set과 runtime 기본 상태를 초기화한다. */
-int  driver_init(driver_runtime_t *rt, int worker_count);
+int driver_init(driver_runtime_t *rt, int worker_count);
 /** capture thread와 worker thread를 실제로 시작한다. */
-int  driver_start(driver_runtime_t *rt);
+int driver_start(driver_runtime_t *rt);
 /** 모든 스레드에 정지를 요청하고 join한다. */
-int  driver_stop(driver_runtime_t *rt);
+int driver_stop(driver_runtime_t *rt);
 /** runtime이 보유한 자원을 역순으로 해제한다. */
 void driver_destroy(driver_runtime_t *rt);
 /** worker/capture 실패 여부를 반환한다. */
-int  driver_has_failed(driver_runtime_t *rt);
+int driver_has_failed(driver_runtime_t *rt);
 /** 최근 오류 코드를 반환한다. */
-int  driver_last_error(driver_runtime_t *rt);
+int driver_last_error(driver_runtime_t *rt);
 /** 모든 worker가 같은 user 포인터를 쓰는 단일 핸들러를 등록한다. */
 void driver_set_packet_handler(driver_runtime_t *rt, driver_packet_cb cb,
                                void *user);

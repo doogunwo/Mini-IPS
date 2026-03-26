@@ -183,8 +183,7 @@ static int test_ingest_malformed_request_increments_parse_err(void) {
     fprintf(stderr,
             "[test_httgw_ingest] case=malformed_request req_count=%d "
             "err_count=%d parse_errs=%llu\n",
-            ctx.req_count, ctx.err_count,
-            (unsigned long long)st->parse_errs);
+            ctx.req_count, ctx.err_count, (unsigned long long)st->parse_errs);
 
     httgw_destroy(gw);
     return 0;

@@ -27,13 +27,13 @@ static void make_log_timestamp(char *out, size_t out_sz) {
     /* 실시간 시각 정보 */
     struct timespec ts;
     /* localtime 변환 결과 */
-    struct tm       tm_now;
+    struct tm tm_now;
     /* millisecond 값 */
-    int             ms;
+    int ms;
     /* strftime 결과 길이 */
-    size_t          n;
+    size_t n;
     /* helper 반환값 */
-    int             ret;
+    int ret;
 
     /* 출력 버퍼가 없으면 종료 */
     if (NULL == out || 0U == out_sz) {
@@ -53,7 +53,7 @@ static void make_log_timestamp(char *out, size_t out_sz) {
     /* 나노초를 밀리초로 축소 */
     ms = (int)(ts.tv_nsec / 1000000L);
     /* yyyy-mm-ddTHH:MM:SS 부분 먼저 기록 */
-    n  = strftime(out, out_sz, "%Y-%m-%dT%H:%M:%S", &tm_now);
+    n = strftime(out, out_sz, "%Y-%m-%dT%H:%M:%S", &tm_now);
     if (0 == n || n + 6 >= out_sz) {
         /* 버퍼가 부족하면 fallback 사용 */
         snprintf(out, out_sz, "1970-01-01T00:00:00.000");
@@ -90,7 +90,7 @@ static void write_log_line_locked(FILE *fp, const char *ts, const char *level,
  */
 static int strbuf_reserve(strbuf_t *sb, size_t need) {
     /* realloc 결과 버퍼 */
-    char  *next;
+    char *next;
     /* 다음 확장 용량 */
     size_t next_cap;
 
@@ -138,7 +138,7 @@ static int strbuf_append_char(strbuf_t *sb, char c) {
     /* 문자 1개 추가 */
     sb->buf[sb->len++] = c;
     /* 항상 NUL 종료 유지 */
-    sb->buf[sb->len]   = '\0';
+    sb->buf[sb->len] = '\0';
     return 0;
 }
 
@@ -149,7 +149,7 @@ static int strbuf_append_str(strbuf_t *sb, const char *s) {
     /* 원본 문자열 길이 */
     size_t n;
     /* reserve helper 결과 */
-    int    ret;
+    int ret;
 
     /* NULL 입력은 빈 문자열로 간주 */
     if (NULL == s) {
@@ -157,7 +157,7 @@ static int strbuf_append_str(strbuf_t *sb, const char *s) {
     }
 
     /* 복사 길이 계산 */
-    n   = strlen(s);
+    n = strlen(s);
     /* 문자열 전체와 NUL 종료 공간 확보 */
     ret = strbuf_reserve(sb, sb->len + n + 1U);
     if (0 != ret) {
@@ -178,13 +178,13 @@ static int strbuf_append_str(strbuf_t *sb, const char *s) {
  */
 static int strbuf_append_escaped(strbuf_t *sb, const char *s) {
     /* 순회 인덱스 */
-    size_t        i;
+    size_t i;
     /* 현재 문자 */
     unsigned char c;
     /* 비출력 문자의 hex escape 임시 버퍼 */
-    char          hex[5];
+    char hex[5];
     /* helper 반환값 */
-    int           ret;
+    int ret;
 
     /* NULL 문자열은 빈 문자열처럼 처리 */
     if (NULL == s) {
@@ -265,11 +265,11 @@ static const char *ctx_name(ips_context_t ctx) {
  */
 static int ensure_parent_dir(const char *path) {
     /* 부모 디렉터리 경로 임시 버퍼 */
-    char  dir_path[256];
+    char dir_path[256];
     /* 마지막 슬래시 위치 */
     char *slash;
     /* mkdir 반환값 */
-    int   ret;
+    int ret;
 
     /* 경로 문자열 검증 */
     if (NULL == path || '\0' == path[0]) {
@@ -300,7 +300,7 @@ static int ensure_parent_dir(const char *path) {
     /* 마지막 슬래시를 끊어 부모 디렉터리 문자열만 남긴다 */
     *slash = '\0';
     /* 부모 디렉터리 생성 시도 */
-    ret    = mkdir(dir_path, 0755);
+    ret = mkdir(dir_path, 0755);
     if (0 != ret && EEXIST != errno) {
         return -1;
     }
@@ -308,7 +308,8 @@ static int ensure_parent_dir(const char *path) {
     return 0;
 }
 
-/* --------------------------- env / string helpers --------------------------- */
+/* --------------------------- env / string helpers ---------------------------
+ */
 
 /**
  * @brief 환경 변수 값을 boolean 플래그처럼 해석한다.
@@ -323,7 +324,7 @@ int env_flag_enabled(const char *name, int default_value) {
     /* 환경 변수 원문 값 */
     const char *val;
     /* 문자열 비교 결과 */
-    int         ret;
+    int ret;
 
     /* 이름이 없으면 기본값 유지 */
     if (NULL == name) {
@@ -432,7 +433,7 @@ char *log_escape_dup(const char *s) {
     /* 동적 문자열 버퍼 */
     strbuf_t sb = {0};
     /* escape helper 결과 */
-    int      ret;
+    int ret;
 
     /* 로그 안전 문자열 생성 */
     ret = strbuf_append_escaped(&sb, s);
@@ -486,11 +487,11 @@ int app_make_event_id(app_shared_t *shared, char *out, size_t out_sz) {
     /* 현재 wall clock 시각 */
     struct timespec ts;
     /* 프로세스 내부 단조 증가 시퀀스 */
-    uint64_t        seq;
+    uint64_t seq;
     /* epoch millisecond */
-    uint64_t        epoch_ms;
+    uint64_t epoch_ms;
     /* helper 반환값 */
-    int             ret;
+    int ret;
 
     if (NULL == shared || NULL == out || 0U == out_sz) {
         return -1;
@@ -528,7 +529,7 @@ int append_match_strings(const detect_match_list_t *matches, strbuf_t *rules,
     /* 매치 리스트 순회 인덱스 */
     size_t i;
     /* helper 반환값 */
-    int    ret;
+    int ret;
 
     /* 빈 리스트는 아무 것도 추가하지 않는다 */
     if (NULL == matches) {
@@ -613,7 +614,7 @@ int app_log_open(app_shared_t *shared) {
     /* 모니터 로그 경로 환경 변수 */
     const char *monitor_log_file_env;
     /* helper 반환값 */
-    int         ret;
+    int ret;
 
     /* 공유 상태 포인터 검증 */
     if (NULL == shared) {
@@ -709,9 +710,9 @@ void app_log_write(app_shared_t *shared, const char *category, const char *fmt,
     /* 가변 인자 목록 */
     va_list ap;
     /* 현재 시각 문자열 */
-    char    ts[40];
+    char ts[40];
     /* format 결과 본문 버퍼 */
-    char    body[4096];
+    char body[4096];
 
     /* 필수 입력 검증 */
     if (!shared || !shared->log_fp || !fmt) {
@@ -744,9 +745,9 @@ void app_monitor_write(app_shared_t *shared, const char *fmt, ...) {
     /* 가변 인자 목록 */
     va_list ap;
     /* 현재 시각 문자열 */
-    char    ts[40];
+    char ts[40];
     /* format 결과 본문 버퍼 */
-    char    body[4096];
+    char body[4096];
 
     /* 필수 입력 검증 */
     if (!shared || !shared->monitor_log_fp || !fmt) {
@@ -796,7 +797,7 @@ void app_log_attack(app_shared_t *shared, const char *event_id,
                     const char *ip, uint16_t port, int score, int threshold,
                     size_t match_count, uint64_t detect_us, long detect_ms) {
     /* 최종 로그 timestamp */
-    char  ts[40];
+    char ts[40];
     /* 각 필드 escape 복사본 */
     char *from_esc;
     char *detected_esc;

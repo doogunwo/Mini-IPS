@@ -54,13 +54,13 @@ static int is_power_of_two_u32(uint32_t x) {
  */
 static size_t packet_hugepage_size(void) {
     /* /proc/meminfo 파일 핸들 */
-    FILE  *fp;
+    FILE *fp;
     /* meminfo 한 줄 버퍼 */
-    char   line[128];
+    char line[128];
     /* hugepage 크기(kB) */
     size_t kb = 0;
     /* sscanf 반환값 */
-    int    ret;
+    int ret;
 
     /* hugepage 크기는 커널이 /proc/meminfo에 kB 단위로 노출한다. */
     fp = fopen("/proc/meminfo", "r");
@@ -134,7 +134,7 @@ static void *packet_slots_alloc(size_t bytes, size_t *alloc_len,
     /* mmap 할당 길이 */
     size_t map_len;
     /* 할당 결과 포인터 */
-    void  *p;
+    void *p;
 
     /* 출력 포인터 유효성 검사 */
     if (NULL == alloc_len || NULL == used_mmap) {
@@ -149,7 +149,7 @@ static void *packet_slots_alloc(size_t bytes, size_t *alloc_len,
     /* 시스템 hugepage 크기 조회 */
     hugepage_size = packet_hugepage_size();
     /* hugepage 배수로 올림 정렬 */
-    map_len       = align_up_size(bytes, hugepage_size);
+    map_len = align_up_size(bytes, hugepage_size);
 
     /* hugepage pool이 준비되어 있으면 slot 배열 전체를 hugepage에 올린다. */
     p = mmap(NULL, map_len,
@@ -220,9 +220,9 @@ int packet_ring_init(packet_ring_t *r, uint32_t slot_count, int use_blocking) {
     /* slot 배열 총 바이트 수 */
     size_t slots_bytes;
     /* slot 배열 할당 결과 */
-    void  *slots_mem;
+    void *slots_mem;
     /* helper 반환값 */
-    int    ret;
+    int ret;
 
     /* 링 포인터 검사 */
     if (NULL == r) {
@@ -241,8 +241,8 @@ int packet_ring_init(packet_ring_t *r, uint32_t slot_count, int use_blocking) {
     /* slot 배열 총 크기 계산 */
     slots_bytes = (size_t)slot_count * sizeof(packet_slot_t);
     /* slot backing memory 할당 */
-    slots_mem   = packet_slots_alloc(slots_bytes, &r->slots_alloc_len,
-                                     &r->slots_use_mmap);
+    slots_mem = packet_slots_alloc(slots_bytes, &r->slots_alloc_len,
+                                   &r->slots_use_mmap);
 
     /* 할당 실패 */
     if (NULL == slots_mem) {
@@ -250,11 +250,11 @@ int packet_ring_init(packet_ring_t *r, uint32_t slot_count, int use_blocking) {
     }
 
     /* slot 배열 포인터 저장 */
-    r->slots      = (packet_slot_t *)slots_mem;
+    r->slots = (packet_slot_t *)slots_mem;
     /* slot 개수 저장 */
     r->slot_count = slot_count;
     /* 순환 인덱스용 mask 저장 */
-    r->mask       = slot_count - 1U;
+    r->mask = slot_count - 1U;
 
     /* consumer head 초기화 */
     atomic_store_explicit(&r->head, 0U, memory_order_relaxed);
@@ -291,11 +291,11 @@ void packet_ring_destroy(packet_ring_t *r) {
 int packet_ring_enq(packet_ring_t *r, const uint8_t *data, uint32_t len,
                     uint64_t ts_ns) {
     /* consumer가 공개한 head 스냅샷 */
-    uint32_t       head;
+    uint32_t head;
     /* producer가 소유한 tail 스냅샷 */
-    uint32_t       tail;
+    uint32_t tail;
     /* blocking 정책 스냅샷 */
-    int            use_blocking;
+    int use_blocking;
     /* 이번 enqueue 대상 slot */
     packet_slot_t *s;
 
@@ -361,9 +361,9 @@ int packet_ring_enq(packet_ring_t *r, const uint8_t *data, uint32_t len,
      * tail이 가리키는 slot이 이번 enqueue 대상이다. payload는 slot 내부의
      * 고정 버퍼에 복사되고, 길이와 타임스탬프도 함께 기록한다.
      */
-    s        = &r->slots[tail & r->mask];
+    s = &r->slots[tail & r->mask];
     /* payload 길이 기록 */
-    s->len   = len;
+    s->len = len;
     /* 캡처 시각 기록 */
     s->ts_ns = ts_ns;
     if (0U != len) {
@@ -385,13 +385,13 @@ int packet_ring_enq(packet_ring_t *r, const uint8_t *data, uint32_t len,
 int packet_ring_deq(packet_ring_t *r, uint8_t *out, uint32_t out_cap,
                     uint32_t *out_len, uint64_t *out_ts_ns) {
     /* consumer가 소유한 head 스냅샷 */
-    uint32_t       head;
+    uint32_t head;
     /* producer가 공개한 tail 스냅샷 */
-    uint32_t       tail;
+    uint32_t tail;
     /* 현재 slot payload 길이 */
-    uint32_t       len;
+    uint32_t len;
     /* blocking 정책 스냅샷 */
-    int            use_blocking;
+    int use_blocking;
     /* 이번 dequeue 대상 slot */
     packet_slot_t *s;
 
@@ -443,7 +443,7 @@ int packet_ring_deq(packet_ring_t *r, uint8_t *out, uint32_t out_cap,
 
     /* head가 가리키는 slot이 이번 dequeue 대상이며, 현재 패킷 길이를 읽는다. */
     /* 읽기 대상 slot 선택 */
-    s   = &r->slots[head & r->mask];
+    s = &r->slots[head & r->mask];
     /* slot 길이 읽기 */
     len = s->len;
 
@@ -522,7 +522,8 @@ int packet_queue_set_init(packet_queue_set_t *set, uint32_t packet_queue_count,
     /* queue set 자체를 먼저 초기화한 뒤 ring 배열을 동적으로 확보한다. */
     memset(set, 0, sizeof(*set));
     /* queue 배열 64바이트 정렬 할당 */
-    ret = posix_memalign((void **)&set->q, 64, packet_queue_count * sizeof(packet_ring_t));
+    ret = posix_memalign((void **)&set->q, 64,
+                         packet_queue_count * sizeof(packet_ring_t));
     if (0 != ret) {
         /* 실패 시 포인터 정리 */
         set->q = NULL;

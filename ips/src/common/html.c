@@ -455,7 +455,8 @@ static const char *get_logo_image_html(void) {
     return g_logo_image_html;
 }
 
-/* --------------------------- public rendering entrypoints --------------------------- */
+/* --------------------------- public rendering entrypoints
+ * --------------------------- */
 
 /**
  * @brief 차단 페이지 템플릿에 이벤트 값을 치환해 최종 HTML을 만든다.
@@ -560,7 +561,8 @@ char *app_render_block_page(const char *template_path, const char *event_id,
 
     free(template_text);
 
-    /* 빈 템플릿이어도 호출자는 NUL 종료 문자열을 기대하므로 빈 문자열을 만든다. */
+    /* 빈 템플릿이어도 호출자는 NUL 종료 문자열을 기대하므로 빈 문자열을 만든다.
+     */
     if (!out.buf) {
         char *empty = (char *)malloc(1U);
         if (!empty) {

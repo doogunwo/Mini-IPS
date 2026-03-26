@@ -272,7 +272,7 @@ static int run_reasm_case(size_t uri_len, size_t seg_len) {
     CHECK(strcmp(ctx.first_method, "GET") == 0, "method mismatch");
     CHECK(ctx.last_uri_len == uri_len, "uri length mismatch");
 
-    end_ns = now_ns();
+    end_ns     = now_ns();
     elapsed_ms = (double)(end_ns - start_ns) / 1000000.0;
     fprintf(stderr,
             "[test_httgw_reasm_sizes] uri_len=%zu req_len=%zu seg_len=%zu "
