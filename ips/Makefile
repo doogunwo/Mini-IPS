@@ -1,6 +1,6 @@
 CC := gcc
 CFLAGS := -O2 -Wall -Wextra -std=c11
-CPPFLAGS := -D_DEFAULT_SOURCE -Iinclude
+CPPFLAGS := -D_DEFAULT_SOURCE -Iinclude -Isrc/inline
 LDFLAGS :=
 LDLIBS :=
 .DEFAULT_GOAL := main
@@ -41,6 +41,13 @@ AUTO_INSTALL_DEPS ?= 0
 SRC_DIR := src
 INC_DIR := include
 TEST_DIR := tests
+TEST_COMMON_DIR := $(TEST_DIR)/common
+TEST_UNIT_DIR := $(TEST_DIR)/unit
+TEST_INTEGRATION_DIR := $(TEST_DIR)/integration
+TEST_BOUNDARY_DIR := $(TEST_DIR)/boundary
+TEST_EVASION_DIR := $(TEST_DIR)/evasion
+TEST_SCENARIO_DIR := $(TEST_DIR)/scenario
+TEST_VALGRIND_DIR := $(TEST_DIR)/valgrind
 BENCH_DIR := benchmark
 BUILD_DIR := build
 BIN_BUILD_DIR := $(BUILD_DIR)/bin
@@ -50,24 +57,24 @@ BENCH_BUILD_DIR := $(BUILD_DIR)/benchmark
 LOG_DIR := logs
 
 MAIN_BIN := $(BIN_BUILD_DIR)/inline-ips
-REGEX_COMPAT_BIN := $(TEST_BUILD_DIR)/test_regex_compat
 DETECT_ENGINE_BIN := $(BENCH_BUILD_DIR)/test_engine_detect
 DETECT_PIPELINE_BIN := $(BENCH_BUILD_DIR)/test_detect_pipeline
 NORMAL_BENCHMARK_BIN := $(BENCH_BUILD_DIR)/test_benchmark_normal
 ATTACK_BENCHMARK_BIN := $(BENCH_BUILD_DIR)/test_benchmark_attack
 REASM_PIPELINE_BIN := $(BENCH_BUILD_DIR)/test_reasm_pipeline
 HTTP_STREAM_SEARCH_BENCH_BIN := $(BENCH_BUILD_DIR)/test_http_stream_search_bench
-HTTP_LIVE_LIKE_REASM_BIN := $(TEST_BUILD_DIR)/test_httgw_live_reasm
-BOT_URL_DETECT_BIN := $(TEST_BUILD_DIR)/test_runtime_bot_url_detect
 
 APP_SRCS := $(SRC_DIR)/inline/main.c \
 	$(SRC_DIR)/inline/tproxy.c
 
-UNIT_SRCS := $(wildcard $(TEST_DIR)/test_*.c)
-UNIT_NAMES := $(notdir $(basename $(UNIT_SRCS)))
-UNIT_BINS := $(addprefix $(TEST_BUILD_DIR)/,$(UNIT_NAMES))
-UNIT_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .log,$(UNIT_NAMES)))
-UNIT_VG_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .valgrind.log,$(UNIT_NAMES)))
+INLINE_TEST_SRCS := $(wildcard $(TEST_UNIT_DIR)/test_*.c) $(wildcard $(TEST_INTEGRATION_DIR)/test_*.c) $(wildcard $(TEST_BOUNDARY_DIR)/test_*.c) $(wildcard $(TEST_EVASION_DIR)/test_*.c) $(wildcard $(TEST_SCENARIO_DIR)/test_*.c)
+INLINE_TEST_NAMES := $(notdir $(basename $(INLINE_TEST_SRCS)))
+INLINE_TEST_BINS := $(addprefix $(UNIT_BUILD_DIR)/,$(INLINE_TEST_NAMES))
+VALGRIND_TEST_SRCS := $(wildcard $(TEST_VALGRIND_DIR)/test_*.c)
+VALGRIND_TEST_NAMES := $(notdir $(basename $(VALGRIND_TEST_SRCS)))
+VALGRIND_TEST_BINS := $(addprefix $(UNIT_BUILD_DIR)/,$(VALGRIND_TEST_NAMES))
+INLINE_TEST_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .log,$(INLINE_TEST_NAMES)))
+INLINE_TEST_VG_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .valgrind.log,$(INLINE_TEST_NAMES)))
 BENCH_SRCS := $(wildcard $(BENCH_DIR)/test_*.c)
 BENCH_NAMES := $(notdir $(basename $(BENCH_SRCS)))
 PACKET_RING_BENCH_SRCS := $(wildcard $(BENCH_DIR)/test_packet_ring_*.c)
@@ -78,7 +85,7 @@ BENCH_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .log,$(BENCH_NAMES)))
 MAIN_VG_LOG := $(LOG_DIR)/main.valgrind.log
 FORMAT_SRCS := $(shell find $(SRC_DIR) $(INC_DIR) $(TEST_DIR) $(BENCH_DIR) -type f \( -name '*.c' -o -name '*.h' \))
 
-.PHONY: all clean run tests units benchmark benchmarks run-benchmarks main inline-ips check_pcre valgrind-units valgrind-main vg-main regex-compat test-detect-engine test-http-live-like-reasm test-bot-url-detect format format-check
+.PHONY: all clean run tests units benchmark benchmarks run-benchmarks main inline-ips check_pcre valgrind-units valgrind-main vg-main test-detect-engine format format-check valgrind-tests
 
 all: main tests benchmark
 
@@ -86,21 +93,15 @@ main: $(MAIN_BIN)
 
 inline-ips: $(MAIN_BIN)
 
-tests: $(UNIT_BINS)
+tests: $(INLINE_TEST_BINS)
 
 benchmark: $(BENCH_BINS)
-
-regex-compat: $(REGEX_COMPAT_BIN)
-	./$(REGEX_COMPAT_BIN)
 
 $(BUILD_DIR) $(BIN_BUILD_DIR) $(TEST_BUILD_DIR) $(UNIT_BUILD_DIR) $(BENCH_BUILD_DIR) $(LOG_DIR):
 	mkdir -p $@
 
 $(MAIN_BIN): $(APP_SRCS) $(INC_DIR)/tproxy.h | $(BIN_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(APP_SRCS) -o $@ $(LDFLAGS) $(LDLIBS)
-
-$(REGEX_COMPAT_BIN): $(TEST_DIR)/test_regex_compat.c | $(TEST_BUILD_DIR)
-	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) $< -o $@ $(LDFLAGS) $(PCRE_LIBS) $(HS_LIBS) $(LDLIBS)
 
 $(DETECT_ENGINE_BIN): check_pcre $(BENCH_DIR)/test_engine_detect.c \
 	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
@@ -159,42 +160,8 @@ $(REASM_PIPELINE_BIN): $(BENCH_DIR)/test_reasm_pipeline.c \
 $(HTTP_STREAM_SEARCH_BENCH_BIN): $(BENCH_DIR)/test_http_stream_search_bench.c | $(BENCH_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LDFLAGS) $(LDLIBS)
 
-$(HTTP_LIVE_LIKE_REASM_BIN): $(TEST_DIR)/test_httgw_live_reasm.c \
-	$(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c | $(TEST_BUILD_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) \
-		$(TEST_DIR)/test_httgw_live_reasm.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c \
-		$(SRC_DIR)/http_stream.c -o $@ $(LDFLAGS) -lpcap $(LDLIBS)
-
-$(BOT_URL_DETECT_BIN): check_pcre $(TEST_DIR)/test_runtime_bot_url_detect.c \
-	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
-	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c \
-	$(SRC_DIR)/http_stream.c | $(TEST_BUILD_DIR)
-	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
-		$(TEST_DIR)/test_runtime_bot_url_detect.c $(SRC_DIR)/runtime.c \
-		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
-		$(SRC_DIR)/html.c \
-		$(SRC_DIR)/regex.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
-		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
-
-$(TEST_BUILD_DIR)/test_runtime_detect_invocations: check_pcre $(TEST_DIR)/test_runtime_detect_invocations.c \
-	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
-	$(SRC_DIR)/engine.c $(SRC_DIR)/regex.c $(SRC_DIR)/html.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c \
-	$(SRC_DIR)/http_stream.c | $(TEST_BUILD_DIR)
-	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(HS_CFLAGS) $(CFLAGS) \
-		$(TEST_DIR)/test_runtime_detect_invocations.c $(SRC_DIR)/runtime.c \
-		$(SRC_DIR)/logging.c $(SRC_DIR)/detect.c $(SRC_DIR)/engine.c \
-		$(SRC_DIR)/html.c \
-		$(SRC_DIR)/regex.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c \
-		-o $@ $(LDFLAGS) -lpcap $(PCRE_LIBS) $(HS_LIBS) -pthread $(LDLIBS)
-
 test-detect-engine: $(DETECT_ENGINE_BIN)
 	./$(DETECT_ENGINE_BIN)
-
-test-http-live-like-reasm: $(HTTP_LIVE_LIKE_REASM_BIN)
-	./$(HTTP_LIVE_LIKE_REASM_BIN)
-
-test-bot-url-detect: $(BOT_URL_DETECT_BIN)
-	./$(BOT_URL_DETECT_BIN)
 
 format:
 	@command -v $(CLANG_FORMAT) >/dev/null 2>&1 || (echo "clang-format not found: install clang-format and rerun 'make format'"; exit 1)
@@ -207,11 +174,11 @@ format-check:
 run: all
 	./$(MAIN_BIN)
 
-units: tests | $(LOG_DIR)
+units: $(INLINE_TEST_BINS) | $(LOG_DIR)
 	@set -e; \
-	for t in $(UNIT_BINS); do \
+	for t in $(INLINE_TEST_BINS); do \
 		echo "[units] running $$t"; \
-		./$$t > $(LOG_DIR)/$$(basename $$t).log 2>&1; \
+		./$$t 2>&1 | tee $(LOG_DIR)/$$(basename $$t).log; \
 	done
 	@echo "units: all tests passed"
 
@@ -225,9 +192,9 @@ run-benchmarks: benchmark | $(LOG_DIR)
 	done
 	@echo "benchmarks: all benchmark binaries completed"
 
-valgrind-units: $(UNIT_BINS) | $(LOG_DIR)
+valgrind-units: $(INLINE_TEST_BINS) | $(LOG_DIR)
 	@set -e; \
-	for t in $(UNIT_BINS); do \
+	for t in $(INLINE_TEST_BINS); do \
 		echo "[valgrind] running $$t"; \
 		$(VALGRIND) $(VALGRIND_FLAGS) --log-file=$(LOG_DIR)/$$(basename $$t).valgrind.log ./$$t; \
 	done
@@ -238,8 +205,76 @@ valgrind-main: $(MAIN_BIN) | $(LOG_DIR)
 
 vg-main: valgrind-main
 
-$(TEST_BUILD_DIR)/test_%: $(TEST_DIR)/test_%.c $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c $(SRC_DIR)/packet_ring.c $(INC_DIR)/httgw.h $(INC_DIR)/http_stream.h $(INC_DIR)/packet_ring.h | $(TEST_BUILD_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(SRC_DIR)/reasm.c $(SRC_DIR)/httgw.c $(SRC_DIR)/http_stream.c $(SRC_DIR)/packet_ring.c -o $@ $(LDFLAGS) -lpcap $(LDLIBS)
+valgrind-tests: $(VALGRIND_TEST_BINS) | $(LOG_DIR)
+	@set -e; \
+	for t in $(VALGRIND_TEST_BINS); do \
+		echo "[valgrind-tests] running $$t"; \
+		$(VALGRIND) $(VALGRIND_FLAGS) --log-file=$(LOG_DIR)/$$(basename $$t).valgrind.log ./$$t; \
+	done
+	@echo "valgrind-tests: all valgrind tests passed"
+
+$(UNIT_BUILD_DIR)/test_decoding_functions: tests/unit/test_decoding_functions.c src/inline/decoding.c src/inline/decoding.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/decoding.c -o $@
+
+$(UNIT_BUILD_DIR)/test_decoding_pipeline: tests/integration/test_decoding_pipeline.c src/inline/decoding.c src/inline/decoding.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/decoding.c -o $@
+
+$(UNIT_BUILD_DIR)/test_normalization_functions: tests/unit/test_normalization_functions.c src/inline/normalization.c src/inline/normalization.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/normalization.c -o $@
+
+$(UNIT_BUILD_DIR)/test_normalization_pipeline: tests/integration/test_normalization_pipeline.c src/inline/decoding.c src/inline/decoding.h src/inline/normalization.c src/inline/normalization.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/decoding.c src/inline/normalization.c -o $@
+
+$(UNIT_BUILD_DIR)/test_ring_functions: tests/unit/test_ring_functions.c src/inline/ring.c src/inline/ring.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/ring.c -o $@
+
+$(UNIT_BUILD_DIR)/test_ring_pipeline: tests/integration/test_ring_pipeline.c src/inline/ring.c src/inline/ring.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/ring.c -o $@
+
+$(UNIT_BUILD_DIR)/test_http_parser_functions: tests/unit/test_http_parser_functions.c src/inline/http_parser.c src/inline/http_parser.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/http_parser.c -o $@
+
+$(UNIT_BUILD_DIR)/test_engine_functions: check_pcre tests/unit/test_engine_functions.c src/inline/engine.c src/inline/engine.h src/inline/regex.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) tests/unit/test_engine_functions.c src/inline/engine.c src/inline/regex.c -o $@ $(LDFLAGS) $(PCRE_LIBS)
+
+$(UNIT_BUILD_DIR)/test_detect_functions: check_pcre tests/unit/test_detect_functions.c src/inline/detect.c src/inline/detect.h src/inline/engine.c src/inline/engine.h src/inline/regex.h src/inline/http_parser.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) tests/unit/test_detect_functions.c src/inline/detect.c src/inline/engine.c -o $@ $(LDFLAGS) $(PCRE_LIBS)
+
+$(UNIT_BUILD_DIR)/test_regex_loader_functions: tests/unit/test_regex_loader_functions.c src/inline/regex.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@
+
+$(UNIT_BUILD_DIR)/test_detect_pipeline: check_pcre tests/integration/test_detect_pipeline.c src/inline/detect.c src/inline/detect.h src/inline/engine.c src/inline/engine.h src/inline/http_parser.c src/inline/http_parser.h src/inline/decoding.c src/inline/decoding.h src/inline/normalization.c src/inline/normalization.h src/inline/regex.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) tests/integration/test_detect_pipeline.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c -o $@ $(LDFLAGS) $(PCRE_LIBS)
+
+$(UNIT_BUILD_DIR)/test_http_parser_pipeline: tests/integration/test_http_parser_pipeline.c src/inline/http_parser.c src/inline/http_parser.h src/inline/decoding.c src/inline/decoding.h src/inline/normalization.c src/inline/normalization.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c -o $@
+
+$(UNIT_BUILD_DIR)/test_decoding_boundary: tests/boundary/test_decoding_boundary.c src/inline/decoding.c src/inline/decoding.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/decoding.c -o $@
+
+$(UNIT_BUILD_DIR)/test_normalization_boundary: tests/boundary/test_normalization_boundary.c src/inline/normalization.c src/inline/normalization.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/normalization.c -o $@
+
+$(UNIT_BUILD_DIR)/test_ring_boundary: tests/boundary/test_ring_boundary.c src/inline/ring.c src/inline/ring.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/ring.c -o $@
+
+$(UNIT_BUILD_DIR)/test_http_parser_boundary: tests/boundary/test_http_parser_boundary.c src/inline/http_parser.c src/inline/http_parser.h src/inline/normalization.c src/inline/normalization.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/http_parser.c src/inline/normalization.c -o $@
+
+$(UNIT_BUILD_DIR)/test_large_input_boundary: tests/boundary/test_large_input_boundary.c src/inline/http_parser.c src/inline/http_parser.h src/inline/decoding.c src/inline/decoding.h src/inline/normalization.c src/inline/normalization.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c -o $@
+
+$(UNIT_BUILD_DIR)/test_http_evasion_vectors: tests/evasion/test_http_evasion_vectors.c src/inline/http_parser.c src/inline/http_parser.h src/inline/decoding.c src/inline/decoding.h src/inline/normalization.c src/inline/normalization.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c -o $@
+
+$(UNIT_BUILD_DIR)/test_parser_decode_normalize_scenario: tests/scenario/test_parser_decode_normalize_scenario.c src/inline/http_parser.c src/inline/http_parser.h src/inline/decoding.c src/inline/decoding.h src/inline/normalization.c src/inline/normalization.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c -o $@
+
+$(UNIT_BUILD_DIR)/test_detect_valgrind_smoke: check_pcre tests/valgrind/test_detect_valgrind_smoke.c src/inline/detect.c src/inline/detect.h src/inline/engine.c src/inline/engine.h src/inline/http_parser.c src/inline/http_parser.h src/inline/decoding.c src/inline/decoding.h src/inline/normalization.c src/inline/normalization.h src/inline/regex.c src/inline/regex.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) tests/valgrind/test_detect_valgrind_smoke.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c src/inline/regex.c -o $@ $(LDFLAGS) $(PCRE_LIBS)
+
+$(UNIT_BUILD_DIR)/test_detect_valgrind_response: check_pcre tests/valgrind/test_detect_valgrind_response.c src/inline/detect.c src/inline/detect.h src/inline/engine.c src/inline/engine.h src/inline/http_parser.c src/inline/http_parser.h src/inline/decoding.c src/inline/decoding.h src/inline/normalization.c src/inline/normalization.h src/inline/regex.c src/inline/regex.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) tests/valgrind/test_detect_valgrind_response.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c src/inline/regex.c -o $@ $(LDFLAGS) $(PCRE_LIBS)
 
 $(PACKET_RING_BENCH_BINS): $(BENCH_BUILD_DIR)/%: $(BENCH_DIR)/%.c $(SRC_DIR)/packet_ring.c $(INC_DIR)/packet_ring.h | $(BENCH_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< $(SRC_DIR)/packet_ring.c -o $@ $(LDFLAGS) -pthread $(LDLIBS)

@@ -9,7 +9,6 @@
 {"name": "XSS", "pat": "<[?]?import[\\s/+\\S]*?implementation[\\s/+]*?=", "ctx": "HEADERS", "score": 5}
 {"name": "XSS", "pat": "(?i:<META[\\s/+].*?http-equiv[\\s/+]*=[\\s/+]*[\"'`]?(?:(?:c|&#x?0*(?:67|43|99|63);?)|(?:r|&#x?0*(?:82|52|114|72);?)|(?:s|&#x?0*(?:83|53|115|73);?)))", "ctx": "HEADERS", "score": 5}
 {"name": "XSS", "pat": "(?i:<META[\\s/+].*?charset[\\s/+]*=)", "ctx": "HEADERS", "score": 5}
-{"name": "XSS", "pat": "(?i)<LINK[\\s/+].*?href[\\s/+]*=", "ctx": "HEADERS", "score": 5}
 {"name": "XSS", "pat": "(?i)<BASE[\\s/+].*?href[\\s/+]*=", "ctx": "HEADERS", "score": 5}
 {"name": "XSS", "pat": "(?i)<APPLET[\\s/+>]", "ctx": "HEADERS", "score": 5}
 {"name": "XSS", "pat": "(?i)<OBJECT[\\s\\x0b\\+/].*?(?:type|c(?:ode(?:type)?|lassid)|data)[\\s\\x0b\\+/]*=", "ctx": "HEADERS", "score": 5}
