@@ -2,28 +2,67 @@
 
 #pragma once
 
+#include <netinet/in.h>
 #include <stdatomic.h>
 #include <stdint.h>
 
 #define PACKET_MAX_BYTES 2032
+#define MINI_IPS_RING_ACTION_REQUEST 1U
+#define MINI_IPS_RING_ACTION_ALLOW   2U
+#define MINI_IPS_RING_ACTION_BLOCK   3U
 
-/* 링버퍼 슬롯 */
-typedef struct ring_slot {
+typedef struct  mini_ips_session {
+    int in_use;
+    uint32_t session_id;
+    int client_fd;
+    int upstream_fd;
+    int blocked;
+    int decision_queued;
+    int request_forwarded;
+    size_t pending_request_cap;
+    size_t pending_request_len;
+    uint8_t *pending_request;
+    struct sockaddr_in orig_dst;
+} mini_ips_session_t; 
+
+typedef struct req_ring_slot {
+    uint32_t session_id;
     uint32_t len;
     uint8_t  data[PACKET_MAX_BYTES];
-} packet_slot_t;
+} req_slot_t;
 
-/* 단순 SPSC 링버퍼 */
-typedef struct ring_buffer {
+typedef struct req_ring_buffer {
     _Atomic uint32_t head;
     _Atomic uint32_t tail;
-    packet_slot_t   *slots;
+    req_slot_t      *slots;
     uint32_t         slot_count;
-} packet_ring_t;
+} req_ring_t;
 
-int  packet_ring_init(packet_ring_t *r, uint32_t slot_count);
-void packet_ring_free(packet_ring_t *r);
+typedef struct res_ring_slot {
+    uint32_t action;
+    uint32_t session_id;
+    uint32_t len;
+    uint8_t  data[PACKET_MAX_BYTES];
+} res_slot_t;
 
-int packet_ring_enq(packet_ring_t *r, const uint8_t *data, uint32_t len);
-int packet_ring_deq(packet_ring_t *r, uint8_t *out, uint32_t out_cap,
-                    uint32_t *out_len);
+typedef struct res_ring_buffer {
+    _Atomic uint32_t head;
+    _Atomic uint32_t tail;
+    res_slot_t      *slots;
+    uint32_t         slot_count;
+} res_ring_t;
+
+int  req_ring_init(req_ring_t *r, uint32_t slot_count);
+void req_ring_free(req_ring_t *r);
+int  req_ring_enq(req_ring_t *r, uint32_t session_id,
+                  const uint8_t *data, uint32_t len);
+int  req_ring_deq(req_ring_t *r, uint8_t *out, uint32_t out_cap,
+                  uint32_t *out_len, uint32_t *session_id);
+
+int  res_ring_init(res_ring_t *r, uint32_t slot_count);
+void res_ring_free(res_ring_t *r);
+int  res_ring_enq(res_ring_t *r, uint32_t action, uint32_t session_id,
+                  const uint8_t *data, uint32_t len);
+int  res_ring_deq(res_ring_t *r, uint8_t *out, uint32_t out_cap,
+                  uint32_t *out_len, uint32_t *session_id,
+                  uint32_t *action);

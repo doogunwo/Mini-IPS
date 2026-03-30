@@ -610,6 +610,7 @@ int http_parser_try(const uint8_t *data, size_t len, http_message_t *out) {
         *out         = tmp;
         return 1;
     }
+    
     if (BODY_MODE_FIXED == body_mode) {
         rc = parse_fixed_body(data + body_off, len - body_off, &tmp);
     } else {

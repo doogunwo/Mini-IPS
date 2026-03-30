@@ -1,1 +1,6 @@
-{"name": "DIRECTORY_TRAVERSAL", "pat": "(?:^|[/;\\x5c])\\.{2,3}[/;\\x5c]", "ctx": "URI", "score": 5}
+{"name": "DIRECTORY_TRAVERSAL", "pat": "(?:^|[/;\\\\])\\.\\.([/;\\\\])", "score": 5, "ctx": "URI"}
+{"name": "DIRECTORY_TRAVERSAL", "pat": "(?:^|[/;\\\\])\\.\\.\\.([/;\\\\])", "score": 4, "ctx": "URI"}
+{"name": "DIRECTORY_TRAVERSAL", "pat": "(?:^|[/;\\\\])\\.\\.([/;\\\\])", "score": 5, "ctx": "HEADERS"}
+{"name": "DIRECTORY_TRAVERSAL", "pat": "(?:^|[/;\\\\])\\.\\.\\.([/;\\\\])", "score": 4, "ctx": "HEADERS"}
+{"name": "DIRECTORY_TRAVERSAL", "pat": "(?:^|[/;\\\\])\\.\\.([/;\\\\])", "score": 5, "ctx": "BODY"}
+{"name": "DIRECTORY_TRAVERSAL", "pat": "(?:^|[/;\\\\])\\.\\.\\.([/;\\\\])", "score": 4, "ctx": "BODY"}

@@ -1,12 +1,8 @@
-#ifndef TPROXY_H
-#define TPROXY_H
-
+#pragma once
 #include <netinet/in.h>
 #include <stdint.h>
 
-#ifndef IP_TRANSPARENT
 #define IP_TRANSPARENT 19
-#endif
 
 /** TPROXY listener 생성 설정 */
 typedef struct {
@@ -29,13 +25,7 @@ tproxy_t *tproxy_create(const tproxy_cfg_t *cfg);
 
 int tproxy_accept_client(tproxy_t *tp, struct sockaddr_in *peer,
                          struct sockaddr_in *orig_dst, int *client_fd);
-
-int tproxy_connect_upstream(const struct sockaddr_in *orig_dst,
-                            int                      *upstream_fd);
-
+int upstream_connect(const struct sockaddr_in *orig_dst, int *upstream_fd);
 int tproxy_relay_loop(tproxy_t *tp, int client_fd, int upstream_fd);
-
 /** TPROXY listener 해제 */
 void tproxy_destroy(tproxy_t *tp);
-
-#endif /* TPROXY_H */

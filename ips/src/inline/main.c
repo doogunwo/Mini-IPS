@@ -1,41 +1,42 @@
 #include <arpa/inet.h>
 #include <errno.h>
-#include <poll.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/socket.h>
-#include <unistd.h>
 
-#include "tproxy.h"
+#include "mini_ips.h"
 
 static volatile sig_atomic_t g_stop = 0;
+static mini_ips_ctx_t       *g_ctx = NULL;
 
 static void handle_signal(int sig) {
     (void)sig;
     g_stop = 1;
+    if (NULL != g_ctx) {
+        g_ctx->stop = 1;
+    }
 }
 
-static void print_endpoint(const char *label, const struct sockaddr_in *addr) {
-    char ip[INET_ADDRSTRLEN];
+static void *worker_main(void *arg) {
+    mini_ips_ctx_t *ctx;
+    int             rc;
 
-    if (inet_ntop(AF_INET, &addr->sin_addr, ip, sizeof(ip)) == NULL) {
-        strncpy(ip, "?", sizeof(ip) - 1);
-        ip[sizeof(ip) - 1] = '\0';
-    }
-
-    printf("%s=%s:%u", label, ip, (unsigned)ntohs(addr->sin_port));
+    ctx = (mini_ips_ctx_t *)arg;
+    rc = mini_ips_run_worker(ctx);
+    return (void *)(intptr_t)rc;
 }
 
 int main(void) {
-    tproxy_cfg_t cfg = {
-        .bind_ip   = "0.0.0.0",
-        .bind_port = 50080,
-        .backlog   = 128,
-    };
-    tproxy_t *tp;
+    mini_ips_ctx_t ctx;
+    pthread_t      worker;
+    void          *worker_ret;
+    int            worker_started;
+    int            tp_rc;
+    int            worker_rc;
+    int            exit_code;
 
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
@@ -43,59 +44,54 @@ int main(void) {
     setvbuf(stdout, NULL, _IOLBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
-    tp = tproxy_create(&cfg);
-    if (NULL == tp) {
-        fprintf(stderr, "failed to create tproxy listener\n");
+    worker_started = 0;
+    worker_ret = NULL;
+    worker_rc = 0;
+    exit_code = 0;
+
+    int ret = mini_ips_set(&ctx);
+    if (-1 == ret) {
+        fprintf(stderr, "[MAIN] failed to initialize mini_ips (ret=%d)\n", ret);
         return 1;
     }
+    g_ctx = &ctx;
 
-    printf("TPROXY listener started: %s:%u backlog=%d fd=%d\n", tp->bind_ip,
-           tp->bind_port, tp->backlog, tp->listen_fd);
-    fflush(stdout);
+    ret = pthread_create(&worker, NULL, worker_main, &ctx);
+    if (0 != ret) {
+        fprintf(stderr,
+                "[MAIN] failed to start worker thread (ret=%d: %s)\n",
+                ret, strerror(ret));
+        mini_ips_destroy(&ctx);
+        g_ctx = NULL;
+        return 1;
+    }
+    worker_started = 1;
 
-    while (!g_stop) {
-        printf("------------------------------------------------------------------\n");
-        struct sockaddr_in peer_addr;
-        struct sockaddr_in local_addr;
+    tp_rc = mini_ips_run_tp(&ctx);
+    ctx.stop = 1;
+    g_stop = 1;
 
-        int client_fd   = -1;
-        int upstream_fd = -1;
-        int rc;
-
-        memset(&peer_addr, 0, sizeof(peer_addr));
-        memset(&local_addr, 0, sizeof(local_addr));
-        
-        rc = tproxy_accept_client(tp, &peer_addr, &local_addr, &client_fd);
-        if (-2 == rc) {
-            continue;
+    if (worker_started) {
+        if (0 != pthread_join(worker, &worker_ret)) {
+            fprintf(stderr, "[MAIN] failed to join worker thread\n");
+            exit_code = 1;
+        } else {
+            worker_rc = (int)(intptr_t)worker_ret;
         }
-
-        if (rc < 0) {
-            perror("tproxy accept client");
-            continue;;
-        }
-        printf("[TPROXY] accepted ");
-        print_endpoint("client", &peer_addr);
-        printf(" ");
-        print_endpoint("original_dst", &local_addr);
-        printf("\n------------------------------------------------------------------\n");
-
-        rc = tproxy_connect_upstream(&local_addr, &upstream_fd); //현재 여기 에러 발생함
-        if (rc < 0) {
-            perror("tproxy_connect_upstream");
-            close(client_fd);
-            continue;
-        }
-
-        rc = tproxy_relay_loop(tp, client_fd, upstream_fd);
-        if (rc < 0 ){
-            fprintf(stderr, "[TPORXY] relay error\n");
-        }
-
-        close(upstream_fd);
-        close(client_fd);
     }
 
-    tproxy_destroy(tp);
-    return 0;
+    if (0 != tp_rc) {
+        fprintf(stderr, "[MAIN] mini_ips_run_tp failed (rc=%d)\n", tp_rc);
+        exit_code = 1;
+    }
+    if (0 != worker_rc) {
+        fprintf(stderr, "[MAIN] mini_ips_run_worker failed (rc=%d)\n",
+                worker_rc);
+        exit_code = 1;
+    }
+
+    mini_ips_destroy(&ctx);
+    g_ctx = NULL;
+
+    return exit_code;
 }

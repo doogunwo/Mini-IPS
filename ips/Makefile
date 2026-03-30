@@ -65,7 +65,16 @@ REASM_PIPELINE_BIN := $(BENCH_BUILD_DIR)/test_reasm_pipeline
 HTTP_STREAM_SEARCH_BENCH_BIN := $(BENCH_BUILD_DIR)/test_http_stream_search_bench
 
 APP_SRCS := $(SRC_DIR)/inline/main.c \
-	$(SRC_DIR)/inline/tproxy.c
+	$(SRC_DIR)/inline/mini_ips.c \
+	$(SRC_DIR)/inline/tproxy.c \
+	$(SRC_DIR)/inline/blocking.c \
+	$(SRC_DIR)/inline/detect.c \
+	$(SRC_DIR)/inline/engine.c \
+	$(SRC_DIR)/inline/http_parser.c \
+	$(SRC_DIR)/inline/decoding.c \
+	$(SRC_DIR)/inline/normalization.c \
+	$(SRC_DIR)/inline/regex.c \
+	$(SRC_DIR)/inline/ring.c
 
 INLINE_TEST_SRCS := $(wildcard $(TEST_UNIT_DIR)/test_*.c) $(wildcard $(TEST_INTEGRATION_DIR)/test_*.c) $(wildcard $(TEST_BOUNDARY_DIR)/test_*.c) $(wildcard $(TEST_EVASION_DIR)/test_*.c) $(wildcard $(TEST_SCENARIO_DIR)/test_*.c)
 INLINE_TEST_NAMES := $(notdir $(basename $(INLINE_TEST_SRCS)))
@@ -100,8 +109,8 @@ benchmark: $(BENCH_BINS)
 $(BUILD_DIR) $(BIN_BUILD_DIR) $(TEST_BUILD_DIR) $(UNIT_BUILD_DIR) $(BENCH_BUILD_DIR) $(LOG_DIR):
 	mkdir -p $@
 
-$(MAIN_BIN): $(APP_SRCS) $(INC_DIR)/tproxy.h | $(BIN_BUILD_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $(APP_SRCS) -o $@ $(LDFLAGS) $(LDLIBS)
+$(MAIN_BIN): check_pcre $(APP_SRCS) $(SRC_DIR)/inline/tproxy.h $(SRC_DIR)/inline/mini_ips.h | $(BIN_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) $(APP_SRCS) -o $@ $(LDFLAGS) $(PCRE_LIBS) -pthread $(LDLIBS)
 
 $(DETECT_ENGINE_BIN): check_pcre $(BENCH_DIR)/test_engine_detect.c \
 	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
@@ -240,11 +249,26 @@ $(UNIT_BUILD_DIR)/test_engine_functions: check_pcre tests/unit/test_engine_funct
 $(UNIT_BUILD_DIR)/test_detect_functions: check_pcre tests/unit/test_detect_functions.c src/inline/detect.c src/inline/detect.h src/inline/engine.c src/inline/engine.h src/inline/regex.h src/inline/http_parser.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) tests/unit/test_detect_functions.c src/inline/detect.c src/inline/engine.c -o $@ $(LDFLAGS) $(PCRE_LIBS)
 
+$(UNIT_BUILD_DIR)/test_blocking_functions: tests/unit/test_blocking_functions.c src/inline/blocking.c src/inline/blocking.h src/inline/detect.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/blocking.c -o $@
+
+$(UNIT_BUILD_DIR)/test_mini_ips_set_functions: check_pcre tests/unit/test_mini_ips_set_functions.c src/inline/mini_ips.c src/inline/mini_ips.h src/inline/tproxy.c src/inline/blocking.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c src/inline/regex.c src/inline/ring.c $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) tests/unit/test_mini_ips_set_functions.c src/inline/mini_ips.c src/inline/tproxy.c src/inline/blocking.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c src/inline/regex.c src/inline/ring.c -o $@ $(LDFLAGS) $(PCRE_LIBS) -pthread
+
+$(UNIT_BUILD_DIR)/test_mini_ips_destroy_functions: check_pcre tests/unit/test_mini_ips_destroy_functions.c src/inline/mini_ips.c src/inline/mini_ips.h src/inline/tproxy.c src/inline/blocking.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c src/inline/regex.c src/inline/ring.c $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) tests/unit/test_mini_ips_destroy_functions.c src/inline/mini_ips.c src/inline/tproxy.c src/inline/blocking.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c src/inline/regex.c src/inline/ring.c -o $@ $(LDFLAGS) $(PCRE_LIBS) -pthread
+
 $(UNIT_BUILD_DIR)/test_regex_loader_functions: tests/unit/test_regex_loader_functions.c src/inline/regex.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@
 
 $(UNIT_BUILD_DIR)/test_detect_pipeline: check_pcre tests/integration/test_detect_pipeline.c src/inline/detect.c src/inline/detect.h src/inline/engine.c src/inline/engine.h src/inline/http_parser.c src/inline/http_parser.h src/inline/decoding.c src/inline/decoding.h src/inline/normalization.c src/inline/normalization.h src/inline/regex.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) tests/integration/test_detect_pipeline.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c -o $@ $(LDFLAGS) $(PCRE_LIBS)
+
+$(UNIT_BUILD_DIR)/test_mini_ips_worker_pipeline: check_pcre tests/integration/test_mini_ips_worker_pipeline.c src/inline/mini_ips.c src/inline/mini_ips.h src/inline/tproxy.c src/inline/blocking.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c src/inline/regex.c src/inline/ring.c $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) tests/integration/test_mini_ips_worker_pipeline.c src/inline/mini_ips.c src/inline/tproxy.c src/inline/blocking.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c src/inline/regex.c src/inline/ring.c -o $@ $(LDFLAGS) $(PCRE_LIBS) -pthread
+
+$(UNIT_BUILD_DIR)/test_mini_ips_tp_guards: check_pcre tests/integration/test_mini_ips_tp_guards.c src/inline/mini_ips.c src/inline/mini_ips.h src/inline/tproxy.c src/inline/blocking.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c src/inline/regex.c src/inline/ring.c $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) tests/integration/test_mini_ips_tp_guards.c src/inline/mini_ips.c src/inline/tproxy.c src/inline/blocking.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c src/inline/regex.c src/inline/ring.c -o $@ $(LDFLAGS) $(PCRE_LIBS) -pthread
 
 $(UNIT_BUILD_DIR)/test_http_parser_pipeline: tests/integration/test_http_parser_pipeline.c src/inline/http_parser.c src/inline/http_parser.h src/inline/decoding.c src/inline/decoding.h src/inline/normalization.c src/inline/normalization.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c -o $@
@@ -261,6 +285,9 @@ $(UNIT_BUILD_DIR)/test_ring_boundary: tests/boundary/test_ring_boundary.c src/in
 $(UNIT_BUILD_DIR)/test_http_parser_boundary: tests/boundary/test_http_parser_boundary.c src/inline/http_parser.c src/inline/http_parser.h src/inline/normalization.c src/inline/normalization.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/http_parser.c src/inline/normalization.c -o $@
 
+$(UNIT_BUILD_DIR)/test_blocking_boundary: tests/boundary/test_blocking_boundary.c src/inline/blocking.c src/inline/blocking.h src/inline/detect.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/blocking.c -o $@
+
 $(UNIT_BUILD_DIR)/test_large_input_boundary: tests/boundary/test_large_input_boundary.c src/inline/http_parser.c src/inline/http_parser.h src/inline/decoding.c src/inline/decoding.h src/inline/normalization.c src/inline/normalization.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c -o $@
 
@@ -269,6 +296,12 @@ $(UNIT_BUILD_DIR)/test_http_evasion_vectors: tests/evasion/test_http_evasion_vec
 
 $(UNIT_BUILD_DIR)/test_parser_decode_normalize_scenario: tests/scenario/test_parser_decode_normalize_scenario.c src/inline/http_parser.c src/inline/http_parser.h src/inline/decoding.c src/inline/decoding.h src/inline/normalization.c src/inline/normalization.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c -o $@
+
+$(UNIT_BUILD_DIR)/test_main_smoke: $(MAIN_BIN) tests/scenario/test_main_smoke.c $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) tests/scenario/test_main_smoke.c -o $@
+
+$(UNIT_BUILD_DIR)/test_main_pipeline: check_pcre tests/scenario/test_main_pipeline.c src/inline/mini_ips.c src/inline/mini_ips.h src/inline/tproxy.c src/inline/blocking.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c src/inline/regex.c src/inline/ring.c $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) tests/scenario/test_main_pipeline.c src/inline/mini_ips.c src/inline/tproxy.c src/inline/blocking.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c src/inline/regex.c src/inline/ring.c -o $@ $(LDFLAGS) $(PCRE_LIBS) -pthread
 
 $(UNIT_BUILD_DIR)/test_detect_valgrind_smoke: check_pcre tests/valgrind/test_detect_valgrind_smoke.c src/inline/detect.c src/inline/detect.h src/inline/engine.c src/inline/engine.h src/inline/http_parser.c src/inline/http_parser.h src/inline/decoding.c src/inline/decoding.h src/inline/normalization.c src/inline/normalization.h src/inline/regex.c src/inline/regex.h $(TEST_COMMON_DIR)/unit_test.h | $(UNIT_BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) tests/valgrind/test_detect_valgrind_smoke.c src/inline/detect.c src/inline/engine.c src/inline/http_parser.c src/inline/decoding.c src/inline/normalization.c src/inline/regex.c -o $@ $(LDFLAGS) $(PCRE_LIBS)

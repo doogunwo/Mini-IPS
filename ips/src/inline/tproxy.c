@@ -9,11 +9,95 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-static int tproxy_epoll_init(tproxy_t *tp);
-static int tproxy_epoll_add(int event_fd, int fd, uint32_t events);
-static int tproxy_epoll_del(int event_fd, int fd);
-static int write_all(int fd, const uint8_t *buf, size_t len);
-static void format_endpoint(const struct sockaddr_in *addr, char *buf, size_t buf_len);
+/* -----------------epoll API (internal static) ----------------------------*/
+
+static int tproxy_epoll_add(int event_fd, int fd, uint32_t events) {
+    struct epoll_event ev;
+
+    if (event_fd < 0 || fd < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    memset(&ev, 0, sizeof(ev));
+    ev.events = events;
+    ev.data.fd = fd;
+
+    if (epoll_ctl(event_fd, EPOLL_CTL_ADD, fd, &ev) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int tproxy_epoll_del(int event_fd, int fd) {
+    if (event_fd < 0 || fd < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (epoll_ctl(event_fd, EPOLL_CTL_DEL, fd, NULL) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int tproxy_epoll_init(tproxy_t *tp) {
+    if (tp == NULL || tp->listen_fd < 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    tp->epoll_fd = epoll_create1(0);
+    if (tp->epoll_fd < 0) {
+        return -1;
+    }
+
+    if (tproxy_epoll_add(tp->epoll_fd, tp->listen_fd,
+                         EPOLLIN | EPOLLERR | EPOLLHUP) < 0) {
+        close(tp->epoll_fd);
+        tp->epoll_fd = -1;
+        return -1;
+    }
+
+    return 0;
+}
+
+static int write_all(int fd, const uint8_t *buf, size_t len) {
+    size_t written = 0;
+
+    while (written < len) {
+        ssize_t n = send(fd, buf + written, len - written, 0);
+
+        if (n < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
+            return -1;
+        }
+
+        written += (size_t)n;
+    }
+
+    return 0;
+}
+
+static void format_endpoint(const struct sockaddr_in *addr, char *buf,
+                            size_t buf_len) {
+    char ip[INET_ADDRSTRLEN];
+
+    if (addr == NULL || buf == NULL || buf_len == 0) {
+        return;
+    }
+
+    if (inet_ntop(AF_INET, &addr->sin_addr, ip, sizeof(ip)) == NULL) {
+        strncpy(ip, "?", sizeof(ip) - 1);
+        ip[sizeof(ip) - 1] = '\0';
+    }
+
+    snprintf(buf, buf_len, "%s:%u", ip, (unsigned)ntohs(addr->sin_port));
+}
 
 tproxy_t *tproxy_create(const tproxy_cfg_t *cfg) {
     tproxy_t *tproxy = NULL;
@@ -148,26 +232,27 @@ int tproxy_accept_client(tproxy_t *tp,
     return 0;
 }
 
-int tproxy_connect_upstream(const struct sockaddr_in *orig_dst, int *upstream_fd) {
-    int server_socket;
+int upstream_connect(const struct sockaddr_in *orig_dst, int *upstream_fd) {
+    int fd;
+    int rc;
 
     if (orig_dst == NULL || upstream_fd == NULL) {
         errno = EINVAL;
         return -1;
     }
 
-    server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket < 0) {
+    fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) {
         return -1;
     }
 
-    int rc = connect(server_socket, (const struct sockaddr *)orig_dst, sizeof(*orig_dst));
+    rc = connect(fd, (const struct sockaddr *)orig_dst, sizeof(*orig_dst));
     if (rc < 0) {
-        close(server_socket);
+        close(fd);
         return -1;
     }
 
-    *upstream_fd = server_socket;
+    *upstream_fd = fd;
     return 0;
 }
 
@@ -305,93 +390,4 @@ void tproxy_destroy(tproxy_t *tp) {
     }
 
     free(tp);
-}
-
-/* -----------------epoll API (internal static) ----------------------------*/
-
-static int tproxy_epoll_init(tproxy_t *tp) {
-    if (tp == NULL || tp->listen_fd < 0) {
-        errno = EINVAL;
-        return -1;
-    }
-
-    tp->epoll_fd = epoll_create1(0);
-    if (tp->epoll_fd < 0) {
-        return -1;
-    }
-
-    if (tproxy_epoll_add(tp->epoll_fd, tp->listen_fd,
-                         EPOLLIN | EPOLLERR | EPOLLHUP) < 0) {
-        close(tp->epoll_fd);
-        tp->epoll_fd = -1;
-        return -1;
-    }
-
-    return 0;
-}
-
-static int tproxy_epoll_add(int event_fd, int fd, uint32_t events) {
-    struct epoll_event ev;
-
-    if (event_fd < 0 || fd < 0) {
-        errno = EINVAL;
-        return -1;
-    }
-
-    memset(&ev, 0, sizeof(ev));
-    ev.events = events;
-    ev.data.fd = fd;
-
-    if (epoll_ctl(event_fd, EPOLL_CTL_ADD, fd, &ev) < 0) {
-        return -1;
-    }
-
-    return 0;
-}
-
-static int tproxy_epoll_del(int event_fd, int fd) {
-    if (event_fd < 0 || fd < 0) {
-        errno = EINVAL;
-        return -1;
-    }
-
-    if (epoll_ctl(event_fd, EPOLL_CTL_DEL, fd, NULL) < 0) {
-        return -1;
-    }
-
-    return 0;
-}
-
-static int write_all(int fd, const uint8_t *buf, size_t len) {
-    size_t written = 0;
-
-    while (written < len) {
-        ssize_t n = send(fd, buf + written, len - written, 0);
-
-        if (n < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            return -1;
-        }
-
-        written += (size_t)n;
-    }
-
-    return 0;
-}
-
-static void format_endpoint(const struct sockaddr_in *addr, char *buf, size_t buf_len) {
-    char ip[INET_ADDRSTRLEN];
-
-    if (addr == NULL || buf == NULL || buf_len == 0) {
-        return;
-    }
-
-    if (inet_ntop(AF_INET, &addr->sin_addr, ip, sizeof(ip)) == NULL) {
-        strncpy(ip, "?", sizeof(ip) - 1);
-        ip[sizeof(ip) - 1] = '\0';
-    }
-
-    snprintf(buf, buf_len, "%s:%u", ip, (unsigned)ntohs(addr->sin_port));
 }

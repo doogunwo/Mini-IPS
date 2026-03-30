@@ -4,7 +4,49 @@
 #include "http_parser.h"
 
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
+
+static void detect_log_result(const detect_result_t *result) {
+    char details[160];
+    char logbuf[256];
+    int  used;
+
+    if (NULL == result || 0 == result->matched) {
+        return;
+    }
+
+    used = 0;
+    details[0] = '\0';
+
+    if (result->matched_sqli) {
+        used += snprintf(details + used, sizeof(details) - (size_t)used,
+                         "%ssqli=%d", used > 0 ? "," : "",
+                         result->sqli_score);
+    }
+    if (result->matched_directory_traversal &&
+        used < (int)sizeof(details)) {
+        used += snprintf(details + used, sizeof(details) - (size_t)used,
+                         "%sdir=%d", used > 0 ? "," : "",
+                         result->directory_traversal_score);
+    }
+    if (result->matched_rce && used < (int)sizeof(details)) {
+        used += snprintf(details + used, sizeof(details) - (size_t)used,
+                         "%srce=%d", used > 0 ? "," : "",
+                         result->rce_score);
+    }
+    if (result->matched_xss && used < (int)sizeof(details)) {
+        used += snprintf(details + used, sizeof(details) - (size_t)used,
+                         "%sxss=%d", used > 0 ? "," : "",
+                         result->xss_score);
+    }
+
+    snprintf(logbuf, sizeof(logbuf),
+             "[DETECT] matched=%d total_matches=%zu total_score=%d total_errors=%d details=%s",
+             result->matched, result->total_matches, result->total_score,
+             result->total_errors, details[0] != '\0' ? details : "none");
+    fprintf(stderr, "%s\n", logbuf);
+}
 
 int detect_run(detect_engine_t *engine, const http_message_t *msg,
                detect_result_t *out_result) {
@@ -91,5 +133,6 @@ int detect_run(detect_engine_t *engine, const http_message_t *msg,
 
     /* 전체 매치 수가 1건 이상이면 최종 matched 플래그를 올린다. */ 
     out_result->matched = (out_result->total_matches > 0U);
+    detect_log_result(out_result);
     return 0;
 }
