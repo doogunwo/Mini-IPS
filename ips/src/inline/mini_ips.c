@@ -1,4 +1,5 @@
 #include "mini_ips.h"
+#include "logging.h"
 
 #include <errno.h>
 #include <stdlib.h>
@@ -8,76 +9,10 @@
 #include <unistd.h>
 #include <stdio.h>
 
+
 #define MINI_IPS_BIND_IP      "0.0.0.0"
 #define MINI_IPS_BIND_PORT    50080
 #define MINI_IPS_BIND_BACKLOG 128
-
-static void mini_ips_log_errno(const char *scope, const char *detail,
-                               int errnum) {
-    fprintf(stderr, "[MINI_IPS][%s] %s failed (errno=%d: %s)\n",
-            NULL != scope ? scope : "unknown",
-            NULL != detail ? detail : "operation",
-            errnum, strerror(errnum));
-}
-
-static void mini_ips_log_message(const char *scope, const char *detail) {
-    fprintf(stderr, "[MINI_IPS][%s] %s\n",
-            NULL != scope ? scope : "unknown",
-            NULL != detail ? detail : "message");
-}
-
-static void mini_ips_log_payload_preview(const char *tag, uint32_t session_id,
-                                         const uint8_t *data, size_t len) {
-    size_t preview_len;
-
-    if (NULL == tag || NULL == data || 0U == len) {
-        return;
-    }
-
-    preview_len = len;
-    if (preview_len > 256U) {
-        preview_len = 256U;
-    }
-
-    fprintf(stderr,
-            "[HTTP_RAW] tag=%s session_id=%u len=%zu preview=%.*s\n",
-            tag, session_id, len, (int)preview_len, (const char *)data);
-}
-
-static void mini_ips_log_http_message(uint32_t session_id,
-                                      const http_message_t *msg) {
-    size_t header_len;
-    size_t body_preview_len;
-
-    if (NULL == msg) {
-        return;
-    }
-
-    fprintf(stderr,
-            "[HTTP] session_id=%u method=%s uri=%s body_len=%zu\n",
-            session_id,
-            NULL != msg->method ? msg->method : "(null)",
-            NULL != msg->uri ? msg->uri : "(null)",
-            msg->body_len);
-
-    if (NULL != msg->headers) {
-        header_len = strlen(msg->headers);
-        if (header_len > 256U) {
-            header_len = 256U;
-        }
-        fprintf(stderr, "[HTTP_HEADERS] session_id=%u preview=%.*s\n",
-                session_id, (int)header_len, msg->headers);
-    }
-
-    if (NULL != msg->body && 0U < msg->body_len) {
-        body_preview_len = msg->body_len;
-        if (body_preview_len > 256U) {
-            body_preview_len = 256U;
-        }
-        fprintf(stderr, "[HTTP_BODY] session_id=%u preview=%.*s\n",
-                session_id, (int)body_preview_len, (const char *)msg->body);
-    }
-}
 
 static int mini_ips_upstream_connect(const struct sockaddr_in *orig_dst,
                                      int *upstream_fd) {
@@ -202,12 +137,12 @@ static int mini_ips_transform_uri(http_message_t *msg) {
     char  *buf_a;
     char  *buf_b;
     size_t cap;
-
+    int ret = 0;
     if (NULL == msg || NULL == msg->uri) {
         return 0;
     }
 
-    cap = strlen(msg->uri) + 1U;
+    cap = (strlen(msg->uri) * 2U) + 64U;
     buf_a = (char *)malloc(cap);
     buf_b = (char *)malloc(cap);
     if (NULL == buf_a || NULL == buf_b) {
@@ -216,22 +151,25 @@ static int mini_ips_transform_uri(http_message_t *msg) {
         return -1;
     }
 
-    memcpy(buf_a, msg->uri, cap);
-    if (0 > http_decode_percent_recursive(buf_b, cap, buf_a, 2)) {
+    memcpy(buf_a, msg->uri, strlen(msg->uri) + 1U);
+    ret = http_uri_canonicalize(buf_b, cap, buf_a, 3);
+    if (0 > ret) {
         free(buf_a);
         free(buf_b);
         return -1;
     }
-    memcpy(buf_a, buf_b, strlen(buf_b) + 1U);
 
-    if (0 > http_decode_plus_as_space(buf_b, cap, buf_a)) {
+    memcpy(buf_a, buf_b, strlen(buf_b) + 1U);
+    ret = http_decode_plus_as_space(buf_b, cap, buf_a);
+    if (0 > ret) {
         free(buf_a);
         free(buf_b);
         return -1;
     }
+    
     memcpy(buf_a, buf_b, strlen(buf_b) + 1U);
-
-    if (0 > http_normalize_uri(buf_b, cap, buf_a)) {
+    ret = http_normalize_uri(buf_b, cap, buf_a);
+    if (0 > ret) {
         free(buf_a);
         free(buf_b);
         return -1;
@@ -252,7 +190,7 @@ static int mini_ips_transform_headers(http_message_t *msg) {
         return 0;
     }
 
-    cap = strlen(msg->headers) + 1U;
+    cap = (strlen(msg->headers) * 2U) + 64U;
     buf_a = (char *)malloc(cap);
     buf_b = (char *)malloc(cap);
     if (NULL == buf_a || NULL == buf_b) {
@@ -263,6 +201,13 @@ static int mini_ips_transform_headers(http_message_t *msg) {
 
     memcpy(buf_a, msg->headers, cap);
     if (0 > http_normalize_line_endings(buf_b, cap, buf_a)) {
+        free(buf_a);
+        free(buf_b);
+        return -1;
+    }
+    memcpy(buf_a, buf_b, strlen(buf_b) + 1U);
+
+    if (0 > http_text_canonicalize(buf_b, cap, buf_a, 3)) {
         free(buf_a);
         free(buf_b);
         return -1;
@@ -291,7 +236,7 @@ static int mini_ips_transform_body(http_message_t *msg) {
         return 0;
     }
 
-    cap = msg->body_len;
+    cap = (msg->body_len * 2U) + 64U;
     buf_a = (uint8_t *)malloc(cap);
     buf_b = (uint8_t *)malloc(cap);
     if (NULL == buf_a || NULL == buf_b) {
@@ -300,9 +245,8 @@ static int mini_ips_transform_body(http_message_t *msg) {
         return -1;
     }
 
-    memcpy(buf_a, msg->body, cap);
-    next_len = cap;
-
+    memcpy(buf_a, msg->body, msg->body_len);
+    next_len = msg->body_len;
     if (0 > http_body_decode_percent_recursive(buf_b, cap, buf_a, next_len, 2,
                                                &next_len)) {
         free(buf_a);
@@ -310,7 +254,13 @@ static int mini_ips_transform_body(http_message_t *msg) {
         return -1;
     }
     memcpy(buf_a, buf_b, next_len);
+    if (0 > http_body_canonicalize(buf_b, cap, buf_a, next_len, 3, &next_len)) {
+        free(buf_a);
+        free(buf_b);
+        return -1;
+    }
 
+    memcpy(buf_a, buf_b, next_len);
     if (0 > http_body_normalize_lowercase(buf_b, cap, buf_a, next_len,
                                           &next_len)) {
         free(buf_a);
@@ -625,7 +575,6 @@ static int mini_ips_process_payload(mini_ips_ctx_t *ctx, const uint8_t *data,
     mini_ips_session_t *session;
     mini_ips_reasm_t *reasm;
     char            response_buf[512];
-    char            logbuf[256];
     size_t          response_len;
     int             rc;
 
@@ -654,8 +603,6 @@ static int mini_ips_process_payload(mini_ips_ctx_t *ctx, const uint8_t *data,
     memset(&decision, 0, sizeof(decision));
     memset(&block_ctx, 0, sizeof(block_ctx));
 
-    mini_ips_log_payload_preview("req_ring.deq", session_id, data, len);
-
     if (0 != mini_ips_reasm_append(reasm, data, len)) {
         mini_ips_log_message("worker", "mini_ips_reasm_append failed");
         mini_ips_reasm_release(ctx, session_id);
@@ -664,9 +611,7 @@ static int mini_ips_process_payload(mini_ips_ctx_t *ctx, const uint8_t *data,
 
     rc = http_parser_try(reasm->buf, reasm->len, &msg);
     if (0 == rc) {
-        fprintf(stderr,
-                "[HTTP] session_id=%u parser=incomplete raw_len=%zu reasm_len=%zu\n",
-                session_id, len, reasm->len);
+        mini_ips_log_parser_incomplete(session_id, len, reasm->len);
         return 0;
     }
     if (0 > rc) {
@@ -675,16 +620,12 @@ static int mini_ips_process_payload(mini_ips_ctx_t *ctx, const uint8_t *data,
         return -1;
     }
 
-    mini_ips_log_http_message(session_id, &msg);
-
     if (0 != mini_ips_prepare_message(&msg)) {
         http_parser_free(&msg);
         mini_ips_log_message("worker", "mini_ips_prepare_message failed");
         mini_ips_reasm_release(ctx, session_id);
         return -1;
     }
-
-    mini_ips_log_http_message(session_id, &msg);
 
     rc = detect_run(ctx->engine, &msg, &result);
     if (0 != rc) {
@@ -703,19 +644,11 @@ static int mini_ips_process_payload(mini_ips_ctx_t *ctx, const uint8_t *data,
     block_ctx.rs_len = &response_len;
 
     rc = blocking_request(&block_ctx);
-    http_parser_free(&msg);
     if (0 > rc) {
+        http_parser_free(&msg);
         mini_ips_log_message("worker", "blocking_request failed");
         mini_ips_reasm_release(ctx, session_id);
         return -1;
-    }
-
-    if (result.matched) {
-        snprintf(logbuf, sizeof(logbuf),
-                 "[BLOCK] session_id=%u blocked=%s reason=%s",
-                 session_id, 1 == rc ? "yes" : "no",
-                 NULL != decision.reason ? decision.reason : "none");
-        fprintf(stderr, "%s\n", logbuf);
     }
 
     if (1 == rc && NULL != session && session->client_fd >= 0) {
@@ -728,9 +661,12 @@ static int mini_ips_process_payload(mini_ips_ctx_t *ctx, const uint8_t *data,
         }
         session->decision_queued = 1;
     } else if (0 == rc && NULL != session && session->client_fd >= 0) {
+        mini_ips_log_allow_message(session_id, &msg);
+
         if (0 != mini_ips_reserve_buffer(&session->pending_request,
                                          &session->pending_request_cap,
                                          reasm->len)) {
+            http_parser_free(&msg);
             mini_ips_log_message("worker", "pending_request reserve failed");
             mini_ips_reasm_release(ctx, session_id);
             return -1;
@@ -741,12 +677,15 @@ static int mini_ips_process_payload(mini_ips_ctx_t *ctx, const uint8_t *data,
 
         if (0 != res_ring_enq(&ctx->res_ring, MINI_IPS_RING_ACTION_ALLOW,
                               session_id, NULL, 0U)) {
+            http_parser_free(&msg);
             mini_ips_log_message("worker", "res_ring_enq(allow) failed");
             mini_ips_reasm_release(ctx, session_id);
             return -1;
         }
         session->decision_queued = 1;
     }
+
+    http_parser_free(&msg);
 
     mini_ips_reasm_release(ctx, session_id);
 

@@ -43,3 +43,17 @@ int http_body_decode_escape_sequence(uint8_t *dst, size_t dst_sz,
                                      size_t *out_len);
 
 int http_body_has_invalid_percent_encoding(const uint8_t *src, size_t src_len);
+
+/* ---------------- base64flat ---------------- */
+
+
+
+int http_text_canonicalize(char *dst, size_t dst_sz, const char *src,
+                           int max_rounds);
+
+int http_uri_canonicalize(char *dst, size_t dst_sz, const char *src,
+                          int max_rounds);
+
+int http_body_canonicalize(uint8_t *dst, size_t dst_sz,
+                           const uint8_t *src, size_t src_len,
+                           int max_rounds, size_t *out_len);

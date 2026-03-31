@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 
 #define PCRE2_CODE_UNIT_WIDTH 8
 
@@ -173,11 +174,54 @@ static int select_subject(const regex_signature_t *sig, const http_message_t *ms
     return 0;
 }
 
+static void detect_match_info_reset(detect_match_info_t *info) {
+    if (NULL == info) {
+        return;
+    }
+
+    memset(info, 0, sizeof(*info));
+}
+
+static void detect_copy_printable_snippet(char *dst, size_t dst_sz,
+                                          PCRE2_SPTR src, PCRE2_SIZE len) {
+    size_t i;
+    size_t copy_len;
+
+    if (NULL == dst || 0U == dst_sz) {
+        return;
+    }
+
+    dst[0] = '\0';
+    if (NULL == src || 0U == len) {
+        return;
+    }
+
+    copy_len = len;
+    if (copy_len >= dst_sz) {
+        copy_len = dst_sz - 1U;
+    }
+
+    for (i = 0; i < copy_len; i++) {
+        unsigned char ch;
+
+        ch = (unsigned char)src[i];
+        if ('\r' == ch || '\n' == ch || '\t' == ch) {
+            dst[i] = ' ';
+        } else if (0 == isprint(ch)) {
+            dst[i] = '.';
+        } else {
+            dst[i] = (char)ch;
+        }
+    }
+    dst[copy_len] = '\0';
+}
+
 int engine_match_runtime(const void          *runtime_ptr,
                          const http_message_t *msg,
                          size_t              *out_matches,
                          int                 *out_score,
-                         int                 *out_errors) {
+                         int                 *out_errors,
+                         detect_match_info_t *out_first_match) {
     const detect_runtime_t *runtime;
     size_t                  i;
     size_t                  matches;
@@ -192,6 +236,7 @@ int engine_match_runtime(const void          *runtime_ptr,
     *out_matches = 0U;
     *out_score = 0;
     *out_errors = 0;
+    detect_match_info_reset(out_first_match);
 
     if (NULL == runtime_ptr) {
         *out_errors = 1;
@@ -239,14 +284,36 @@ int engine_match_runtime(const void          *runtime_ptr,
         }
 
         rc = pcre2_match(code, subject, subject_len, 0, 0, match_data, NULL);
-        pcre2_match_data_free(match_data);
-
         if (rc >= 0) {
+            if (NULL != out_first_match && 0 == out_first_match->matched) {
+                PCRE2_SIZE *ovector;
+                PCRE2_SIZE  match_off;
+                PCRE2_SIZE  match_end;
+
+                ovector = pcre2_get_ovector_pointer(match_data);
+                if (NULL != ovector) {
+                    match_off = ovector[0];
+                    match_end = ovector[1];
+                    if (match_end >= match_off && match_end <= subject_len) {
+                        out_first_match->matched = 1;
+                        out_first_match->context = sig->context;
+                        (void)snprintf(out_first_match->pattern,
+                                       sizeof(out_first_match->pattern), "%s",
+                                       NULL != sig->pattern ? sig->pattern
+                                                            : "(null)");
+                        detect_copy_printable_snippet(
+                            out_first_match->text,
+                            sizeof(out_first_match->text),
+                            subject + match_off, match_end - match_off);
+                    }
+                }
+            }
             matches++;
             score += sig->priority;
         } else if (PCRE2_ERROR_NOMATCH != rc) {
             errors++;
         }
+        pcre2_match_data_free(match_data);
     }
 
     *out_matches = matches;

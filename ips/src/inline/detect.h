@@ -1,11 +1,12 @@
 #pragma once
 
+#include "engine.h"
+
 #include <stddef.h>
 
 
 typedef struct regex_db regex_db_t;
 typedef struct http_message http_message_t;
-typedef struct detect_engine detect_engine_t;
 
 
 
@@ -22,6 +23,10 @@ typedef struct detect_result {
     int    total_score;
     int    total_errors;
     size_t total_matches;
+    detect_match_info_t sqli_info;
+    detect_match_info_t directory_traversal_info;
+    detect_match_info_t rce_info;
+    detect_match_info_t xss_info;
 } detect_result_t;
 
 int detect_run(detect_engine_t *engine, const http_message_t *msg, detect_result_t *out_result);

@@ -13,6 +13,9 @@
 {"name": "RCE", "pat": "(?i)Process\\s*\\.\\s*spawn\\s*\\(", "score": 5, "ctx": "URI"}
 {"name": "RCE", "pat": "(?i)^\\s*\\(\\s*\\)\\s*\\{", "score": 5, "ctx": "URI"}
 {"name": "RCE", "pat": "(?i)\\b(?:curl|wget|bash|sh|cmd|powershell|python|perl|php|nc|netcat)\\b.{0,20}(?:\\||;|&&|\\|\\|)", "score": 5, "ctx": "URI"}
+{"name": "RCE", "pat": "(?i)(?:^|[;&|`])\\s*(?:cat|head|tail|more|less)\\s+['\"]*/?e['\"]?t['\"]?c/pa['\"]?s['\"]?s['\"]?wd\\b", "score": 5, "ctx": "URI"}
+{"name": "RCE", "pat": "(?i)/e['\"]?t['\"]?c/pa['\"]?s['\"]?s['\"]?wd\\b", "score": 5, "ctx": "URI"}
+{"name": "RCE", "pat": "(?i)(?:^|[;&|`])\\s*cat\\b", "score": 3, "ctx": "URI"}
 {"name": "RCE", "pat": "~[\\+\\-]?(?:$|[0-9]+)", "score": 2, "ctx": "URI"}
 {"name": "RCE", "pat": "\\{[^\\s\\x0b,:\\}]*,[^\\s\\x0b]*\\}", "score": 2, "ctx": "URI"}
 {"name": "RCE", "pat": "!-\\d", "score": 2, "ctx": "URI"}
@@ -34,6 +37,9 @@
 {"name": "RCE", "pat": "(?i)Process\\s*\\.\\s*spawn\\s*\\(", "score": 5, "ctx": "HEADERS"}
 {"name": "RCE", "pat": "(?i)^\\s*\\(\\s*\\)\\s*\\{", "score": 5, "ctx": "HEADERS"}
 {"name": "RCE", "pat": "(?i)\\b(?:curl|wget|bash|sh|cmd|powershell|python|perl|php|nc|netcat)\\b.{0,20}(?:\\||;|&&|\\|\\|)", "score": 5, "ctx": "HEADERS"}
+{"name": "RCE", "pat": "(?i)(?:^|[;&|`])\\s*(?:cat|head|tail|more|less)\\s+['\"]*/?e['\"]?t['\"]?c/pa['\"]?s['\"]?s['\"]?wd\\b", "score": 5, "ctx": "HEADERS"}
+{"name": "RCE", "pat": "(?i)/e['\"]?t['\"]?c/pa['\"]?s['\"]?s['\"]?wd\\b", "score": 5, "ctx": "HEADERS"}
+{"name": "RCE", "pat": "(?i)(?:^|[;&|`])\\s*cat\\b", "score": 3, "ctx": "HEADERS"}
 {"name": "RCE", "pat": "~[\\+\\-]?(?:$|[0-9]+)", "score": 2, "ctx": "HEADERS"}
 {"name": "RCE", "pat": "\\{[^\\s\\x0b,:\\}]*,[^\\s\\x0b]*\\}", "score": 2, "ctx": "HEADERS"}
 {"name": "RCE", "pat": "!-\\d", "score": 2, "ctx": "HEADERS"}
@@ -55,6 +61,9 @@
 {"name": "RCE", "pat": "(?i)Process\\s*\\.\\s*spawn\\s*\\(", "score": 5, "ctx": "BODY"}
 {"name": "RCE", "pat": "(?i)^\\s*\\(\\s*\\)\\s*\\{", "score": 5, "ctx": "BODY"}
 {"name": "RCE", "pat": "(?i)\\b(?:curl|wget|bash|sh|cmd|powershell|python|perl|php|nc|netcat)\\b.{0,20}(?:\\||;|&&|\\|\\|)", "score": 5, "ctx": "BODY"}
+{"name": "RCE", "pat": "(?i)(?:^|[;&|`])\\s*(?:cat|head|tail|more|less)\\s+['\"]*/?e['\"]?t['\"]?c/pa['\"]?s['\"]?s['\"]?wd\\b", "score": 5, "ctx": "BODY"}
+{"name": "RCE", "pat": "(?i)/e['\"]?t['\"]?c/pa['\"]?s['\"]?s['\"]?wd\\b", "score": 5, "ctx": "BODY"}
+{"name": "RCE", "pat": "(?i)(?:^|[;&|`])\\s*cat\\b", "score": 3, "ctx": "BODY"}
 {"name": "RCE", "pat": "~[\\+\\-]?(?:$|[0-9]+)", "score": 2, "ctx": "BODY"}
 {"name": "RCE", "pat": "\\{[^\\s\\x0b,:\\}]*,[^\\s\\x0b]*\\}", "score": 2, "ctx": "BODY"}
 {"name": "RCE", "pat": "!-\\d", "score": 2, "ctx": "BODY"}

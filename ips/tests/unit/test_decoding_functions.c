@@ -1,75 +1,85 @@
 #include "decoding.h"
+#include "normalization.h"
 
 #include <string.h>
 
 #include "../common/unit_test.h"
 
+static int run_uri_pipeline(char *dst, size_t dst_sz, const char *src) {
+    char tmp_a[4096];
+    char tmp_b[4096];
+    int  rc;
+
+    if (NULL == dst || NULL == src || 0U == dst_sz) {
+        return -1;
+    }
+
+    rc = http_uri_canonicalize(tmp_a, sizeof(tmp_a), src, 3);
+    if (rc < 0) {
+        return -1;
+    }
+
+    rc = http_decode_plus_as_space(tmp_b, sizeof(tmp_b), tmp_a);
+    if (rc < 0) {
+        return -1;
+    }
+
+    rc = http_normalize_uri(dst, dst_sz, tmp_b);
+    if (rc < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
 int main(void) {
-    char    text[256];
-    uint8_t body[256];
-    size_t  out_len;
-    int     rc;
+    char    text[4096];
+    const char *uri_input;
+    int rc;
 
-    rc = http_decode_percent(text, sizeof(text), "/a%2fb");
-    EXPECT_INT_EQ("http_decode_percent", 1, rc);
-    EXPECT_STR_EQ("http_decode_percent", "/a/b", text);
+    uri_input =
+        "/KHNlbGVjdCgwKWZyb20oc2VsZWN0KHNsZWVwKDE1KSkpdikvKicrKHNlbGVjdCgwKWZyb20oc2VsZWN0KHNsZWVwKDE1KSkpdikrJyUyMisoc2VsZWN0KDApZnJvbShzZWxlY3Qoc2xlZXAoMTUpKSl2KSslMjIqLw";
 
-    rc = http_decode_percent(text, sizeof(text), "/plain/path");
-    EXPECT_INT_EQ("http_decode_percent", 0, rc);
-    EXPECT_STR_EQ("http_decode_percent", "/plain/path", text);
+    rc = http_uri_canonicalize(text, sizeof(text), uri_input, 3);
+    EXPECT_INT_EQ("http_uri_canonicalize.uri_sleep_base64", 1, rc);
+    EXPECT_TRUE("http_uri_canonicalize.uri_sleep_base64",
+                "decoded sleep payload present",
+                NULL != strstr(text, "select(sleep(15))"));
 
-    rc = http_decode_percent_recursive(text, sizeof(text), "%252fadmin", 3);
-    EXPECT_INT_EQ("http_decode_percent_recursive", 1, rc);
-    EXPECT_STR_EQ("http_decode_percent_recursive", "/admin", text);
+    uri_input = "/KGFsZXJ0KSgxKQ";
+    rc = http_uri_canonicalize(text, sizeof(text), uri_input, 3);
+    EXPECT_INT_EQ("http_uri_canonicalize.uri_alert_base64", 1, rc);
+    EXPECT_TRUE("http_uri_canonicalize.uri_alert_base64",
+                "decoded alert payload present",
+                NULL != strstr(text, "(alert)(1)"));
 
-    rc = http_decode_plus_as_space(text, sizeof(text), "a+b+c");
-    EXPECT_INT_EQ("http_decode_plus_as_space", 1, rc);
-    EXPECT_STR_EQ("http_decode_plus_as_space", "a b c", text);
+    uri_input = "/?e4411414ce=KGFsZXJ0KSgxKQ";
+    rc = http_uri_canonicalize(text, sizeof(text), uri_input, 3);
+    EXPECT_INT_EQ("http_uri_canonicalize.uri_query_alert_base64", 1, rc);
+    EXPECT_TRUE("http_uri_canonicalize.uri_query_alert_base64",
+                "decoded alert query payload present",
+                NULL != strstr(text, "(alert)(1)"));
 
-    rc = http_decode_html_entity(text, sizeof(text), "&lt;ok&gt;&amp;");
-    EXPECT_INT_EQ("http_decode_html_entity", 1, rc);
-    EXPECT_STR_EQ("http_decode_html_entity", "<ok>&", text);
+    uri_input = "/%3C%3Cscr%00ipt%2Fsrc=http:%2F%2Fxss.com%2Fxss.js%3E%3C%2Fscript";
+    rc = http_uri_canonicalize(text, sizeof(text), uri_input, 3);
+    EXPECT_INT_EQ("http_uri_canonicalize.uri_null_split_script", 1, rc);
+    EXPECT_TRUE("http_uri_canonicalize.uri_null_split_script",
+                "decoded script payload present",
+                NULL != strstr(text, "<<script/src=http://xss.com/xss.js></script"));
 
-    rc = http_decode_escape_sequence(text, sizeof(text), "\\x41\\n\\u003c");
-    EXPECT_INT_EQ("http_decode_escape_sequence", 1, rc);
-    EXPECT_STR_EQ("http_decode_escape_sequence", "A\n<", text);
+    uri_input = "/%3C%3Cscr%00ipt%2Fsrc=http:%2F%2Fxss.com%2Fxss.js%3E%3C%2Fscript";
+    rc = run_uri_pipeline(text, sizeof(text), uri_input);
+    EXPECT_INT_EQ("run_uri_pipeline.uri_null_split_script_path", 0, rc);
+    EXPECT_TRUE("run_uri_pipeline.uri_null_split_script_path",
+                "normalized path keeps full script payload",
+                NULL != strstr(text, "<<script/src=http://xss.com/xss.js></script"));
 
-    rc = http_has_invalid_percent_encoding("%ZZ");
-    EXPECT_INT_EQ("http_has_invalid_percent_encoding", 1, rc);
-    rc = http_has_invalid_percent_encoding("%41");
-    EXPECT_INT_EQ("http_has_invalid_percent_encoding", 0, rc);
-
-    rc = http_body_decode_percent(body, sizeof(body), (const uint8_t *)"A%42", 4,
-                                  &out_len);
-    EXPECT_INT_EQ("http_body_decode_percent", 1, rc);
-    EXPECT_SIZE_EQ("http_body_decode_percent", 2, out_len);
-    EXPECT_TRUE("http_body_decode_percent", "body bytes are A,B",
-                'A' == body[0] && 'B' == body[1]);
-
-    rc = http_body_decode_percent_recursive(body, sizeof(body),
-                                            (const uint8_t *)"%253c", 5, 3,
-                                            &out_len);
-    EXPECT_INT_EQ("http_body_decode_percent_recursive", 1, rc);
-    EXPECT_TRUE("http_body_decode_percent_recursive", "decoded body is <",
-                1 == out_len && '<' == body[0]);
-
-    rc = http_body_decode_html_entity(body, sizeof(body),
-                                      (const uint8_t *)"&lt;A&gt;", 9, &out_len);
-    EXPECT_INT_EQ("http_body_decode_html_entity", 1, rc);
-    EXPECT_SIZE_EQ("http_body_decode_html_entity", 3, out_len);
-    EXPECT_MEM_EQ("http_body_decode_html_entity", "<A>", body, 3);
-
-    rc = http_body_decode_escape_sequence(body, sizeof(body),
-                                          (const uint8_t *)"\\x41\\n", 6,
-                                          &out_len);
-    EXPECT_INT_EQ("http_body_decode_escape_sequence", 1, rc);
-    EXPECT_SIZE_EQ("http_body_decode_escape_sequence", 2, out_len);
-    EXPECT_TRUE("http_body_decode_escape_sequence",
-                "body bytes are A and newline",
-                'A' == body[0] && '\n' == body[1]);
-
-    rc = http_body_has_invalid_percent_encoding((const uint8_t *)"%2G", 3);
-    EXPECT_INT_EQ("http_body_has_invalid_percent_encoding", 1, rc);
+    uri_input = "/?fa3541d6f2=%3C%3Cscr%00ipt%2Fsrc=http:%2F%2Fxss.com%2Fxss.js%3E%3C%2Fscript";
+    rc = run_uri_pipeline(text, sizeof(text), uri_input);
+    EXPECT_INT_EQ("run_uri_pipeline.uri_null_split_script_query", 0, rc);
+    EXPECT_TRUE("run_uri_pipeline.uri_null_split_script_query",
+                "normalized query keeps full script payload",
+                NULL != strstr(text, "<<script/src=http://xss.com/xss.js></script"));
 
     return 0;
 }

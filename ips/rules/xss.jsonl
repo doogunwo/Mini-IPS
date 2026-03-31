@@ -1,4 +1,5 @@
 {"name": "XSS", "pat": "(?i)<script\\b[^>]*>", "score": 5, "ctx": "URI"}
+{"name": "XSS", "pat": "(?i)<<\\s*scr", "score": 5, "ctx": "URI"}
 {"name": "XSS", "pat": "(?i)</script\\b", "score": 5, "ctx": "URI"}
 {"name": "XSS", "pat": "(?i)[\\s\"'`;/0-9=\\x0b\\x09\\x0c,\\(]on[a-zA-Z]{3,32}\\s*=", "score": 5, "ctx": "URI"}
 {"name": "XSS", "pat": "(?i)(?:^|\\W)javascript\\s*:", "score": 5, "ctx": "URI"}
@@ -13,6 +14,12 @@
 {"name": "XSS", "pat": "(?i)<applet\\b", "score": 5, "ctx": "URI"}
 {"name": "XSS", "pat": "(?i)<base\\b[^>]*\\bhref\\s*=", "score": 5, "ctx": "URI"}
 {"name": "XSS", "pat": "(?i)\\b(?:eval|settimeout|setinterval|new\\s+function|alert|prompt|confirm|fetch)\\s*[\\(\\{]", "score": 5, "ctx": "URI"}
+{"name": "XSS", "pat": "(?i)\\b(?:alert|prompt|confirm)\\s*\\.\\s*(?:call|apply)\\s*\\(", "score": 5, "ctx": "URI"}
+{"name": "XSS", "pat": "(?i)\\(\\s*(?:alert|prompt|confirm)\\s*\\)\\s*\\(", "score": 5, "ctx": "URI"}
+{"name": "XSS", "pat": "(?i)\\b(?:alert|prompt|confirm)\\s*\\[\\s*[\"']\\s*(?:call|apply)\\s*[\"']\\s*\\]\\s*\\(", "score": 5, "ctx": "URI"}
+{"name": "XSS", "pat": "(?i)o(?:<[^>]+>|\\s)*n[a-z]{3,32}\\s*=", "score": 5, "ctx": "URI"}
+{"name": "XSS", "pat": "(?i)a(?:<[^>]+>|\\s)*l(?:<[^>]+>|\\s)*e(?:<[^>]+>|\\s)*r(?:<[^>]+>|\\s)*t(?:<[^>]+>|\\s)*\\(", "score": 5, "ctx": "URI"}
+{"name": "XSS", "pat": "(?i)a(?:<[^>]+>|\\s)*u(?:<[^>]+>|\\s)*t(?:<[^>]+>|\\s)*o(?:<[^>]+>|\\s)*f(?:<[^>]+>|\\s)*o(?:<[^>]+>|\\s)*c(?:<[^>]+>|\\s)*u(?:<[^>]+>|\\s)*s", "score": 5, "ctx": "URI"}
 {"name": "XSS", "pat": "(?i)(?:self|document|window|top)\\s*(?:\\.|\\[)", "score": 5, "ctx": "URI"}
 {"name": "XSS", "pat": "(?i)\\+ADw-.*(?:\\+AD4-|>)|<.*\\+AD4-", "score": 5, "ctx": "URI"}
 {"name": "XSS", "pat": "(?i)\\b(?:s(?:tyle|rc)|href)\\b[\\s\\S]*?=", "score": 3, "ctx": "URI"}
@@ -20,6 +27,7 @@
 {"name": "XSS", "pat": "\\{\\{.*?}}", "score": 2, "ctx": "URI"}
 {"name": "XSS", "pat": "![!+ ]\\[\\]", "score": 2, "ctx": "URI"}
 {"name": "XSS", "pat": "(?i)<script\\b[^>]*>", "score": 5, "ctx": "HEADERS"}
+{"name": "XSS", "pat": "(?i)<<\\s*scr", "score": 5, "ctx": "HEADERS"}
 {"name": "XSS", "pat": "(?i)</script\\b", "score": 5, "ctx": "HEADERS"}
 {"name": "XSS", "pat": "(?i)[\\s\"'`;/0-9=\\x0b\\x09\\x0c,\\(]on[a-zA-Z]{3,32}\\s*=", "score": 5, "ctx": "HEADERS"}
 {"name": "XSS", "pat": "(?i)(?:^|\\W)javascript\\s*:", "score": 5, "ctx": "HEADERS"}
@@ -34,6 +42,12 @@
 {"name": "XSS", "pat": "(?i)<applet\\b", "score": 5, "ctx": "HEADERS"}
 {"name": "XSS", "pat": "(?i)<base\\b[^>]*\\bhref\\s*=", "score": 5, "ctx": "HEADERS"}
 {"name": "XSS", "pat": "(?i)\\b(?:eval|settimeout|setinterval|new\\s+function|alert|prompt|confirm|fetch)\\s*[\\(\\{]", "score": 5, "ctx": "HEADERS"}
+{"name": "XSS", "pat": "(?i)\\b(?:alert|prompt|confirm)\\s*\\.\\s*(?:call|apply)\\s*\\(", "score": 5, "ctx": "HEADERS"}
+{"name": "XSS", "pat": "(?i)\\(\\s*(?:alert|prompt|confirm)\\s*\\)\\s*\\(", "score": 5, "ctx": "HEADERS"}
+{"name": "XSS", "pat": "(?i)\\b(?:alert|prompt|confirm)\\s*\\[\\s*[\"']\\s*(?:call|apply)\\s*[\"']\\s*\\]\\s*\\(", "score": 5, "ctx": "HEADERS"}
+{"name": "XSS", "pat": "(?i)o(?:<[^>]+>|\\s)*n[a-z]{3,32}\\s*=", "score": 5, "ctx": "HEADERS"}
+{"name": "XSS", "pat": "(?i)a(?:<[^>]+>|\\s)*l(?:<[^>]+>|\\s)*e(?:<[^>]+>|\\s)*r(?:<[^>]+>|\\s)*t(?:<[^>]+>|\\s)*\\(", "score": 5, "ctx": "HEADERS"}
+{"name": "XSS", "pat": "(?i)a(?:<[^>]+>|\\s)*u(?:<[^>]+>|\\s)*t(?:<[^>]+>|\\s)*o(?:<[^>]+>|\\s)*f(?:<[^>]+>|\\s)*o(?:<[^>]+>|\\s)*c(?:<[^>]+>|\\s)*u(?:<[^>]+>|\\s)*s", "score": 5, "ctx": "HEADERS"}
 {"name": "XSS", "pat": "(?i)(?:self|document|window|top)\\s*(?:\\.|\\[)", "score": 5, "ctx": "HEADERS"}
 {"name": "XSS", "pat": "(?i)\\+ADw-.*(?:\\+AD4-|>)|<.*\\+AD4-", "score": 5, "ctx": "HEADERS"}
 {"name": "XSS", "pat": "(?i)\\b(?:s(?:tyle|rc)|href)\\b[\\s\\S]*?=", "score": 3, "ctx": "HEADERS"}
@@ -41,6 +55,7 @@
 {"name": "XSS", "pat": "\\{\\{.*?}}", "score": 2, "ctx": "HEADERS"}
 {"name": "XSS", "pat": "![!+ ]\\[\\]", "score": 2, "ctx": "HEADERS"}
 {"name": "XSS", "pat": "(?i)<script\\b[^>]*>", "score": 5, "ctx": "BODY"}
+{"name": "XSS", "pat": "(?i)<<\\s*scr", "score": 5, "ctx": "BODY"}
 {"name": "XSS", "pat": "(?i)</script\\b", "score": 5, "ctx": "BODY"}
 {"name": "XSS", "pat": "(?i)[\\s\"'`;/0-9=\\x0b\\x09\\x0c,\\(]on[a-zA-Z]{3,32}\\s*=", "score": 5, "ctx": "BODY"}
 {"name": "XSS", "pat": "(?i)(?:^|\\W)javascript\\s*:", "score": 5, "ctx": "BODY"}
@@ -55,6 +70,12 @@
 {"name": "XSS", "pat": "(?i)<applet\\b", "score": 5, "ctx": "BODY"}
 {"name": "XSS", "pat": "(?i)<base\\b[^>]*\\bhref\\s*=", "score": 5, "ctx": "BODY"}
 {"name": "XSS", "pat": "(?i)\\b(?:eval|settimeout|setinterval|new\\s+function|alert|prompt|confirm|fetch)\\s*[\\(\\{]", "score": 5, "ctx": "BODY"}
+{"name": "XSS", "pat": "(?i)\\b(?:alert|prompt|confirm)\\s*\\.\\s*(?:call|apply)\\s*\\(", "score": 5, "ctx": "BODY"}
+{"name": "XSS", "pat": "(?i)\\(\\s*(?:alert|prompt|confirm)\\s*\\)\\s*\\(", "score": 5, "ctx": "BODY"}
+{"name": "XSS", "pat": "(?i)\\b(?:alert|prompt|confirm)\\s*\\[\\s*[\"']\\s*(?:call|apply)\\s*[\"']\\s*\\]\\s*\\(", "score": 5, "ctx": "BODY"}
+{"name": "XSS", "pat": "(?i)o(?:<[^>]+>|\\s)*n[a-z]{3,32}\\s*=", "score": 5, "ctx": "BODY"}
+{"name": "XSS", "pat": "(?i)a(?:<[^>]+>|\\s)*l(?:<[^>]+>|\\s)*e(?:<[^>]+>|\\s)*r(?:<[^>]+>|\\s)*t(?:<[^>]+>|\\s)*\\(", "score": 5, "ctx": "BODY"}
+{"name": "XSS", "pat": "(?i)a(?:<[^>]+>|\\s)*u(?:<[^>]+>|\\s)*t(?:<[^>]+>|\\s)*o(?:<[^>]+>|\\s)*f(?:<[^>]+>|\\s)*o(?:<[^>]+>|\\s)*c(?:<[^>]+>|\\s)*u(?:<[^>]+>|\\s)*s", "score": 5, "ctx": "BODY"}
 {"name": "XSS", "pat": "(?i)(?:self|document|window|top)\\s*(?:\\.|\\[)", "score": 5, "ctx": "BODY"}
 {"name": "XSS", "pat": "(?i)\\+ADw-.*(?:\\+AD4-|>)|<.*\\+AD4-", "score": 5, "ctx": "BODY"}
 {"name": "XSS", "pat": "(?i)\\b(?:s(?:tyle|rc)|href)\\b[\\s\\S]*?=", "score": 3, "ctx": "BODY"}
