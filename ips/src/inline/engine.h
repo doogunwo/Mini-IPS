@@ -16,12 +16,13 @@ typedef struct detect_match_info {
 } detect_match_info_t;
 
 typedef struct detect_engine {
-    const regex_db_t *db;
+    const regex_db_t *db; 
 
     void *sqli_runtime;
     void *xss_runtime;
     void *rce_runtime;
     void *dir_traversal_runtime;
+
     int   compile_errors;
     char  last_err[128];
 

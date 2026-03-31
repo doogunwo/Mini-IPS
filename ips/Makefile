@@ -57,6 +57,7 @@ BENCH_BUILD_DIR := $(BUILD_DIR)/benchmark
 LOG_DIR := logs
 
 MAIN_BIN := $(BIN_BUILD_DIR)/inline-ips
+MAIN_HS_BIN := $(BIN_BUILD_DIR)/inline-ips-hs
 DETECT_ENGINE_BIN := $(BENCH_BUILD_DIR)/test_engine_detect
 DETECT_PIPELINE_BIN := $(BENCH_BUILD_DIR)/test_detect_pipeline
 NORMAL_BENCHMARK_BIN := $(BENCH_BUILD_DIR)/test_benchmark_normal
@@ -64,13 +65,26 @@ ATTACK_BENCHMARK_BIN := $(BENCH_BUILD_DIR)/test_benchmark_attack
 REASM_PIPELINE_BIN := $(BENCH_BUILD_DIR)/test_reasm_pipeline
 HTTP_STREAM_SEARCH_BENCH_BIN := $(BENCH_BUILD_DIR)/test_http_stream_search_bench
 
-APP_SRCS := $(SRC_DIR)/inline/main.c \
-	$(SRC_DIR)/inline/mini_ips.c \
+APP_PCRE2_SRCS := $(SRC_DIR)/inline/main_pcre2.c \
+	$(SRC_DIR)/inline/mini_ips_pcre2.c \
 	$(SRC_DIR)/inline/logging.c \
 	$(SRC_DIR)/inline/tproxy.c \
 	$(SRC_DIR)/inline/blocking.c \
 	$(SRC_DIR)/inline/detect.c \
-	$(SRC_DIR)/inline/engine.c \
+	$(SRC_DIR)/inline/engine_pcre2.c \
+	$(SRC_DIR)/inline/http_parser.c \
+	$(SRC_DIR)/inline/decoding.c \
+	$(SRC_DIR)/inline/normalization.c \
+	$(SRC_DIR)/inline/regex.c \
+	$(SRC_DIR)/inline/ring.c
+
+APP_HS_SRCS := $(SRC_DIR)/inline/main_hs.c \
+	$(SRC_DIR)/inline/mini_ips_hs.c \
+	$(SRC_DIR)/inline/logging.c \
+	$(SRC_DIR)/inline/tproxy.c \
+	$(SRC_DIR)/inline/blocking.c \
+	$(SRC_DIR)/inline/detect.c \
+	$(SRC_DIR)/inline/engine_hs.c \
 	$(SRC_DIR)/inline/http_parser.c \
 	$(SRC_DIR)/inline/decoding.c \
 	$(SRC_DIR)/inline/normalization.c \
@@ -95,13 +109,19 @@ BENCH_LOGS := $(addprefix $(LOG_DIR)/,$(addsuffix .log,$(BENCH_NAMES)))
 MAIN_VG_LOG := $(LOG_DIR)/main.valgrind.log
 FORMAT_SRCS := $(shell find $(SRC_DIR) $(INC_DIR) $(TEST_DIR) $(BENCH_DIR) -type f \( -name '*.c' -o -name '*.h' \))
 
-.PHONY: all clean run tests units benchmark benchmarks run-benchmarks main inline-ips check_pcre valgrind-units valgrind-main vg-main test-detect-engine format format-check valgrind-tests
+.PHONY: all clean run tests units benchmark benchmarks run-benchmarks main main_pcre2 main_hs inline-ips inline-ips-hs check_pcre valgrind-units valgrind-main vg-main test-detect-engine format format-check valgrind-tests
 
 all: main tests benchmark
 
 main: $(MAIN_BIN)
 
+main_pcre2: $(MAIN_BIN)
+
+main_hs: $(MAIN_HS_BIN)
+
 inline-ips: $(MAIN_BIN)
+
+inline-ips-hs: $(MAIN_HS_BIN)
 
 tests: $(INLINE_TEST_BINS)
 
@@ -110,8 +130,11 @@ benchmark: $(BENCH_BINS)
 $(BUILD_DIR) $(BIN_BUILD_DIR) $(TEST_BUILD_DIR) $(UNIT_BUILD_DIR) $(BENCH_BUILD_DIR) $(LOG_DIR):
 	mkdir -p $@
 
-$(MAIN_BIN): check_pcre $(APP_SRCS) $(SRC_DIR)/inline/tproxy.h $(SRC_DIR)/inline/mini_ips.h | $(BIN_BUILD_DIR)
-	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) $(APP_SRCS) -o $@ $(LDFLAGS) $(PCRE_LIBS) -pthread $(LDLIBS)
+$(MAIN_BIN): check_pcre $(APP_PCRE2_SRCS) $(SRC_DIR)/inline/tproxy.h $(SRC_DIR)/inline/mini_ips_pcre2.h | $(BIN_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(PCRE_CFLAGS) $(CFLAGS) $(APP_PCRE2_SRCS) -o $@ $(LDFLAGS) $(PCRE_LIBS) -pthread $(LDLIBS)
+
+$(MAIN_HS_BIN): $(APP_HS_SRCS) $(SRC_DIR)/inline/tproxy.h $(SRC_DIR)/inline/mini_ips_hs.h | $(BIN_BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(HS_CFLAGS) $(CFLAGS) $(APP_HS_SRCS) -o $@ $(LDFLAGS) $(HS_LIBS) -pthread $(LDLIBS)
 
 $(DETECT_ENGINE_BIN): check_pcre $(BENCH_DIR)/test_engine_detect.c \
 	$(SRC_DIR)/runtime.c $(SRC_DIR)/logging.c $(SRC_DIR)/detect.c \
