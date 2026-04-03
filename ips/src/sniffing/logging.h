@@ -32,6 +32,8 @@ typedef struct rst_log_cache {
 typedef struct app_shared {
     FILE           *log_fp;                /**< 메인 IPS 로그 파일 */
     char            log_path[256];         /**< 로그 파일 경로 */
+    FILE           *detect_time_log_fp;    /**< detect time 전용 로그 파일 */
+    char            detect_time_log_path[256]; /**< detect time 전용 로그 경로 */
     FILE           *monitor_log_fp;        /**< 모니터링 로그 파일 */
     char            monitor_log_path[256]; /**< 모니터 로그 경로 */
     pthread_mutex_t log_mu;           /**< 로그 파일 동시 기록 보호 */
@@ -63,11 +65,7 @@ typedef struct app_ctx {
     tx_ctx_t         rst_tx;   /**< RST/차단 응답 송신 컨텍스트 */
     app_shared_t    *shared;   /**< 공유 상태 */
     rst_log_cache_t rst_cache; /**< 세션 종료 직후 로그 보조 캐시 */
-    char            last_event_id[48];  /**< 최근 이벤트 ID */
-    char            last_event_ts[40];  /**< 최근 이벤트 시각 */
-    char            last_client_ip[32]; /**< 최근 차단 대상 IP */
-    char    *last_block_page_html; /**< 최근 렌더링한 차단 페이지 */
-    uint64_t last_gc_ms;           /**< 마지막 GC 수행 시각 */
+    uint64_t         last_gc_ms;  /**< 마지막 GC 수행 시각 */
 } app_ctx_t;
 
 /** 로그 문자열 조합에 쓰는 간단한 동적 버퍼이다. */
@@ -106,6 +104,9 @@ void  app_log_attack(app_shared_t *shared, const char *event_id,
                      const char *matched_rules, const char *matched_texts,
                      const char *ip, uint16_t port, int score, int threshold,
                      size_t match_count, uint64_t detect_us, long detect_ms);
+void  app_log_detect_time(app_shared_t *shared, const char *event_ts,
+                          const char *ip, uint16_t port, uint64_t detect_us,
+                          long detect_ms, size_t request_len);
 void  ip4_to_str(uint32_t ip, char *out, size_t out_sz);
 int   parse_flow_dir_and_flags(const uint8_t *data, uint32_t len,
                                flow_key_t *flow, tcp_dir_t *dir, uint8_t *flags);
@@ -120,7 +121,7 @@ void log_tcp_packet_line(const app_ctx_t *app, const uint8_t *data,
 void request_rst_both(app_ctx_t *app, const flow_key_t *flow,
                       const char *event_id);
 void request_block_action_v2(app_ctx_t *app, const flow_key_t *flow,
-                             const char *event_id);
+                             tcp_dir_t request_dir, const char *event_id);
 int  run_detect(detect_engine_t *det, const http_message_t *msg, int *out_score,
                 const char *query, size_t query_len,
                 const IPS_Signature **matched_rule, detect_match_list_t *matches,

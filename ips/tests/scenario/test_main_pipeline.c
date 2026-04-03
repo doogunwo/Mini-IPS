@@ -78,7 +78,7 @@ static int verify_attack_detect_and_block(mini_ips_ctx_t *ctx,
     rc = http_parser_try((const uint8_t *)attack_req, strlen(attack_req), &msg);
     EXPECT_INT_EQ("main_pipeline.http_parser_try", 1, rc);
 
-    rc = detect_run(ctx->engine, &msg, &result);
+    rc = detect_run(ctx->engine, &msg, &result, NULL);
     EXPECT_INT_EQ("main_pipeline.detect_run", 0, rc);
     EXPECT_INT_EQ("main_pipeline.detect_run", 1, result.matched);
     EXPECT_INT_EQ("main_pipeline.detect_run", 1,
@@ -128,7 +128,7 @@ static int verify_uri_xss_detect_and_block(mini_ips_ctx_t *ctx,
     rc = http_parser_try((const uint8_t *)attack_req, strlen(attack_req), &msg);
     EXPECT_INT_EQ("main_pipeline.http_parser_try.uri_xss", 1, rc);
 
-    rc = detect_run(ctx->engine, &msg, &result);
+    rc = detect_run(ctx->engine, &msg, &result, NULL);
     EXPECT_INT_EQ("main_pipeline.detect_run.uri_xss", 0, rc);
     EXPECT_INT_EQ("main_pipeline.detect_run.uri_xss", 1, result.matched);
     EXPECT_INT_EQ("main_pipeline.detect_run.uri_xss", 1, result.matched_xss);

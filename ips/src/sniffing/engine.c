@@ -531,7 +531,8 @@ static int compile_hs_group(engine_runtime_t *runtime, hs_group_t *group,
         /* Hyperscan DB에 넣을 패턴 문자열과 rule 인덱스를 같은 순서로 채운다.
          */
         patterns[count]            = runtime->compiled_rules[i].rule->pattern;
-        flags[count]               = 0;
+        /* PCRE2 경로가 PCRE2_CASELESS로 컴파일되므로 HS도 동일하게 맞춘다. */
+        flags[count]               = HS_FLAG_CASELESS;
         ids[count]                 = i;
         group->rule_indexes[count] = i;
         count++;

@@ -61,15 +61,6 @@ struct httgw {
     uint32_t          sess_count;        /* 현재 live 세션 수 */
 };
 
-struct ip_hash {
-    ip_node_t **buckets;
-    size_t      nbuckets;
-};
-
-#if defined(__GNUC__)
-#define HTTGW_UNUSED __attribute__((unused))
-#endif
-
 /**
  * @brief flow 하나에 대한 런타임 세션 상태.
  *
@@ -192,17 +183,6 @@ static int sess_flow_eq(const flow_key_t *a, const flow_key_t *b) {
 
     /* 5-tuple 모두 같으면 같은 flow */
     return 1;
-}
-
-/* --------------------------- ip hash table (unused for now)
- * --------------------------- */
-static uint32_t HTTGW_UNUSED ip_hash_fn(uint32_t ip) {
-    ip ^= ip >> 16;
-    ip *= 0x7feb352d;
-    ip ^= ip >> 15;
-    ip *= 0x846ca68b;
-    ip ^= ip >> 16;
-    return ip;
 }
 
 static httgw_session_t *sess_find(const httgw_t *gw, const flow_key_t *flow) {
@@ -1970,56 +1950,46 @@ int httgw_request_rst_with_snapshot(httgw_t *gw, const flow_key_t *flow,
 }
 
 /**
- * @brief 세션 snapshot을 기준으로 클라이언트 방향 HTTP 차단 응답을 주입한다.
+ * @brief 세션 snapshot을 기준으로 지정 방향에 HTTP 차단 응답을 주입한다.
  *
- * 서버에서 클라이언트로 가는 방향(DIR_BA)으로 위조 TCP 세그먼트를 생성해
- * HTTP 차단 페이지 payload를 분할 전송하고, 마지막에 FIN|ACK를 보내 연결을
- * 정리한다. seq/ack 기준값은 전달받은 snapshot에서 계산한다.
+ * 현재는 실험용 경로로 사용되며, 계산된 seq/ack/window를 기준으로
+ * payload를 여러 TCP 세그먼트로 나눠 전송한 뒤 마지막에 FIN|ACK를 보낸다.
  *
  * @param gw 주입 송신에 사용할 httgw 인스턴스
  * @param flow 차단 응답을 주입할 대상 TCP flow key
+ * @param dir payload를 주입할 방향
  * @param snap 현재 세션의 seq/ack/window 정보를 담은 snapshot
- * @param payload 클라이언트에게 보낼 HTTP 응답 바디/헤더 데이터
- * @param payload_len payload 전체 길이
+ * @param payload 응답 payload
+ * @param payload_len payload 길이
  * @return int 성공 시 0, 실패 시 -1
  */
 int httgw_inject_block_response_with_snapshot(httgw_t                     *gw,
                                               const flow_key_t            *flow,
+                                              tcp_dir_t                    dir,
                                               const httgw_sess_snapshot_t *snap,
                                               const uint8_t *payload,
                                               size_t         payload_len) {
-    /* 현재 flow의 live session */
     httgw_session_t *sess;
-    /* 응답 주입 기준 seq/ack */
-    uint32_t seq_base;
-    uint32_t ack;
-    /* 누적 전송 바이트와 마지막 오류 */
-    size_t sent     = 0;
-    int    last_err = -1;
+    uint32_t         seq_base;
+    uint32_t         ack;
+    size_t           sent;
+    int              last_err;
 
-    /* 기본 인자와 payload 길이가 정상인지 먼저 확인한다. */
     if (NULL == gw || NULL == flow || NULL == snap || NULL == payload ||
-        0 == payload_len) {
+        0U == payload_len) {
         return -1;
     }
-
-    /* 실제 L3/TCP 송신 컨텍스트가 연결되지 않았으면 주입할 수 없다. */
     if (NULL == gw->tx_ctx) {
         return -1;
     }
+    if (dir != DIR_AB && dir != DIR_BA) {
+        return -1;
+    }
 
-    /*
-     * 현재 구현은 live session 존재를 전제로 주입한다.
-     * snapshot은 seq/ack 계산에 쓰고, session lookup은 flow 유효성 확인 용도로
-     * 쓴다.
-     */
     sess = sess_find(gw, flow);
     if (NULL == sess) {
         return -1;
     }
-
-    /* 양방향 상태를 모두 본 세션이 아니면 정상적인 응답 주입 기준을 만들 수
-     * 없다. */
     if (0 == snap->seen_ab || 0 == snap->seen_ba) {
         return -1;
     }
@@ -2027,46 +1997,44 @@ int httgw_inject_block_response_with_snapshot(httgw_t                     *gw,
         return -1;
     }
 
-    /* 서버 -> 클라이언트 방향(DIR_BA)으로 보낼 seq/ack 기준값을 snapshot에서
-     * 잡는다. */
-    seq_base = snap->next_seq_ba;
-    ack      = snap->next_seq_ab;
+    if (DIR_BA == dir) {
+        seq_base = snap->next_seq_ba;
+        ack      = snap->next_seq_ab;
+    } else {
+        seq_base = snap->next_seq_ab;
+        ack      = snap->next_seq_ba;
+    }
 
-    /*
-     * 차단 응답 payload를 여러 TCP 세그먼트로 분할 전송한다.
-     * 마지막 payload 세그먼트에는 PSH를 넣어 클라이언트가 바로 처리하게 한다.
-     */
+    sent = 0U;
     while (sent < payload_len) {
-        size_t  chunk = payload_len - sent;
-        uint8_t flags = TCP_ACK;
+        size_t  chunk;
+        uint8_t flags;
         int     rc;
 
-        /* 한 세그먼트가 너무 커지지 않도록 주입용 상한으로 자른다. */
+        chunk = payload_len - sent;
+        flags = TCP_ACK;
         if (chunk > HTTGW_INJECT_SEGMENT_BYTES) {
             chunk = HTTGW_INJECT_SEGMENT_BYTES;
         }
-
-        /* 마지막 payload 조각이면 PSH를 같이 넣는다. */
         if (sent + chunk == payload_len) {
             flags |= TCP_PSH;
         }
 
-        /* DIR_BA 방향으로 위조 응답 데이터를 실제 전송한다. */
-        rc = tx_send_tcp_segment(gw->tx_ctx, flow, DIR_BA,
+        rc = tx_send_tcp_segment(gw->tx_ctx, flow, dir,
                                  seq_base + (uint32_t)sent, ack, flags,
-                                 snap->win_ba, payload + sent, chunk);
+                                 (DIR_BA == dir) ? snap->win_ba : snap->win_ab,
+                                 payload + sent, chunk);
         if (0 != rc) {
             return -1;
         }
         sent += chunk;
     }
 
-    /* payload 전송이 끝나면 FIN|ACK로 응답 방향 연결을 정리한다. */
     last_err = tx_send_tcp_segment(
-        gw->tx_ctx, flow, DIR_BA, seq_base + (uint32_t)payload_len, ack,
-        (uint8_t)(TCP_FIN | TCP_ACK), snap->win_ba, NULL, 0);
+        gw->tx_ctx, flow, dir, seq_base + (uint32_t)payload_len, ack,
+        (uint8_t)(TCP_FIN | TCP_ACK),
+        (DIR_BA == dir) ? snap->win_ba : snap->win_ab, NULL, 0);
 
-    /* 마지막 FIN 전송 결과를 상위로 반환한다. */
     return (0 == last_err) ? 0 : -1;
 }
 

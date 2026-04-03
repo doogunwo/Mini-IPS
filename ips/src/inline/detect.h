@@ -3,6 +3,7 @@
 #include "engine.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 
 typedef struct regex_db regex_db_t;
@@ -29,4 +30,5 @@ typedef struct detect_result {
     detect_match_info_t xss_info;
 } detect_result_t;
 
-int detect_run(detect_engine_t *engine, const http_message_t *msg, detect_result_t *out_result);
+int detect_run(detect_engine_t *engine, const http_message_t *msg,
+               detect_result_t *out_result, uint64_t *detect_elapsed_us);

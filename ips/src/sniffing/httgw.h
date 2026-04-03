@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "net_compat.h"
 #include "http_stream.h"
 
 #ifndef REASM_SESSION_TIMEOUT_MS
@@ -167,8 +168,6 @@ int httgw_extract_query(const http_message_t *msg, const char **q,
 int httgw_header_get(const http_message_t *msg, const char *name,
                      const uint8_t **value, size_t *value_len);
 
-typedef struct ip_hash ip_hash_t;
-
 /* --------------------------- RST 패킷 관련 ---------------------------*/
 /** 게이트웨이가 사용하는 원시 RST 송신 콜백이다. */
 typedef int (*httgw_send_rst_fn)(void *tx_ctx, const flow_key_t *flow,
@@ -194,6 +193,7 @@ int httgw_request_rst_with_snapshot(httgw_t *gw, const flow_key_t *flow,
                                     const httgw_sess_snapshot_t *snap);
 int httgw_inject_block_response_with_snapshot(httgw_t                     *gw,
                                               const flow_key_t            *flow,
+                                              tcp_dir_t                    dir,
                                               const httgw_sess_snapshot_t *snap,
                                               const uint8_t *payload,
                                               size_t         payload_len);

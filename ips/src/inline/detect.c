@@ -5,18 +5,46 @@
 
 #include <stddef.h>
 #include <string.h>
+#include <time.h>
+
+static uint64_t detect_elapsed_us(const struct timespec *start,
+                                  const struct timespec *end) {
+    int64_t sec_diff;
+    int64_t nsec_diff;
+
+    if (NULL == start || NULL == end) {
+        return 0U;
+    }
+
+    sec_diff = end->tv_sec - start->tv_sec;
+    nsec_diff = end->tv_nsec - start->tv_nsec;
+    if (nsec_diff < 0) {
+        sec_diff--;
+        nsec_diff += 1000000000LL;
+    }
+
+    return (uint64_t)sec_diff * 1000000ULL + (uint64_t)(nsec_diff / 1000LL);
+}
 
 int detect_run(detect_engine_t *engine, const http_message_t *msg,
-               detect_result_t *out_result) {
+               detect_result_t *out_result, uint64_t *out_detect_elapsed_us) {
     size_t matches;
     int    score;
     int    errors;
     int    rc;
+    struct timespec start_ts;
+    struct timespec end_ts;
 
     if (NULL == engine || NULL == engine->db || NULL == msg ||
         NULL == out_result) {
         return -1;
     }
+
+    if (NULL != out_detect_elapsed_us) {
+        *out_detect_elapsed_us = 0U;
+    }
+
+    clock_gettime(CLOCK_MONOTONIC, &start_ts);
 
     /* 탐지 결과 누적 구조체를 0으로 초기화한다. */ 
     memset(out_result, 0, sizeof(*out_result));
@@ -96,5 +124,10 @@ int detect_run(detect_engine_t *engine, const http_message_t *msg,
 
     /* 전체 매치 수가 1건 이상이면 최종 matched 플래그를 올린다. */ 
     out_result->matched = (out_result->total_matches > 0U);
+    clock_gettime(CLOCK_MONOTONIC, &end_ts);
+
+    if (NULL != out_detect_elapsed_us) {
+        *out_detect_elapsed_us = detect_elapsed_us(&start_ts, &end_ts);
+    }
     return 0;
 }

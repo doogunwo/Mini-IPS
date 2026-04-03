@@ -611,6 +611,8 @@ int append_match_strings(const detect_match_list_t *matches, strbuf_t *rules,
 int app_log_open(app_shared_t *shared) {
     /* 일반 이벤트 로그 경로 환경 변수 */
     const char *log_file_env;
+    /* detect time 전용 로그 경로 환경 변수 */
+    const char *detect_time_log_file_env;
     /* 모니터 로그 경로 환경 변수 */
     const char *monitor_log_file_env;
     /* helper 반환값 */
@@ -630,6 +632,16 @@ int app_log_open(app_shared_t *shared) {
         memcpy(shared->log_path, "logs/ips.log", sizeof("logs/ips.log"));
     }
 
+    detect_time_log_file_env = getenv("DETECT_TIME_LOG_FILE");
+    if (NULL != detect_time_log_file_env &&
+        '\0' != detect_time_log_file_env[0]) {
+        snprintf(shared->detect_time_log_path,
+                 sizeof(shared->detect_time_log_path), "%s",
+                 detect_time_log_file_env);
+    } else {
+        shared->detect_time_log_path[0] = '\0';
+    }
+
     /* monitor 로그 경로 결정 */
     monitor_log_file_env = getenv("MONITOR_LOG_FILE");
     if (NULL != monitor_log_file_env && '\0' != monitor_log_file_env[0]) {
@@ -645,6 +657,12 @@ int app_log_open(app_shared_t *shared) {
     if (0 != ret) {
         return -1;
     }
+    if ('\0' != shared->detect_time_log_path[0]) {
+        ret = ensure_parent_dir(shared->detect_time_log_path);
+        if (0 != ret) {
+            return -1;
+        }
+    }
     /* monitor 로그 부모 디렉터리 보장 */
     ret = ensure_parent_dir(shared->monitor_log_path);
     if (0 != ret) {
@@ -657,9 +675,25 @@ int app_log_open(app_shared_t *shared) {
         return -1;
     }
 
+    if ('\0' != shared->detect_time_log_path[0]) {
+        shared->detect_time_log_fp =
+            fopen(shared->detect_time_log_path, "a");
+        if (!shared->detect_time_log_fp) {
+            fclose(shared->log_fp);
+            shared->log_fp = NULL;
+            return -1;
+        }
+    } else {
+        shared->detect_time_log_fp = NULL;
+    }
+
     /* monitor 로그 파일은 새 실행마다 다시 쓴다 */
     shared->monitor_log_fp = fopen(shared->monitor_log_path, "w");
     if (!shared->monitor_log_fp) {
+        if (shared->detect_time_log_fp) {
+            fclose(shared->detect_time_log_fp);
+            shared->detect_time_log_fp = NULL;
+        }
         fclose(shared->log_fp);
         shared->log_fp = NULL;
         return -1;
@@ -685,6 +719,10 @@ void app_log_close(app_shared_t *shared) {
     if (shared->log_fp) {
         fclose(shared->log_fp);
         shared->log_fp = NULL;
+    }
+    if (shared->detect_time_log_fp) {
+        fclose(shared->detect_time_log_fp);
+        shared->detect_time_log_fp = NULL;
     }
     /* monitor 로그 파일 닫기 */
     if (shared->monitor_log_fp) {
@@ -852,6 +890,30 @@ void app_log_attack(app_shared_t *shared, const char *event_id,
     free(detected_esc);
     free(rules_esc);
     free(texts_esc);
+}
+
+void app_log_detect_time(app_shared_t *shared, const char *event_ts,
+                         const char *ip, uint16_t port, uint64_t detect_us,
+                         long detect_ms, size_t request_len) {
+    char ts[40];
+
+    if (!shared || !shared->detect_time_log_fp) {
+        return;
+    }
+
+    if (NULL != event_ts && '\0' != event_ts[0]) {
+        snprintf(ts, sizeof(ts), "%s", event_ts);
+    } else {
+        make_log_timestamp(ts, sizeof(ts));
+    }
+
+    pthread_mutex_lock(&shared->log_mu);
+    fprintf(shared->detect_time_log_fp,
+            "ts=%s src_ip=%s src_port=%u detect_us=%llu detect_ms=%ld request_len=%zu\n",
+            ts, ip ? ip : "unknown", (unsigned int)port,
+            (unsigned long long)detect_us, detect_ms, request_len);
+    fflush(shared->detect_time_log_fp);
+    pthread_mutex_unlock(&shared->log_mu);
 }
 
 /**

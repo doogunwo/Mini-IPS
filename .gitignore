@@ -26,3 +26,6 @@ ips/logs/
 ips/DB/*.sqlite
 ips/DB/*.db
 ips/DB/__pycache__/
+/scripts
+.compile_commands
+.clang-format

@@ -18,7 +18,6 @@
 #define _DEFAULT_SOURCE
 #endif
 
-#include <limits.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdatomic.h>
@@ -32,13 +31,11 @@
 #include "detect.h"
 #include "driver.h"
 #include "engine.h"
-#include "html.h"
 #include "httgw.h"
 #include "logging.h"
 #include "net_compat.h"
 
 static volatile sig_atomic_t g_stop = 0; /**< stop signal flag */
-static const char           *g_block_page_template_path = "DB/index.html";
 
 /**
  * @brief SIGINT를 수신하면 메인 루프 종료 플래그를 세운다.
@@ -48,110 +45,6 @@ static const char           *g_block_page_template_path = "DB/index.html";
 static void on_sigint(int signo) {
     (void)signo;
     g_stop = 1;
-}
-
-/**
- * @brief 기준 경로와 suffix를 안전하게 이어 붙여 출력 버퍼에 저장한다.
- *
- * @param dst 결과를 저장할 버퍼
- * @param dst_len 결과 버퍼 크기
- * @param base 기준 디렉터리 경로
- * @param suffix 뒤에 붙일 상대 suffix
- * @return int 성공 시 0, 버퍼 부족 또는 잘못된 입력이면 -1
- */
-static int set_resolved_path(char *dst, size_t dst_len, const char *base,
-                             const char *suffix) {
-    size_t base_len;
-    size_t suffix_len;
-
-    if (NULL == dst || 0U == dst_len || NULL == base || NULL == suffix) {
-        return -1;
-    }
-
-    base_len   = strlen(base);
-    suffix_len = strlen(suffix);
-    if (base_len + suffix_len + 1U > dst_len) {
-        return -1;
-    }
-
-    memcpy(dst, base, base_len);
-    memcpy(dst + base_len, suffix, suffix_len + 1U);
-    return 0;
-}
-
-/**
- * @brief 차단 페이지 템플릿 경로를 실행 위치와 무관하게 해석한다.
- *
- * 개발 환경에서는 `ips/` 루트 또는 `ips/build/`에서 바이너리를 실행하는
- * 경우가 많다. 상대 경로 `DB/index.html`만 고정하면 `build/DB/index.html`
- * 을 찾게 되어 차단 페이지 렌더링이 실패할 수 있으므로, 먼저 환경변수와
- * 현재 작업 디렉터리 후보를 확인하고 마지막으로 실행 파일 위치 기준 후보를
- * 순서대로 탐색한다.
- *
- * @return const char * 읽을 수 있는 템플릿 경로, 없으면 기본 상대 경로
- */
-static const char *resolve_block_page_template_path(void) {
-    static char resolved[PATH_MAX];
-    /* 프로세스 실행이 ./ips/build/main ./main ./build/main 이런식이여도 상대
-     * 경로 호환되기 위해 설정 */
-    static const char *const cwd_candidates[] = {
-        "DB/index.html", "../DB/index.html", "../../DB/index.html",
-        NULL, /* 배열의 끝 표시 순회할때 NYLL != 체크있음*/
-    };
-
-    const char *env_path;
-    size_t      i;
-    char        exe_path[PATH_MAX];
-    ssize_t     exe_len;
-    int         ret;
-
-    env_path = getenv("IPS_BLOCK_PAGE_TEMPLATE");
-    ret      = -1;
-    if (NULL != env_path && '\0' != env_path[0]) {
-        ret = access(env_path, R_OK);
-    }
-    if (NULL != env_path && '\0' != env_path[0] && 0 == ret) {
-        return env_path;
-    }
-
-    for (i = 0; NULL != cwd_candidates[i]; i++) {
-        ret = access(cwd_candidates[i], R_OK);
-        if (0 == ret) {
-            memcpy(resolved, cwd_candidates[i], strlen(cwd_candidates[i]) + 1);
-            return resolved;
-        }
-    }
-
-    exe_len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
-    if (0 < exe_len) {
-        char *slash;
-
-        exe_path[exe_len] = '\0';
-        slash             = strrchr(exe_path, '/');
-        if (NULL != slash) {
-            *slash = '\0';
-
-            ret = set_resolved_path(resolved, sizeof(resolved), exe_path,
-                                    "/../DB/index.html");
-            if (0 == ret) {
-                ret = access(resolved, R_OK);
-            }
-            if (0 == ret) {
-                return resolved;
-            }
-
-            ret = set_resolved_path(resolved, sizeof(resolved), exe_path,
-                                    "/DB/index.html");
-            if (0 == ret) {
-                ret = access(resolved, R_OK);
-            }
-            if (0 == ret) {
-                return resolved;
-            }
-        }
-    }
-
-    return "DB/index.html";
 }
 
 /**
@@ -177,6 +70,22 @@ static const char *first_nonempty_env(const char *first, const char *second) {
         }
     }
     return NULL;
+}
+
+/* 26-04-03 추가 내용: detect 시점 요청 길이를 로그에 남기기 위한 계산 헬퍼 */
+static size_t request_len_for_detect_log(const http_message_t *msg) {
+    size_t request_line_len = 0U;
+
+    if (NULL == msg) {
+        return 0U;
+    }
+
+    if (msg->is_request) {
+        request_line_len = strlen(msg->method) + 1U + strlen(msg->uri) + 1U +
+                           strlen(msg->version) + 2U;
+    }
+
+    return request_line_len + msg->headers_raw_len + 2U + msg->body_len;
 }
 
 /**
@@ -208,7 +117,6 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
     char                 ip[32];
     char                 event_id[48];
     char                 event_ts[40];
-    char                *block_page_html = NULL;
 
     /*
      * on_request는 이미 "HTTP 메시지 하나가 완성된 뒤" 호출되는 상위 정책
@@ -236,6 +144,8 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
     /* flow->src_ip에 들어있는 ipv4 주소를 사람이 읽을 수 있는 문자열로 바꾸는
      * 함수이다. */
     ip4_to_str(flow->src_ip, ip, sizeof(ip));
+    app_log_detect_time(app->shared, NULL, ip, flow->src_port, detect_us,
+                        detect_ms, request_len_for_detect_log(msg));
 
     if (0 > rc) {
         char *detail_esc;
@@ -262,39 +172,6 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
                    sizeof("1970-01-01T00:00:00.000"));
         }
 
-        /*
-         * 탐지 결과가 threshold를 넘으면
-         * 1. event_id/timestamp 생성
-         * 2. 차단 페이지 HTML 렌더링
-         * 3. 탐지 로그 기록
-         * 4. 실제 차단 동작(request_block_action_v2)
-         * 순서로 처리한다.
-         *
-         * 차단 페이지와 로그에 같은 event_id를 넣어 이후 분석 시 연결 가능하게
-         * 한다.
-         */
-        /* 템플릿 파일을 읽어서 id, ts, ip를 채워넣은 새 차단 페이지 문자열 생성
-         */
-        block_page_html = app_render_block_page(g_block_page_template_path,
-                                                event_id, event_ts, ip);
-        /* 이전에 만든게 있다면 해제 */
-        free(app->last_block_page_html);
-        /* 최신 페이지를 전달함 */
-        app->last_block_page_html = block_page_html;
-
-        /* 가변 문자열 복사라서 snprintf 사용함  */
-        snprintf(app->last_event_id, sizeof(app->last_event_id), "%s",
-                 event_id);
-        snprintf(app->last_event_ts, sizeof(app->last_event_ts), "%s",
-                 event_ts);
-        snprintf(app->last_client_ip, sizeof(app->last_client_ip), "%s", ip);
-
-        if (NULL == block_page_html) {
-            app_log_write(
-                app->shared, "ERROR",
-                "event=block_page_render_failed event_id=%s template=%s",
-                event_id, g_block_page_template_path);
-        }
         /* 로그용 요청 출처 문자열을 "METHOD URI" 형태로 길이 제한해 조합한다.
          */
         snprintf(from, sizeof(from), "%.31s %.200s",
@@ -315,13 +192,8 @@ static void on_request(const flow_key_t *flow, tcp_dir_t dir,
         atomic_fetch_add(&app->shared->http_msgs, 1);
         /* 처리 완료된 HTTP 요청 수를 증가시킨다. */
         atomic_fetch_add(&app->shared->reqs, 1);
-        /*
-         * request_block_action_v2는 내부에서 상황에 따라
-         * - 차단 응답 주입
-         * - 양방향 RST 요청
-         * 을 이어서 수행한다.
-         */
-        request_block_action_v2(app, flow, event_id);
+        /* 현재 차단 경로는 양방향 RST 요청만 수행한다. */
+        request_block_action_v2(app, flow, dir, event_id);
     } else {
         /*
          * threshold 미만이면 허용 경로다.
@@ -645,7 +517,7 @@ static void on_packet(const uint8_t *data, uint32_t len, uint64_t ts_ns,
 /**
  * @brief worker별 런타임 자원을 정리한다.
  *
- * detect engine, httgw, 차단 페이지 캐시, raw RST 송신 컨텍스트를 worker 단위로
+ * detect engine, httgw, raw RST 송신 컨텍스트를 worker 단위로
  * 해제한다.
  *
  * @param workers worker 배열
@@ -660,7 +532,7 @@ static void destroy_workers(app_ctx_t *workers, int count) {
 
     /*
      * worker가 가진 자원은 서로 독립적이므로 worker 단위로 깨끗이 회수한다.
-     * detect -> httgw -> block page cache -> tx context 순으로 정리한다.
+     * detect -> httgw -> tx context 순으로 정리한다.
      */
     for (i = 0; i < count; i++) {
         app_ctx_t *w = &workers[i];
@@ -674,10 +546,6 @@ static void destroy_workers(app_ctx_t *workers, int count) {
             httgw_destroy(w->gw);
             w->gw = NULL;
         }
-
-        free(w->last_block_page_html);
-        w->last_block_page_html = NULL;
-
         tx_ctx_destroy(&w->rst_tx);
     }
 }
@@ -788,12 +656,6 @@ int main(int argc, char **argv) {
         usage(argv[0]);
         return 1;
     }
-
-    /*
-     * 차단 페이지 템플릿은 실행 위치(build/, repo root 등)에 따라 상대 경로가
-     * 깨질 수 있으므로, 시작 시점에 한 번만 실제 읽을 경로를 고정한다.
-     */
-    g_block_page_template_path = resolve_block_page_template_path();
 
     if (NULL != engine_name) {
         char errbuf[64];

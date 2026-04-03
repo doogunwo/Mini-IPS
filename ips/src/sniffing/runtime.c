@@ -15,10 +15,35 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "html.h"
 #include "logging.h"
 
 static run_detect_metrics_t g_run_detect_metrics;
+
+static int build_block_http_response(uint8_t *out, size_t out_cap,
+                                     size_t *out_len) {
+    static const char body[] = "blocked by mini-ips\n";
+    int               n;
+
+    if (NULL == out || NULL == out_len || 0U == out_cap) {
+        return -1;
+    }
+
+    n = snprintf((char *)out, out_cap,
+                 "HTTP/1.1 403 Forbidden\r\n"
+                 "Content-Type: text/plain\r\n"
+                 "Content-Length: %zu\r\n"
+                 "Connection: close\r\n"
+                 "X-Mini-IPS-Block: 1\r\n"
+                 "\r\n"
+                 "%s",
+                 sizeof(body) - 1U, body);
+    if (0 > n || (size_t)n >= out_cap) {
+        return -1;
+    }
+
+    *out_len = (size_t)n;
+    return 0;
+}
 
 /* --------------------------- packet / flow parsing helpers
  * --------------------------- */
@@ -586,174 +611,48 @@ void request_rst_both(app_ctx_t *app, const flow_key_t *flow,
 }
 
 /**
- * @brief 차단 페이지 주입 또는 RST fallback을 수행한다.
+ * @brief 차단 대상 flow에 대해 항상 양방향 RST만 요청한다.
  *
- * 양방향 세션이 모두 관측된 경우에만 block HTML 응답을 구성한다. 주입용
- * HTML을 만들지 못하면 즉시 RST-only 경로로 fallback 한다.
+ * 과거에는 조건에 따라 차단 페이지(HTTP 403) 주입을 시도했지만,
+ * 현재 정책은 차단 경로를 단순화해 서버/클라이언트 양방향 RST만 보낸다.
  *
  * @param app worker app context
  * @param flow 대상 flow
+ * @param request_dir 현재 요청이 관측된 방향
  * @param event_id 현재 차단 이벤트 ID
  */
 void request_block_action_v2(app_ctx_t *app, const flow_key_t *flow,
-                             const char *event_id) {
-    /* 현재 세션 snapshot */
+                             tcp_dir_t request_dir, const char *event_id) {
     httgw_sess_snapshot_t snap;
-    /* 주입할 HTTP 403 응답 문자열 */
-    char *response = NULL;
-    /* 응답 전체 길이 */
-    size_t response_len = 0;
-    /* AB 방향 RST, BA 방향 응답 주입 결과 */
-    int rc_ab;
-    int rc_ba;
-    /* helper 반환값 */
-    int ret;
+    tcp_dir_t             response_dir;
+    uint8_t               response[256];
+    size_t                response_len;
+    int                   rc;
 
-    /* app/flow가 없으면 주입이나 RST fallback을 진행할 수 없다 */
     if (NULL == app || NULL == flow) {
         return;
     }
-    /* 응답 주입 기준이 될 현재 세션 snapshot 확보 */
-    ret = httgw_get_session_snapshot(app->gw, flow, &snap);
-    if (0 != ret) {
-        return;
-    }
-    /* 양방향 세션이 아직 없으면 응답 주입 대신 RST fallback */
-    if (0 == snap.seen_ab || 0 == snap.seen_ba) {
-        app_log_write(app->shared, "INFO",
-                      "event=block_inject_fallback event_id=%s "
-                      "reason=waiting_bidir seen_ab=%u seen_ba=%u",
-                      (event_id && event_id[0] != '\0') ? event_id : "-",
-                      snap.seen_ab, snap.seen_ba);
-        request_rst_both(app, flow, event_id);
+
+    rc = httgw_get_session_snapshot(app->gw, flow, &snap);
+    if (0 != rc) {
         return;
     }
 
-    /* 차단 페이지 템플릿이 없으면 응답 주입 없이 RST 차단만 수행한다. */
-    if (!app->last_block_page_html) {
-        request_rst_both(app, flow, event_id);
+    rc = build_block_http_response(response, sizeof(response), &response_len);
+    if (0 != rc) {
         return;
     }
 
-    /* HTML body를 포함한 완전한 403 응답 문자열 생성 */
-    response =
-        app_build_block_http_response(app->last_block_page_html, &response_len);
-    if (!response) {
-        app_log_write(app->shared, "ERROR",
-                      "event=block_inject_build_failed event_id=%s",
-                      (event_id && event_id[0] != '\0') ? event_id : "-");
-        request_rst_both(app, flow, event_id);
-        return;
-    }
+    response_dir = (DIR_AB == request_dir) ? DIR_BA : DIR_AB;
+    rc = httgw_inject_block_response_with_snapshot(app->gw, flow, response_dir,
+                                                   &snap, response,
+                                                   response_len);
 
-    /* 차단 응답 후 wire에서 보이는 RST 로그 계산을 위해 snapshot을 캐시한다. */
-    rst_log_cache_put(app, flow, &snap, 0);
-
-    /* 클라이언트 방향 RST 요청 */
-    rc_ab = httgw_request_rst_with_snapshot(app->gw, flow, DIR_AB, &snap);
-    /* 서버 방향 차단 응답 주입 */
-    rc_ba = httgw_inject_block_response_with_snapshot(
-        app->gw, flow, &snap, (const uint8_t *)response, response_len);
-
-    /* RST + 응답 주입 전체 결과를 차단 이벤트로 기록한다 */
     app_log_write(
-        app->shared, (rc_ab == 0 && rc_ba == 0) ? "WARN" : "BLOCK",
-        "event=block_inject event_id=%s src_ip=%u.%u.%u.%u src_port=%u "
-        "dst_ip=%u.%u.%u.%u dst_port=%u bytes=%zu rc_ab=%d rc_ba=%d",
+        app->shared, (0 == rc) ? "WARN" : "ERROR",
+        "event=block_inject event_id=%s response_dir=%s rc=%d",
         (event_id && event_id[0] != '\0') ? event_id : "-",
-        (flow->src_ip >> 24) & 0xFF, (flow->src_ip >> 16) & 0xFF,
-        (flow->src_ip >> 8) & 0xFF, flow->src_ip & 0xFF, flow->src_port,
-        (flow->dst_ip >> 24) & 0xFF, (flow->dst_ip >> 16) & 0xFF,
-        (flow->dst_ip >> 8) & 0xFF, flow->dst_ip & 0xFF, flow->dst_port,
-        response_len, rc_ab, rc_ba);
-    /* 차단 페이지 전송 성공/실패를 별도 이벤트로 분리 기록한다 */
-    app_log_write(
-        app->shared, (0 == rc_ba) ? "WARN" : "ERROR",
-        "event=block_page_send event_id=%s status=%s http_status=403 "
-        "src_ip=%u.%u.%u.%u src_port=%u dst_ip=%u.%u.%u.%u dst_port=%u "
-        "bytes=%zu rc=%d",
-        (event_id && event_id[0] != '\0') ? event_id : "-",
-        (0 == rc_ba) ? "sent" : "failed", (flow->src_ip >> 24) & 0xFF,
-        (flow->src_ip >> 16) & 0xFF, (flow->src_ip >> 8) & 0xFF,
-        flow->src_ip & 0xFF, flow->src_port, (flow->dst_ip >> 24) & 0xFF,
-        (flow->dst_ip >> 16) & 0xFF, (flow->dst_ip >> 8) & 0xFF,
-        flow->dst_ip & 0xFF, flow->dst_port, response_len, rc_ba);
-
-    /* 생성한 응답 버퍼 해제 */
-    free(response);
-}
-
-/**
- * @brief hex 문자 하나를 0~15 값으로 변환한다.
- *
- * @param c 입력 문자
- * @return int 유효한 hex면 0~15, 아니면 -1
- */
-static __attribute__((unused)) int hex_val(int c) {
-    /* 0~9 */
-    if ('0' <= c && '9' >= c) {
-        return c - '0';
-    }
-    /* a~f */
-    if ('a' <= c && 'f' >= c) {
-        return 10 + (c - 'a');
-    }
-    /* A~F */
-    if ('A' <= c && 'F' >= c) {
-        return 10 + (c - 'A');
-    }
-    /* hex 문자가 아니면 실패 */
-    return -1;
-}
-
-/**
- * @brief URL-encoded 문자열을 byte sequence로 복원한다.
- *
- * `%xx`와 `+` 치환만 처리하는 단순 decoder다. 탐지 전 정규화가 필요한
- * request URI/query string 검사에서 사용한다.
- *
- * @param in 입력 문자열
- * @param in_len 입력 길이
- * @param out 출력 버퍼
- * @param out_cap 출력 버퍼 크기
- * @param out_len 실제 출력 길이
- * @return int 성공 시 0, 잘못된 escape 또는 버퍼 부족 시 -1
- */
-static __attribute__((unused)) int url_decode(const char *in, size_t in_len,
-                                              uint8_t *out, size_t out_cap,
-                                              size_t *out_len) {
-    /* 출력 버퍼 인덱스 */
-    size_t oi = 0;
-    /* 입력 순회 인덱스 */
-    size_t i;
-
-    for (i = 0; i < in_len; i++) {
-        /* 현재 입력 바이트 */
-        unsigned char c = (unsigned char)in[i];
-        /* %xx escape 처리 */
-        if ('%' == c && in_len > i + 2) {
-            int hi = hex_val((unsigned char)in[i + 1]);
-            int lo = hex_val((unsigned char)in[i + 2]);
-            if (0 > hi || 0 > lo || oi >= out_cap) {
-                return -1;
-            }
-            out[oi++] = (uint8_t)((hi << 4) | lo);
-            i += 2;
-            continue;
-        }
-        /* '+'는 공백으로 정규화 */
-        if ('+' == c) {
-            c = ' ';
-        }
-        /* 출력 버퍼 상한 검사 */
-        if (oi >= out_cap) {
-            return -1;
-        }
-        out[oi++] = (uint8_t)c;
-    }
-    /* 실제 decode 결과 길이 반환 */
-    *out_len = oi;
-    return 0;
+        (DIR_AB == response_dir) ? "AB" : "BA", rc);
 }
 
 /**
@@ -872,80 +771,6 @@ static int collect_matches_for_slice(detect_engine_t *det, const uint8_t *data,
 
     /* 새 매치 점수 반영 */
     return add_new_match_score(matches, prev_count, score);
-}
-
-/**
- * @brief query string/body를 `key=value` 단위로 분해해 검사한다.
- *
- * parameter 이름은 `ARGS_NAMES`, 값은 `ARGS` 컨텍스트로 매핑해 검사한다.
- *
- * @param det 탐지 엔진
- * @param data query string 시작 포인터
- * @param len query string 길이
- * @param matches 누적 매치 리스트
- * @param detect_elapsed_us 탐지 시간 누적값
- * @param score 누적 점수
- * @return int 0이면 성공, -1이면 탐지 엔진 오류
- */
-static __attribute__((unused)) int collect_query_pairs(
-    detect_engine_t *det, const char *data, size_t len,
-    detect_match_list_t *matches, uint64_t *detect_elapsed_us, int *score) {
-    /* 현재 세그먼트 시작 포인터 */
-    const char *p = data;
-    /* 입력 끝 포인터 */
-    const char *end = data + len;
-
-    /* query/body를 '&' 단위 세그먼트로 순회 */
-    while (p < end) {
-        /* '&' 위치 */
-        const char *amp = memchr(p, '&', (size_t)(end - p));
-        /* 현재 key=value 세그먼트 끝 */
-        const char *seg_end = amp ? amp : end;
-        /* 현재 세그먼트의 '=' 위치 */
-        const char *eq = memchr(p, '=', (size_t)(seg_end - p));
-        /* 하위 탐지 함수 반환값 */
-        int rc;
-
-        if (eq) {
-            /* parameter 이름 길이 */
-            size_t name_len = (size_t)(eq - p);
-            /* parameter 값 길이 */
-            size_t val_len = (size_t)(seg_end - (eq + 1));
-
-            /* parameter 이름 검사 */
-            rc = collect_matches_for_slice(det, (const uint8_t *)p, name_len,
-                                           IPS_CTX_ARGS_NAMES, matches,
-                                           detect_elapsed_us, 1, score);
-            if (0 > rc) {
-                return rc;
-            }
-
-            /* parameter 값 검사 */
-            rc = collect_matches_for_slice(det, (const uint8_t *)(eq + 1),
-                                           val_len, IPS_CTX_ARGS, matches,
-                                           detect_elapsed_us, 1, score);
-            if (0 > rc) {
-                return rc;
-            }
-        } else if (seg_end > p) {
-            /* '=' 없는 세그먼트는 이름만 있는 인자로 처리 */
-            rc = collect_matches_for_slice(
-                det, (const uint8_t *)p, (size_t)(seg_end - p),
-                IPS_CTX_ARGS_NAMES, matches, detect_elapsed_us, 1, score);
-            if (0 > rc) {
-                return rc;
-            }
-        }
-
-        /* 마지막 세그먼트 처리 후 종료 */
-        if (!amp) {
-            break;
-        }
-
-        /* 다음 세그먼트 시작 위치 이동 */
-        p = amp + 1;
-    }
-    return 0;
 }
 
 /**
