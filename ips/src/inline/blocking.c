@@ -20,19 +20,29 @@ int blocking_reqeust(const detect_result_t *results, block_decision_t *out);
 
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 
+#include "../common/html.h"
 #include "blocking.h"
 #include "detect.h"
 
-
 static int blocking_build_response(blocking_ctx_t *ctx) {
+    char   *html_body;
+    char   *http_resp;
+    size_t  http_resp_len;
+
     if (NULL == ctx || NULL == ctx->dc) {
         return -1;
     }
 
-    if (NULL == ctx->rs || NULL == ctx->res_buf || NULL ==ctx->rs_len || 0U == ctx->res_buf_sz) {
+    if (NULL == ctx->rs || NULL == ctx->rs_len) {
+        return -1;
+    }
+
+    if (NULL == ctx->res_owned &&
+        (NULL == ctx->res_buf || 0U == ctx->res_buf_sz)) {
         return -1;
     }
 
@@ -42,28 +52,33 @@ static int blocking_build_response(blocking_ctx_t *ctx) {
         return 0;
     }
 
-    const char *body;
-    int written;
-
-    if (NULL != ctx->dc->reason) {
-        body = ctx->dc->reason;
-    } else {
-        body = "request blocked";
-    }
-
-    written = snprintf(ctx->res_buf, ctx->res_buf_sz,
-                       "HTTP/1.1 403 Forbidden\r\n"
-                       "Content-Type: text/plain\r\n"
-                       "Content-Length: %zu\r\n"
-                       "Connection: close\r\n"
-                       "\r\n"
-                       "%s",
-                       strlen(body), body);
-    if (written < 0 || (size_t)written >= ctx->res_buf_sz) {
+    html_body = app_render_block_page(ctx->template_path, ctx->event_id,
+                                      ctx->timestamp, ctx->client_ip);
+    if (NULL == html_body) {
         return -1;
     }
 
-    *ctx->rs_len = (size_t)written;
+    http_resp = app_build_block_http_response(html_body, &http_resp_len);
+    free(html_body);
+    if (NULL == http_resp) {
+        return -1;
+    }
+
+    if (NULL != ctx->res_owned) {
+        *ctx->res_owned = http_resp;
+        *ctx->rs_len = http_resp_len;
+        return 1;
+    }
+
+    if (http_resp_len >= ctx->res_buf_sz) {
+        free(http_resp);
+        return -1;
+    }
+
+    memcpy(ctx->res_buf, http_resp, http_resp_len);
+    ctx->res_buf[http_resp_len] = '\0';
+    *ctx->rs_len = http_resp_len;
+    free(http_resp);
     return 1;
 }
 

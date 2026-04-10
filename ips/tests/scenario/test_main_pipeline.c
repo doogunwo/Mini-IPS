@@ -184,26 +184,26 @@ int main(void) {
     EXPECT_INT_EQ("mini_ips_set", 0, rc);
 
     req_probe = "GET /health HTTP/1.1\r\nHost: a\r\nContent-Length: 0\r\n\r\n";
-    rc = packet_ring_enq(&ctx.req_ring, (const uint8_t *)req_probe,
-                         (uint32_t)strlen(req_probe), 10);
+    rc = req_ring_enq(&ctx.req_ring, 10, (const uint8_t *)req_probe,
+                      (uint32_t)strlen(req_probe));
     EXPECT_INT_EQ("main_pipeline.req_ring_enq", 0, rc);
 
     out_len = 0U;
-    rc = packet_ring_deq(&ctx.req_ring, scratch, sizeof(scratch), &out_len,
-                         &session_id);
+    rc = req_ring_deq(&ctx.req_ring, scratch, sizeof(scratch), &out_len,
+                      &session_id);
     EXPECT_INT_EQ("main_pipeline.req_ring_deq", 0, rc);
     EXPECT_SIZE_EQ("main_pipeline.req_ring_deq", strlen(req_probe), out_len);
     EXPECT_MEM_EQ("main_pipeline.req_ring_deq", req_probe, scratch, out_len);
     EXPECT_INT_EQ("main_pipeline.req_ring_session_id", 10, session_id);
 
     res_probe = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
-    rc = packet_ring_enq(&ctx.res_ring, (const uint8_t *)res_probe,
-                         (uint32_t)strlen(res_probe), 20);
+    rc = res_ring_enq(&ctx.res_ring, MINI_IPS_RING_ACTION_ALLOW, 20,
+                      (const uint8_t *)res_probe, (uint32_t)strlen(res_probe));
     EXPECT_INT_EQ("main_pipeline.res_ring_enq", 0, rc);
 
     out_len = 0U;
-    rc = packet_ring_deq(&ctx.res_ring, scratch, sizeof(scratch), &out_len,
-                         &session_id);
+    rc = res_ring_deq(&ctx.res_ring, scratch, sizeof(scratch), &out_len,
+                      &session_id, NULL);
     EXPECT_INT_EQ("main_pipeline.res_ring_deq", 0, rc);
     EXPECT_SIZE_EQ("main_pipeline.res_ring_deq", strlen(res_probe), out_len);
     EXPECT_MEM_EQ("main_pipeline.res_ring_deq", res_probe, scratch, out_len);
@@ -245,12 +245,12 @@ int main(void) {
     EXPECT_PTR_NOT_NULL("main_pipeline.allocate_test_session",
                         allocate_test_session(&ctx, 777U, sockets[0], -1));
 
-    rc = packet_ring_enq(&ctx.req_ring, (const uint8_t *)attack_req,
-                         (uint32_t)strlen(attack_req), 777U);
+    rc = req_ring_enq(&ctx.req_ring, 777U, (const uint8_t *)attack_req,
+                      (uint32_t)strlen(attack_req));
     EXPECT_INT_EQ("main_pipeline.worker_req_enq", 0, rc);
 
-    rc = packet_ring_enq(&ctx.res_ring, (const uint8_t *)res_probe,
-                         (uint32_t)strlen(res_probe), 777U);
+    rc = res_ring_enq(&ctx.res_ring, MINI_IPS_RING_ACTION_ALLOW, 777U,
+                      (const uint8_t *)res_probe, (uint32_t)strlen(res_probe));
     EXPECT_INT_EQ("main_pipeline.worker_res_enq", 0, rc);
 
     usleep(100000);
@@ -270,13 +270,13 @@ int main(void) {
     EXPECT_INT_EQ("main_pipeline.worker_main", 0, (int)(intptr_t)worker_ret);
 
     out_len = 0U;
-    rc = packet_ring_deq(&ctx.req_ring, scratch, sizeof(scratch), &out_len,
-                         &session_id);
+    rc = req_ring_deq(&ctx.req_ring, scratch, sizeof(scratch), &out_len,
+                      &session_id);
     EXPECT_INT_EQ("main_pipeline.req_ring_empty_after_worker", -1, rc);
 
     out_len = 0U;
-    rc = packet_ring_deq(&ctx.res_ring, scratch, sizeof(scratch), &out_len,
-                         &session_id);
+    rc = res_ring_deq(&ctx.res_ring, scratch, sizeof(scratch), &out_len,
+                      &session_id, NULL);
     EXPECT_INT_EQ("main_pipeline.res_ring_empty_after_worker", -1, rc);
 
     close(sockets[0]);

@@ -64,6 +64,14 @@ static int tproxy_epoll_init(tproxy_t *tp) {
     return 0;
 }
 
+/**
+ * @brief 함수 목적은 버퍼 -> 소켓 fd로 끝까지 전부 전송하는 것
+ * 
+ * @param fd 
+ * @param buf 
+ * @param len 
+ * @return int 
+ */
 static int write_all(int fd, const uint8_t *buf, size_t len) {
     size_t written = 0;
 

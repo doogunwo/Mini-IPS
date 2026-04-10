@@ -6,7 +6,7 @@
 #include <stdatomic.h>
 #include <stdint.h>
 
-#define PACKET_MAX_BYTES 2032
+#define PACKET_MAX_BYTES 8192
 #define MINI_IPS_RING_ACTION_REQUEST 1U
 #define MINI_IPS_RING_ACTION_ALLOW   2U
 #define MINI_IPS_RING_ACTION_BLOCK   3U
@@ -22,6 +22,9 @@ typedef struct  mini_ips_session {
     size_t pending_request_cap;
     size_t pending_request_len;
     uint8_t *pending_request;
+    size_t pending_block_len;
+    uint8_t *pending_block_response;
+    struct sockaddr_in peer_addr;
     struct sockaddr_in orig_dst;
 } mini_ips_session_t; 
 

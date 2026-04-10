@@ -15,17 +15,40 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../common/html.h"
 #include "logging.h"
 
 static run_detect_metrics_t g_run_detect_metrics;
 
 static int build_block_http_response(uint8_t *out, size_t out_cap,
-                                     size_t *out_len) {
-    static const char body[] = "blocked by mini-ips\n";
+                                     size_t *out_len,
+                                     const char *event_id,
+                                     const char *timestamp,
+                                     const char *client_ip) {
+    static const char fallback_body[] = "blocked by mini-ips\n";
+    char             *html_body;
+    char             *http_resp;
+    size_t            http_resp_len;
     int               n;
 
     if (NULL == out || NULL == out_len || 0U == out_cap) {
         return -1;
+    }
+
+    html_body = app_render_block_page(NULL, event_id, timestamp, client_ip);
+    if (NULL != html_body) {
+        http_resp = app_build_block_http_response(html_body, &http_resp_len);
+        free(html_body);
+        if (NULL != http_resp) {
+            if (http_resp_len < out_cap) {
+                memcpy(out, http_resp, http_resp_len);
+                out[http_resp_len] = '\0';
+                *out_len = http_resp_len;
+                free(http_resp);
+                return 0;
+            }
+            free(http_resp);
+        }
     }
 
     n = snprintf((char *)out, out_cap,
@@ -36,7 +59,7 @@ static int build_block_http_response(uint8_t *out, size_t out_cap,
                  "X-Mini-IPS-Block: 1\r\n"
                  "\r\n"
                  "%s",
-                 sizeof(body) - 1U, body);
+                 sizeof(fallback_body) - 1U, fallback_body);
     if (0 > n || (size_t)n >= out_cap) {
         return -1;
     }
@@ -625,8 +648,11 @@ void request_block_action_v2(app_ctx_t *app, const flow_key_t *flow,
                              tcp_dir_t request_dir, const char *event_id) {
     httgw_sess_snapshot_t snap;
     tcp_dir_t             response_dir;
-    uint8_t               response[256];
+    uint8_t               response[16384];
     size_t                response_len;
+    char                  event_ts[64];
+    char                  client_ip[32];
+    uint32_t              client_ip_raw;
     int                   rc;
 
     if (NULL == app || NULL == flow) {
@@ -638,7 +664,15 @@ void request_block_action_v2(app_ctx_t *app, const flow_key_t *flow,
         return;
     }
 
-    rc = build_block_http_response(response, sizeof(response), &response_len);
+    if (0 != app_make_timestamp(event_ts, sizeof(event_ts))) {
+        snprintf(event_ts, sizeof(event_ts), "-");
+    }
+
+    client_ip_raw = (DIR_AB == request_dir) ? flow->src_ip : flow->dst_ip;
+    ip4_to_str(client_ip_raw, client_ip, sizeof(client_ip));
+
+    rc = build_block_http_response(response, sizeof(response), &response_len,
+                                   event_id, event_ts, client_ip);
     if (0 != rc) {
         return;
     }

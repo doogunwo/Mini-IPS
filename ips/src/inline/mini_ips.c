@@ -11,16 +11,110 @@
 #include <stdio.h>
 #include <sys/eventfd.h>
 #include <stdint.h>
+#include <time.h>
 
 #define MINI_IPS_BIND_IP      "0.0.0.0"
 #define MINI_IPS_BIND_PORT    50080
 #define MINI_IPS_BIND_BACKLOG 128
+#define MINI_IPS_BIND_IP_ENV "MINI_IPS_BIND_IP"
+#define MINI_IPS_BIND_PORT_ENV "MINI_IPS_BIND_PORT"
+#define MINI_IPS_UPSTREAM_IP_ENV "MINI_IPS_UPSTREAM_IP"
+#define MINI_IPS_UPSTREAM_PORT_ENV "MINI_IPS_UPSTREAM_PORT"
 /* eventfd wakeup 전 100ms polling 병목을 줄이기 위해 timeout을 낮췄다.
  * eventfd가 놓치더라도 res_ring을 짧은 주기로 다시 확인하는 fallback이다. */
 #define MINI_IPS_RES_RING_POLL_MS 1
 
+static const char *mini_ips_getenv_nonempty(const char *name) {
+    const char *value;
+
+    if (NULL == name) {
+        return NULL;
+    }
+
+    value = getenv(name);
+    if (NULL == value || '\0' == value[0]) {
+        return NULL;
+    }
+
+    return value;
+}
+
+static uint16_t mini_ips_env_port_or_default(const char *name,
+                                             uint16_t    fallback) {
+    const char *value;
+    char       *endptr;
+    unsigned long parsed;
+
+    value = mini_ips_getenv_nonempty(name);
+    if (NULL == value) {
+        return fallback;
+    }
+
+    errno = 0;
+    parsed = strtoul(value, &endptr, 10);
+    if (0 != errno || NULL == endptr || '\0' != *endptr || parsed > 65535UL) {
+        return fallback;
+    }
+
+    return (uint16_t)parsed;
+}
+
+static int mini_ips_resolve_upstream(const struct sockaddr_in *orig_dst,
+                                     struct sockaddr_in       *out_addr) {
+    const char *override_ip;
+    uint16_t    override_port;
+    /* 이 블록 의미는 널체크 방어적인*/
+    if (NULL == orig_dst || NULL == out_addr) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    memcpy(out_addr, orig_dst, sizeof(*out_addr));
+    override_ip = mini_ips_getenv_nonempty(MINI_IPS_UPSTREAM_IP_ENV);
+    override_port = mini_ips_env_port_or_default(MINI_IPS_UPSTREAM_PORT_ENV,
+                                                 ntohs(orig_dst->sin_port));
+
+    if (NULL == override_ip) {
+        return 0;
+    }
+
+    if (1 != inet_pton(AF_INET, override_ip, &out_addr->sin_addr)) {
+        errno = EINVAL;
+        mini_ips_log_message("tp", "invalid MINI_IPS_UPSTREAM_IP");
+        return -1;
+    }
+
+    out_addr->sin_port = htons(override_port);
+    return 0;
+}
+
+static void mini_ips_make_block_timestamp(char *out, size_t out_sz) {
+    struct timespec ts;
+    struct tm       tm_now;
+    size_t          n;
+    int             ms;
+
+    if (NULL == out || 0U == out_sz) {
+        return;
+    }
+    if (0 != clock_gettime(CLOCK_REALTIME, &ts)) {
+        snprintf(out, out_sz, "-");
+        return;
+    }
+
+    localtime_r(&ts.tv_sec, &tm_now);
+    ms = (int)(ts.tv_nsec / 1000000L);
+    n = strftime(out, out_sz, "%Y-%m-%d %H:%M:%S", &tm_now);
+    if (0U == n || n + 5U >= out_sz) {
+        snprintf(out, out_sz, "-");
+        return;
+    }
+    snprintf(out + n, out_sz - n, ".%03d", ms);
+}
+
 static int mini_ips_upstream_connect(const struct sockaddr_in *orig_dst,
                                      int *upstream_fd) {
+    struct sockaddr_in upstream_addr;
     int fd;
     int rc;
 
@@ -31,13 +125,19 @@ static int mini_ips_upstream_connect(const struct sockaddr_in *orig_dst,
         return -1;
     }
 
+    rc = mini_ips_resolve_upstream(orig_dst, &upstream_addr);
+    if (0 != rc) {
+        mini_ips_log_errno("tp", "mini_ips_resolve_upstream", errno);
+        return -1;
+    }
+
     fd = socket(AF_INET, SOCK_STREAM, 0);
     if (fd < 0) {
         mini_ips_log_errno("tp", "mini_ips_upstream_connect.socket", errno);
         return -1;
     }
 
-    rc = connect(fd, (const struct sockaddr *)orig_dst, sizeof(*orig_dst));
+    rc = connect(fd, (const struct sockaddr *)&upstream_addr, sizeof(upstream_addr));
     if (rc < 0) {
         mini_ips_log_errno("tp", "mini_ips_upstream_connect.connect", errno);
         close(fd);
@@ -48,15 +148,23 @@ static int mini_ips_upstream_connect(const struct sockaddr_in *orig_dst,
     return 0;
 }
 
+/**
+ * @brief epoll 붙이는 함수임
+ * 특정 fd를 epoll 관리 대상에 붙이는 함수임
+ * @param epoll_fd 
+ * @param fd 
+ * @param events 
+ * @return int 
+ */
 static int mini_ips_epoll_add(int epoll_fd, int fd, uint32_t events) {
     struct epoll_event ev;
-
+    // ev.data.fd = fd; 대신 향후 ptr 처럼 포인터만 넘기는 방법으로 확장해도 좋을 듯 하다.
     if (epoll_fd < 0 || fd < 0) {
         errno = EINVAL;
         mini_ips_log_errno("tp", "mini_ips_epoll_add.invalid_argument", errno);
         return -1;
     }
-
+    // meset 대신 struct epoll_event ev = { .events = events, .data.fd = fd };이라는 방법도 있음
     memset(&ev, 0, sizeof(ev));
     ev.events = events;
     ev.data.fd = fd;
@@ -137,6 +245,8 @@ static int mini_ips_write_all(int fd, const uint8_t *buf, size_t len) {
 
 static int mini_ips_ensure_tproxy(mini_ips_ctx_t *ctx) {
     tproxy_cfg_t cfg;
+    uint16_t     bind_port;
+    const char  *bind_ip;
 
     if (NULL == ctx) {
         mini_ips_log_message("set", "mini_ips_ensure_tproxy.ctx_is_null");
@@ -147,8 +257,15 @@ static int mini_ips_ensure_tproxy(mini_ips_ctx_t *ctx) {
         return 0;
     }
 
-    cfg.bind_ip = MINI_IPS_BIND_IP;
-    cfg.bind_port = MINI_IPS_BIND_PORT;
+    bind_ip = mini_ips_getenv_nonempty(MINI_IPS_BIND_IP_ENV);
+    if (NULL == bind_ip) {
+        bind_ip = MINI_IPS_BIND_IP;
+    }
+    bind_port = mini_ips_env_port_or_default(MINI_IPS_BIND_PORT_ENV,
+                                             MINI_IPS_BIND_PORT);
+
+    cfg.bind_ip = bind_ip;
+    cfg.bind_port = bind_port;
     cfg.backlog = MINI_IPS_BIND_BACKLOG;
 
     ctx->tp = tproxy_create(&cfg);
@@ -369,19 +486,29 @@ static int mini_ips_send_timeout_response(int client_fd) {
     return blocking_send(client_fd, response, sizeof(response) - 1U);
 }
 
+/**
+ * @brief 세션을 할당하는 함수, allocate 함수 
+ * 세션 풀에서 빈 슬롯 하나를 찾는 역할
+ * @param ctx 
+ * @param client_fd 
+ * @param peer_addr 
+ * @param orig_dst 
+ * @return mini_ips_session_t* 
+ */
 static mini_ips_session_t *mini_ips_session_alloc(mini_ips_ctx_t *ctx,
                                                   int client_fd,
+                                                  const struct sockaddr_in *peer_addr,
                                                   const struct sockaddr_in *orig_dst) {
     size_t i;
 
-    if (NULL == ctx || client_fd < 0 || NULL == orig_dst) {
+    if (NULL == ctx || client_fd < 0 || NULL == peer_addr || NULL == orig_dst) {
         return NULL;
     }
 
     for (i = 0; i < MINI_IPS_MAX_SESSIONS; i++) {
         mini_ips_session_t *session;
 
-        session = &ctx->sessions[i];
+        session = &ctx->sessions[i]; // 선형 탐색함 사용중인지? 아닌지? in_use로
         if (session->in_use) {
             continue;
         }
@@ -393,6 +520,7 @@ static mini_ips_session_t *mini_ips_session_alloc(mini_ips_ctx_t *ctx,
         session->blocked = 0;
         session->decision_queued = 0;
         session->request_forwarded = 0;
+        session->peer_addr = *peer_addr;
         session->orig_dst = *orig_dst;
 
         ctx->next_session_id++;
@@ -404,6 +532,24 @@ static mini_ips_session_t *mini_ips_session_alloc(mini_ips_ctx_t *ctx,
     }
 
     return NULL;
+}
+
+static size_t mini_ips_current_queue_depth(mini_ips_ctx_t *ctx) {
+    uint32_t req_head;
+    uint32_t req_tail;
+    uint32_t res_head;
+    uint32_t res_tail;
+
+    if (NULL == ctx || 0 == ctx->ring_enabled) {
+        return 0U;
+    }
+
+    req_head = atomic_load(&ctx->req_ring.head);
+    req_tail = atomic_load(&ctx->req_ring.tail);
+    res_head = atomic_load(&ctx->res_ring.head);
+    res_tail = atomic_load(&ctx->res_ring.tail);
+
+    return (size_t)(req_tail - req_head) + (size_t)(res_tail - res_head);
 }
 
 static mini_ips_session_t *mini_ips_session_find(mini_ips_ctx_t *ctx,
@@ -435,6 +581,7 @@ static void mini_ips_session_release(mini_ips_session_t *session) {
     }
 
     free(session->pending_request);
+    free(session->pending_block_response);
     memset(session, 0, sizeof(*session));
 }
 
@@ -562,23 +709,43 @@ static int mini_ips_handle_res_ring(mini_ips_ctx_t *ctx,
         session->decision_queued = 0;
 
         if (MINI_IPS_RING_ACTION_BLOCK == action) {
-            session->blocked = 1;
+            const uint8_t *block_payload;
+            size_t         block_len;
 
-            if (0 != blocking_send(session->client_fd,
-                                   (const char *)payload_buf, payload_len)) {
+            session->blocked = 1;
+            block_payload = payload_buf;
+            block_len = (size_t)payload_len;
+
+            if (0U == block_len && NULL != session->pending_block_response &&
+                0U < session->pending_block_len) {
+                block_payload = session->pending_block_response;
+                block_len = session->pending_block_len;
+            }
+
+            if (0U < block_len &&
+                0 != blocking_send(session->client_fd,
+                                   (const char *)block_payload, block_len)) {
                 if (EPIPE != errno && ECONNRESET != errno &&
                     ENOTSOCK != errno && EBADF != errno) {
+                    free(session->pending_block_response);
+                    session->pending_block_response = NULL;
+                    session->pending_block_len = 0U;
                     pthread_mutex_unlock(&ctx->state_lock);
                     mini_ips_log_errno("tp", "blocking_send", errno);
                     return -1;
                 }
-            } else {
+            } else if (0U < block_len) {
                 /* 26-04-03 추가 내용: 응답 로그는 IPS가 클라이언트로 실제 보낸
                  * 차단 응답만 남긴다. */
-                mini_ips_log_response_to_client(session_id, "block_403",
-                                                payload_len,
+                mini_ips_log_response_to_client(session_id, &session->peer_addr,
+                                                "block_403",
+                                                block_len,
                                                 "blocked response sent");
             }
+
+            free(session->pending_block_response);
+            session->pending_block_response = NULL;
+            session->pending_block_len = 0U;
 
             if (session->upstream_fd >= 0) {
                 shutdown(session->upstream_fd, SHUT_RDWR);
@@ -654,6 +821,11 @@ static int mini_ips_handle_res_ring(mini_ips_ctx_t *ctx,
             if (session == current_session) {
                 *waiting_decision = 0;
                 *upstream_open = 1;
+                if (*client_open) {
+                    shutdown(session->client_fd, SHUT_RD);
+                    mini_ips_epoll_del(ctx->tp->epoll_fd, session->client_fd);
+                    *client_open = 0;
+                }
                 if (!*client_open) {
                     shutdown(session->upstream_fd, SHUT_WR);
                 }
@@ -674,8 +846,13 @@ static int mini_ips_process_payload(mini_ips_ctx_t *ctx, const uint8_t *data,
     blocking_ctx_t  block_ctx;
     mini_ips_session_t *session;
     mini_ips_reasm_t *reasm;
-    char            response_buf[512];
+    char            *response_buf;
     size_t          response_len;
+    char            block_event_id[64];
+    char            block_timestamp[64];
+    char            block_client_ip[INET_ADDRSTRLEN];
+    uint64_t        detect_us;
+    long            detect_ms;
     int             rc;
 
     if (NULL == ctx || NULL == data || 0U == len || NULL == ctx->engine) {
@@ -690,7 +867,8 @@ static int mini_ips_process_payload(mini_ips_ctx_t *ctx, const uint8_t *data,
         pthread_mutex_unlock(&ctx->state_lock);
         return 0;
     }
-    if (session->blocked || session->decision_queued) {
+    if (session->blocked || session->decision_queued ||
+        session->request_forwarded) {
         pthread_mutex_unlock(&ctx->state_lock);
         return 0;
     }
@@ -706,6 +884,7 @@ static int mini_ips_process_payload(mini_ips_ctx_t *ctx, const uint8_t *data,
     memset(&result, 0, sizeof(result));
     memset(&decision, 0, sizeof(decision));
     memset(&block_ctx, 0, sizeof(block_ctx));
+    response_buf = NULL;
 
     if (0 != mini_ips_reasm_append(reasm, data, len)) {
         mini_ips_log_message("worker", "mini_ips_reasm_append failed");
@@ -736,6 +915,7 @@ static int mini_ips_process_payload(mini_ips_ctx_t *ctx, const uint8_t *data,
                              NULL != msg.method ? msg.method : "(null)",
                              NULL != msg.uri ? strlen(msg.uri) : 0U,
                              msg.body_len);
+    mini_ips_log_note_request();
 
     if (0 != mini_ips_prepare_message(&msg)) {
         http_parser_free(&msg);
@@ -751,54 +931,72 @@ static int mini_ips_process_payload(mini_ips_ctx_t *ctx, const uint8_t *data,
                              NULL != msg.headers ? strlen(msg.headers) : 0U,
                              msg.body_len);
 
-    {
-        uint64_t detect_us;
-        long     detect_ms;
-
-        detect_us = 0U;
-        rc = detect_run(ctx->engine, &msg, &result, &detect_us);
-        if (0 != rc) {
-            http_parser_free(&msg);
-            mini_ips_log_message("worker", "detect_run failed");
-            mini_ips_reasm_release(ctx, session_id);
-            pthread_mutex_unlock(&ctx->state_lock);
-            return -1;
-        }
-
-        detect_ms = (long)((detect_us + 999ULL) / 1000ULL);
-        mini_ips_log_detect_time(session_id, detect_us, detect_ms,
-                                 reasm->len);
+    detect_us = 0U;
+    detect_ms = 0L;
+    rc = detect_run(ctx->engine, &msg, &result, &detect_us);
+    if (0 != rc) {
+        http_parser_free(&msg);
+        mini_ips_log_message("worker", "detect_run failed");
+        mini_ips_reasm_release(ctx, session_id);
+        pthread_mutex_unlock(&ctx->state_lock);
+        return -1;
     }
+
+    detect_ms = (long)((detect_us + 999ULL) / 1000ULL);
+    mini_ips_log_detect_time(session_id, detect_us, detect_ms,
+                             reasm->len);
 
     mini_ips_log_debug_flowf(session_id, 8,
                              "detect finished matched=%zu blocked=%d score=%d",
                              result.total_matches, result.matched,
                              result.total_score);
 
-    response_buf[0] = '\0';
     response_len = 0U;
     block_ctx.rs = &result;
     block_ctx.dc = &decision;
-    block_ctx.res_buf = response_buf;
-    block_ctx.res_buf_sz = sizeof(response_buf);
+    block_ctx.res_buf = NULL;
+    block_ctx.res_owned = &response_buf;
+    block_ctx.res_buf_sz = 0U;
     block_ctx.rs_len = &response_len;
+    snprintf(block_event_id, sizeof(block_event_id), "inline-%u", session_id);
+    mini_ips_make_block_timestamp(block_timestamp, sizeof(block_timestamp));
+    snprintf(block_client_ip, sizeof(block_client_ip), "-");
+    if (NULL != session) {
+        if (NULL == inet_ntop(AF_INET, &session->peer_addr.sin_addr,
+                              block_client_ip, sizeof(block_client_ip))) {
+            snprintf(block_client_ip, sizeof(block_client_ip), "-");
+        }
+    }
+    block_ctx.template_path = NULL;
+    block_ctx.event_id = block_event_id;
+    block_ctx.timestamp = block_timestamp;
+    block_ctx.client_ip = block_client_ip;
 
     rc = blocking_request(&block_ctx);
     if (0 > rc) {
         http_parser_free(&msg);
+        free(response_buf);
         mini_ips_log_message("worker", "blocking_request failed");
         mini_ips_reasm_release(ctx, session_id);
         pthread_mutex_unlock(&ctx->state_lock);
         return -1;
     }
 
-    mini_ips_log_detect_result(session_id, &result, (1 == rc), decision.reason);
+    mini_ips_log_detect_result(
+        session_id, &result, NULL != session ? &session->peer_addr : NULL,
+        (1 == rc), decision.reason, detect_us, detect_ms);
 
     if (1 == rc && NULL != session && session->client_fd >= 0) {
+        free(session->pending_block_response);
+        session->pending_block_response = (uint8_t *)response_buf;
+        session->pending_block_len = response_len;
+        response_buf = NULL;
+
         if (0 != res_ring_enq(&ctx->res_ring, MINI_IPS_RING_ACTION_BLOCK,
-                              session_id,
-                              (const uint8_t *)response_buf,
-                              (uint32_t)response_len)) {
+                              session_id, NULL, 0U)) {
+            free(session->pending_block_response);
+            session->pending_block_response = NULL;
+            session->pending_block_len = 0U;
             pthread_mutex_unlock(&ctx->state_lock);
             mini_ips_log_message("worker", "res_ring_enq(block) failed");
             return -1;
@@ -845,6 +1043,7 @@ static int mini_ips_process_payload(mini_ips_ctx_t *ctx, const uint8_t *data,
 
     mini_ips_reasm_release(ctx, session_id);
     pthread_mutex_unlock(&ctx->state_lock);
+    free(response_buf);
 
     return 0;
 }
@@ -854,6 +1053,10 @@ int mini_ips_set(mini_ips_ctx_t *ctx) {
 
     if (NULL == ctx) {
         mini_ips_log_message("set", "mini_ips_set.ctx_is_null");
+        return -1;
+    }
+
+    if (0 != mini_ips_log_open()) {
         return -1;
     }
 
@@ -972,7 +1175,7 @@ int mini_ips_run_tp(mini_ips_ctx_t *ctx) {
         client_fd = -1;
         upstream_fd = -1;
         session = NULL;
-
+        // 새로운 연결 수립 
         rc = tproxy_accept_client(ctx->tp, &peer_addr, &orig_dst, &client_fd);
         if (-2 == rc) {
             continue;
@@ -983,24 +1186,29 @@ int mini_ips_run_tp(mini_ips_ctx_t *ctx) {
         }
 
         pthread_mutex_lock(&ctx->state_lock);
-        session = mini_ips_session_alloc(ctx, client_fd, &orig_dst);
+        // 세션풀 조회하는 동안 락걸어야지
+        session = mini_ips_session_alloc(ctx, client_fd, &peer_addr, &orig_dst);
         if (NULL == session) {
             pthread_mutex_unlock(&ctx->state_lock);
             close(client_fd);
             mini_ips_log_message("tp", "mini_ips_session_alloc returned NULL");
             return -1;
         }
+
         mini_ips_log_debug_flowf(session->session_id, 1,
                                  "accepted client_fd=%d orig_dst=%s:%u",
                                  client_fd, inet_ntoa(orig_dst.sin_addr),
                                  (unsigned)ntohs(orig_dst.sin_port));
-        pthread_mutex_unlock(&ctx->state_lock);
 
-        if (0 != mini_ips_epoll_add(ctx->tp->epoll_fd, client_fd,
-                                    EPOLLIN | EPOLLRDHUP | EPOLLHUP |
-                                        EPOLLERR)) {
+        pthread_mutex_unlock(&ctx->state_lock);
+        // 할당된 시점이라 락 풀고
+        // tp의 epoll에 client_fd를 붙임, 즉 새로운 연결을 붙이는 것
+        // 감시는 4종 세트를 함, 입력가능, 상대방 연결 종료, 연결 끊김, 에러 발생
+        rc = mini_ips_epoll_add(ctx->tp->epoll_fd, client_fd, EPOLLIN | EPOLLRDHUP | EPOLLHUP |
+                                        EPOLLERR);
+        if (0 != rc) {
             pthread_mutex_lock(&ctx->state_lock);
-            mini_ips_session_release(session);
+            mini_ips_session_release(session); //락 걸고 세션 해제함
             pthread_mutex_unlock(&ctx->state_lock);
             close(client_fd);
             mini_ips_log_message("tp", "mini_ips_epoll_add client_fd failed");
@@ -1010,12 +1218,12 @@ int mini_ips_run_tp(mini_ips_ctx_t *ctx) {
         client_open = 1;
         upstream_open = 0;
         waiting_decision = 0;
-
+        // while 블록에서 하는 일 - req_ring  데이터 넣기, res_ring 데이터 보기, epoll 변화체크
         while (!ctx->stop && (client_open || upstream_open || waiting_decision)) {
             int nready;
             int i;
             int res_rc;
-
+            // 링에 들어와있는 데이터를 꺼내는 거임 
             res_rc = mini_ips_handle_res_ring(ctx, session, &client_open,
                                               &upstream_open,
                                               &waiting_decision);
@@ -1037,7 +1245,7 @@ int mini_ips_run_tp(mini_ips_ctx_t *ctx) {
             if (NULL != session) {
                 upstream_fd = session->upstream_fd;
             }
-
+            // epoll_fd 에 등록한 FD 에 이벤트 왔나? 
             nready = epoll_wait(ctx->tp->epoll_fd, events, 8,
                                 MINI_IPS_RES_RING_POLL_MS);
             if (nready < 0) {
@@ -1171,7 +1379,8 @@ int mini_ips_run_tp(mini_ips_ctx_t *ctx) {
                                 /* 26-04-03 추가 내용: EOF 이후 incomplete 요청에
                                  * 대해 클라이언트로 보낸 408 응답만 기록한다. */
                                 mini_ips_log_response_to_client(
-                                    session->session_id, "timeout_408", 112U,
+                                    session->session_id, &session->peer_addr,
+                                    "timeout_408", 112U,
                                     "incomplete request on client close");
                             }
 
@@ -1204,6 +1413,7 @@ int mini_ips_run_tp(mini_ips_ctx_t *ctx) {
                         mini_ips_log_debug_flowf(session->session_id, 2,
                                                  "client recv len=%zd", n);
                     }
+                    mini_ips_log_note_packet();
 
                     if (ctx->ring_enabled &&
                         0 != req_ring_enq(&ctx->req_ring,
@@ -1246,15 +1456,22 @@ int mini_ips_run_tp(mini_ips_ctx_t *ctx) {
                         mini_ips_epoll_del(ctx->tp->epoll_fd, ctx->res_event_fd);
                         return -1;
                     }
-
+                    // 서버 응답이 끝나서 세션 마무리하자
                     if (0 == n) {
                         shutdown(client_fd, SHUT_WR);
                         if (NULL != session) {
+                            session->request_forwarded = 0;
+                            session->decision_queued = 0;
+                            session->upstream_fd = -1;
                             mini_ips_log_debug_flow(session->session_id, 15,
                                                     "upstream closed write side");
                         }
                         upstream_open = 0;
                         mini_ips_epoll_del(ctx->tp->epoll_fd, upstream_fd);
+                        close(upstream_fd);
+                        upstream_fd = -1;
+                        client_open = 0;
+                        mini_ips_epoll_del(ctx->tp->epoll_fd, client_fd);
                         continue;
                     }
 
@@ -1275,11 +1492,14 @@ int mini_ips_run_tp(mini_ips_ctx_t *ctx) {
                         /* 26-04-03 추가 내용: 응답 로그는 upstream에서 받아
                          * 클라이언트로 릴레이한 바이트만 남긴다. */
                         mini_ips_log_response_to_client(
-                            session->session_id, "relay_upstream",
+                            session->session_id, &session->peer_addr,
+                            "relay_upstream",
                             (size_t)n, "upstream response relayed");
                     }
                 }
             }
+
+            mini_ips_log_emit_monitor(mini_ips_current_queue_depth(ctx));
         }
 
         mini_ips_epoll_del(ctx->tp->epoll_fd, client_fd);
@@ -1309,8 +1529,7 @@ int mini_ips_run_worker(mini_ips_ctx_t *ctx) {
     int worked;
 
     if (NULL == ctx || 0 == ctx->initialized || 0 == ctx->ring_enabled) {
-        mini_ips_log_message("worker",
-                             "ctx is null, not initialized, or ring disabled");
+        mini_ips_log_message("worker", "ctx is null, not initialized, or ring disabled");
         return -1;
     }
 
@@ -1335,6 +1554,8 @@ int mini_ips_run_worker(mini_ips_ctx_t *ctx) {
         if (!worked) {
             usleep(1000);
         }
+
+        mini_ips_log_emit_monitor(mini_ips_current_queue_depth(ctx));
     }
 
     return 0;
@@ -1372,4 +1593,5 @@ void mini_ips_destroy(mini_ips_ctx_t *ctx) {
     ctx->stop = 0;
     
     pthread_mutex_destroy(&ctx->state_lock);
+    mini_ips_log_close();
 }

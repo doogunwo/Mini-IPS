@@ -17,8 +17,13 @@ typedef struct blocking_ctx {
     const detect_result_t   *rs;
     block_decision_t        *dc;
     char                    *res_buf;
+    char                    **res_owned;
     size_t                  res_buf_sz;
     size_t                  *rs_len;
+    const char              *template_path;
+    const char              *event_id;
+    const char              *timestamp;
+    const char              *client_ip;
 } blocking_ctx_t;
 
 /*
