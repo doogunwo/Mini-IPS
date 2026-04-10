@@ -43,7 +43,8 @@ typedef struct mini_ips_ctx {
     int stop;
     int ring_enabled;
 
-    int res_event_fd; // res_ring 응답 빨리 하기 위해 event_fd 추가
+    int req_event_fd; // TP thread -> worker thread req_ring wakeup
+    int res_event_fd; // worker thread -> TP thread res_ring wakeup
 
 } mini_ips_ctx_t;
 /**
@@ -63,5 +64,7 @@ int mini_ips_set(mini_ips_ctx_t *ctx);
 int mini_ips_run_tp(mini_ips_ctx_t *ctx);
 
 int mini_ips_run_worker(mini_ips_ctx_t *ctx);
+
+void mini_ips_stop(mini_ips_ctx_t *ctx);
 
 void mini_ips_destroy(mini_ips_ctx_t *ctx);

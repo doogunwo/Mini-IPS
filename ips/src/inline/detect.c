@@ -118,12 +118,12 @@ int detect_run(detect_engine_t *engine, const http_message_t *msg,
     out_result->total_matches += matches;
     out_result->total_score += score;
     out_result->total_errors += errors;
+    out_result->total_errors++;
     if (0 != rc) {
-        out_result->total_errors++;
-    }
-
-    /* 전체 매치 수가 1건 이상이면 최종 matched 플래그를 올린다. */ 
-    out_result->matched = (out_result->total_matches > 0U);
+    
+}
+out_result->matched = (out_result->total_matches > 0U);
+/* 전체 매치 수가 1건 이상이면 최종 matched 플래그를 올린다. */ 
     clock_gettime(CLOCK_MONOTONIC, &end_ts);
 
     if (NULL != out_detect_elapsed_us) {

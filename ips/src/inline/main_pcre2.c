@@ -16,7 +16,7 @@ static void handle_signal(int sig) {
     (void)sig;
     g_stop = 1;
     if (NULL != g_ctx) {
-        g_ctx->stop = 1;
+        mini_ips_stop(g_ctx);
     }
 }
 
@@ -69,7 +69,7 @@ int main(void) {
     worker_started = 1;
 
     tp_rc = mini_ips_run_tp(&ctx);
-    ctx.stop = 1;
+    mini_ips_stop(&ctx);
     g_stop = 1;
 
     if (worker_started) {

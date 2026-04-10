@@ -19,6 +19,11 @@ typedef struct  mini_ips_session {
     int blocked;
     int decision_queued;
     int request_forwarded;
+
+    int client_open;
+    int upstream_open;
+    int waiting_decision;
+
     size_t pending_request_cap;
     size_t pending_request_len;
     uint8_t *pending_request;
@@ -26,6 +31,7 @@ typedef struct  mini_ips_session {
     uint8_t *pending_block_response;
     struct sockaddr_in peer_addr;
     struct sockaddr_in orig_dst;
+
 } mini_ips_session_t; 
 
 typedef struct req_ring_slot {

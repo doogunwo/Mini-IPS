@@ -484,11 +484,12 @@ int engine_match_runtime(const void          *runtime_ptr,
         return 0;
     }
 
-    seen = (uint8_t *)calloc(runtime->table->count, sizeof(*seen));
+    seen = (uint8_t *)malloc(runtime->table->count * sizeof(*seen));
     if (NULL == seen) {
         *out_errors = runtime->compile_errors + 1;
         return -1;
     }
+    memset(seen, 0, runtime->table->count * sizeof(*seen));
 
     matches = 0U;
     score = 0;

@@ -12,6 +12,12 @@
 #define BODY_MODE_FIXED 1
 #define BODY_MODE_CHUNKED 2
 
+/**
+ * @brief http message t 구조체를 파싱 전에 초기 상태로 세팅함
+ * 
+ * @param msg 
+ * @return int 
+ */
 static int http_message_init(http_message_t *msg) {
     if (NULL == msg) {
         return -1;
@@ -51,13 +57,21 @@ static int find_crlf(const uint8_t *data, size_t len, size_t *out_pos) {
     return 0;
 }
 
+/**
+ * @brief HTTP 메시지에서 헤더가 끝나는 위치를 찾는다.
+ * 
+ * @param data 검사할 http 바이트버퍼
+ * @param len 버퍼 길이
+ * @param out_pos 헤더 끝 위치를 담을 출력 포인터
+ * @return int 
+ */
 static int find_header_end(const uint8_t *data, size_t len, size_t *out_pos) {
     size_t i;
 
     if (NULL == data || NULL == out_pos) {
         return -1;
     }
-
+    //\r\n\r\n는 4바이트라서 i+3까지 볼수있는 범위 탐색함
     for (i = 0; i + 3 < len; i++) {
         if ('\r' == data[i] && '\n' == data[i + 1] && '\r' == data[i + 2] &&
             '\n' == data[i + 3]) {
@@ -556,11 +570,12 @@ int http_parser_try(const uint8_t *data, size_t len, http_message_t *out) {
     if (NULL == data || NULL == out) {
         return -1;
     }
-
+    
     rc = http_message_init(&tmp);
     if (rc < 1) {
         return -1;
     }
+
 
     ret = find_header_end(data, len, &header_end_pos);
     if (ret == 0) {

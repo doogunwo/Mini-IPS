@@ -71,6 +71,16 @@ int req_ring_enq(req_ring_t *r, uint32_t session_id,
     return 0;
 }
 
+/**
+ * @brief req_ring에서 deq하는 함수임
+ * 
+ * @param r 
+ * @param out 
+ * @param out_cap 
+ * @param out_len 
+ * @param session_id 
+ * @return int 정상 리턴: 0, 실패 리턴: -1(head==tail | out_cap < slot->len)
+ */
 int req_ring_deq(req_ring_t *r, uint8_t *out, uint32_t out_cap,
                  uint32_t *out_len, uint32_t *session_id) {
     uint32_t   head;
