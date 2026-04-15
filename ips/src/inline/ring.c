@@ -1,9 +1,23 @@
 /* ring_buffer.c */
 
 #include "ring.h"
+#include "logging.h"
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
+
+static void ring_log_failure(const char *scope, const char *reason,
+                             uint32_t head, uint32_t tail,
+                             uint32_t slot_count, uint32_t len,
+                             uint32_t session_id, uint32_t action) {
+    char detail[256];
+
+    snprintf(detail, sizeof(detail),
+             "%s head=%u tail=%u slot_count=%u len=%u session_id=%u action=%u",
+             reason, head, tail, slot_count, len, session_id, action);
+    mini_ips_log_message(scope, detail);
+}
 
 int req_ring_init(req_ring_t *r, uint32_t slot_count) {
     if (NULL == r) {
@@ -158,15 +172,26 @@ int res_ring_enq(res_ring_t *r, uint32_t action, uint32_t session_id,
     res_slot_t *slot;
 
     if (NULL == r) {
+        ring_log_failure("ring", "res_ring_enq invalid ring", 0U, 0U, 0U, len,
+                         session_id, action);
         return -1;
     }
     if (NULL == r->slots || 0 == r->slot_count) {
+        ring_log_failure("ring", "res_ring_enq slots not initialized",
+                         atomic_load(&r->head), atomic_load(&r->tail),
+                         r->slot_count, len, session_id, action);
         return -1;
     }
     if (len > PACKET_MAX_BYTES) {
+        ring_log_failure("ring", "res_ring_enq len exceeds packet max",
+                         atomic_load(&r->head), atomic_load(&r->tail),
+                         r->slot_count, len, session_id, action);
         return -1;
     }
     if (0U < len && NULL == data) {
+        ring_log_failure("ring", "res_ring_enq missing data",
+                         atomic_load(&r->head), atomic_load(&r->tail),
+                         r->slot_count, len, session_id, action);
         return -1;
     }
 
@@ -174,6 +199,8 @@ int res_ring_enq(res_ring_t *r, uint32_t action, uint32_t session_id,
     tail = atomic_load(&r->tail);
 
     if ((tail - head) >= r->slot_count) {
+        ring_log_failure("ring", "res_ring_enq ring full", head, tail,
+                         r->slot_count, len, session_id, action);
         return -1;
     }
 

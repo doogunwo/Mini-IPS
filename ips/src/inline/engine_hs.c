@@ -141,6 +141,18 @@ static void detect_copy_printable_snippet(char *dst, size_t dst_sz,
     dst[copy_len] = '\0';
 }
 
+/**
+ * @brief 지금 매치된 룰이 유효한지 확인하고, 매치 수/점수/첫 매치 정보만 기록하는 함수
+ * 
+ * hs_scan() 돌리는 동안 패턴이 맞으면 이 함수가 계속 호출
+ * 
+ * @param id 
+ * @param from 
+ * @param to 
+ * @param flags 
+ * @param ctx 
+ * @return int 
+ */
 static int hs_on_match(unsigned int id,
                        unsigned long long from,
                        unsigned long long to,
@@ -186,8 +198,7 @@ static int hs_on_match(unsigned int id,
         *scan_ctx->out_score += sig->priority;
     }
 
-    if (NULL != scan_ctx->out_first_match &&
-        0 == scan_ctx->out_first_match->matched) {
+    if (NULL != scan_ctx->out_first_match && 0 == scan_ctx->out_first_match->matched) {
         scan_ctx->out_first_match->matched = 1;
         scan_ctx->out_first_match->context = sig->context;
         (void)snprintf(scan_ctx->out_first_match->pattern,

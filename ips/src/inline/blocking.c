@@ -28,6 +28,62 @@ int blocking_reqeust(const detect_result_t *results, block_decision_t *out);
 #include "blocking.h"
 #include "detect.h"
 
+static int blocking_use_plain_403(void) {
+    const char *mode;
+
+    mode = getenv("MINI_IPS_BLOCK_RESPONSE_MODE");
+    if (NULL == mode || '\0' == mode[0]) {
+        return 0;
+    }
+
+    if (0 == strcmp(mode, "status") || 0 == strcmp(mode, "plain") ||
+        0 == strcmp(mode, "403")) {
+        return 1;
+    }
+
+    return 0;
+}
+
+static int blocking_build_plain_403_response(blocking_ctx_t *ctx) {
+    static const char response[] =
+        "HTTP/1.1 403 Forbidden\r\n"
+        "Content-Type: text/plain; charset=UTF-8\r\n"
+        "Cache-Control: no-store\r\n"
+        "Connection: close\r\n"
+        "Content-Length: 0\r\n"
+        "X-Mini-IPS-Block: 1\r\n"
+        "\r\n";
+    size_t response_len;
+
+    if (NULL == ctx || NULL == ctx->rs_len) {
+        return -1;
+    }
+
+    response_len = sizeof(response) - 1U;
+
+    if (NULL != ctx->res_owned) {
+        char *owned;
+
+        owned = (char *)malloc(response_len + 1U);
+        if (NULL == owned) {
+            return -1;
+        }
+
+        memcpy(owned, response, response_len + 1U);
+        *ctx->res_owned = owned;
+        *ctx->rs_len = response_len;
+        return 1;
+    }
+
+    if (NULL == ctx->res_buf || response_len >= ctx->res_buf_sz) {
+        return -1;
+    }
+
+    memcpy(ctx->res_buf, response, response_len + 1U);
+    *ctx->rs_len = response_len;
+    return 1;
+}
+
 static int blocking_build_response(blocking_ctx_t *ctx) {
     char   *html_body;
     char   *http_resp;
@@ -50,6 +106,10 @@ static int blocking_build_response(blocking_ctx_t *ctx) {
         ctx->res_buf[0] = '\0';
         *ctx->rs_len = 0;
         return 0;
+    }
+
+    if (blocking_use_plain_403()) {
+        return blocking_build_plain_403_response(ctx);
     }
 
     html_body = app_render_block_page(ctx->template_path, ctx->event_id,
