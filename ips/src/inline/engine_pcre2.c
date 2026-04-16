@@ -182,6 +182,14 @@ static void detect_match_info_reset(detect_match_info_t *info) {
     memset(info, 0, sizeof(*info));
 }
 
+/**
+ * @brief 매치된 문자열 사람이 읽기 좋게 형태로 복사하는 함수
+ * 
+ * @param dst 
+ * @param dst_sz 
+ * @param src 
+ * @param len 
+ */
 static void detect_copy_printable_snippet(char *dst, size_t dst_sz,
                                           PCRE2_SPTR src, PCRE2_SIZE len) {
     size_t i;
@@ -279,7 +287,12 @@ int engine_match_runtime(const void          *runtime_ptr,
 
         match_data = pcre2_match_data_create_from_pattern(code, NULL);
         if (NULL == match_data) {
-            errors++;
+            errors++;    
+             
+             
+             
+             
+            
             continue;
         }
 

@@ -331,6 +331,7 @@ static void *detect_runtime_compile(detect_engine_t *engine,
     }
 
     compile_err = NULL;
+    /* 하이퍼스캔 여러 정규식 패턴을 한 번에 컴파일해서 스캔용 데이터베이스를 만드는 코드 */
     rc = hs_compile_multi((const char * const *)patterns,
                           flags,
                           ids,
@@ -363,7 +364,7 @@ static void *detect_runtime_compile(detect_engine_t *engine,
     if (NULL != compile_err) {
         hs_free_compile_error(compile_err);
     }
-
+    /* 하이퍼스캔이 필요한 작업용 메모리 공간을 할당하는 코드*/
     rc = hs_alloc_scratch(runtime->db, &runtime->scratch);
     if (HS_SUCCESS != rc) {
         if (NULL != engine) {
@@ -514,6 +515,8 @@ int engine_match_runtime(const void          *runtime_ptr,
     scan_ctx.seen = seen;
 
     memset(&sig, 0, sizeof(sig));
+    /* HTTP 각 영역 메시지를 하나씩 꺼내서 같은 하이퍼스캔 DB로 순서대로 스캔하기 */
+    /* 1= URI, 2=Headers, 3=Request Body 4=Response Body*/
     for (context = 1; context <= 4; context++) {
         sig.context = context;
         subject = NULL;

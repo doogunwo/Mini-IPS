@@ -4,11 +4,13 @@ import socket
 import struct
 import threading
 import time
+from pathlib import Path
 
 blocked_ips = set()
 blocked_ip_ports = set()
 conn_map = {}
 state_lock = threading.Lock()
+LOGO_PATH = Path(__file__).resolve().parent.parent / "ips" / "image" / "image.png"
 
 
 def _tcp_info(sock: socket.socket):
@@ -66,11 +68,35 @@ def parse_requests(buffer: bytes):
     return requests, buffer
 
 
+def extract_request_path(req: bytes) -> str:
+    try:
+        first_line = req.split(b"\r\n", 1)[0]
+        parts = first_line.split(b" ")
+        if len(parts) < 2:
+            return "/"
+        return parts[1].decode("utf-8", errors="replace")
+    except Exception:
+        return "/"
+
+
+def build_logo_response() -> bytes:
+    body = LOGO_PATH.read_bytes()
+    headers = (
+        b"HTTP/1.1 200 OK\r\n"
+        b"Content-Type: image/png\r\n"
+        b"Cache-Control: public, max-age=3600\r\n"
+        b"Connection: close\r\n"
+        + f"Content-Length: {len(body)}\r\n\r\n".encode("ascii")
+    )
+    return headers + body
+
+
 def handle_client(conn: socket.socket, addr, args):
     conn.settimeout(1.0)
     buffer = b""
     app_rx_bytes = 0
     app_tx_bytes = 0
+    close_after_response = False
     peer = f"{addr[0]}:{addr[1]}"
     if args.verbose:
         print(f"[+] connected {peer}")
@@ -94,9 +120,10 @@ def handle_client(conn: socket.socket, addr, args):
             buffer += data
             reqs, buffer = parse_requests(buffer)
             for req in reqs:
+                path = extract_request_path(req)
                 ts = time.strftime("%Y-%m-%d %H:%M:%S")
                 if args.verbose:
-                    print(f"[{ts}] {peer} {len(req)} bytes")
+                    print(f"[{ts}] {peer} {len(req)} bytes path={path}")
                 app_rx_bytes += len(req)
                 if args.save:
                     with open(args.save, "ab") as f:
@@ -106,13 +133,21 @@ def handle_client(conn: socket.socket, addr, args):
                     try:
                         if args.latency_ms > 0:
                             time.sleep(args.latency_ms / 1000.0)
-                        resp = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: keep-alive\r\n\r\nOK"
+                        if path == "/mini-ips-logo.png":
+                            resp = build_logo_response()
+                        else:
+                            resp = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nOK"
                         conn.sendall(resp)
                         app_tx_bytes += len(resp)
+                        close_after_response = True
                     except Exception:
                         pass
                 if args.verbose:
                     _log_tcp(peer, conn, app_tx_bytes, app_rx_bytes)
+                if close_after_response:
+                    break
+            if close_after_response:
+                break
     finally:
         if args.verbose:
             print(f"[-] disconnected {peer}")
